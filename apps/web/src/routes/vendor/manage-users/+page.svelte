@@ -6,37 +6,16 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Badge } from '$lib/components/ui/badge';
 	import { authClient } from '$lib/auth-client';
+	import InviteUserButton from '$lib/components/InviteUserButton.svelte';
 	const roles = {
 		OWNER: 'Owner',
 		MANAGER: 'Manager',
 		STAFF: 'Staff'
 	};
 
-	const users = [
-		{
-			id: 1,
-			name: 'John Doe',
-			email: 'john@example.com',
-			role: roles.OWNER,
-			status: 'active'
-		},
-		{
-			id: 2,
-			name: 'Jane Smith',
-			email: 'jane@example.com',
-			role: roles.MANAGER,
-			status: 'active'
-		},
-		{
-			id: 3,
-			name: 'Mike Johnson',
-			email: 'mike@example.com',
-			role: roles.STAFF,
-			status: 'invited'
-		}
-	];
-
 	let searchQuery = $state('');
+	let { data } = $props();
+	const users = $derived(data?.shopInfo?.data?.members);
 
 	function inviteUser() {
 		// Implement invite user functionality
@@ -55,22 +34,18 @@
 
 	let filteredUsers = $derived(
 		users.filter(
-			(user) =>
+			({ user }) =>
 				user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
 				user.email.toLowerCase().includes(searchQuery.toLowerCase())
 		)
 	);
-	let member = authClient.useActiveMember();
-	console.log('🚀 ~ member:', $member);
 </script>
 
 <div class="container mx-auto space-y-6 p-4">
 	<div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 		<h1 class="text-3xl font-bold">Manage Users</h1>
-		<Button onclick={inviteUser}>
-			<UserPlus class="mr-2 h-4 w-4" />
-			Invite User
-		</Button>
+
+		<InviteUserButton />
 	</div>
 
 	<Card.Root>
@@ -96,7 +71,7 @@
 						<div class="col-span-2">Actions</div>
 					</div>
 
-					{#each filteredUsers as user}
+					{#each filteredUsers as { user, role }}
 						<div class="grid grid-cols-12 gap-4 border-b p-4 last:border-0">
 							<div class="col-span-5">
 								<div class="flex flex-col">
@@ -106,26 +81,23 @@
 							</div>
 							<div class="col-span-3">
 								<Badge
-									variant={user.role === roles.OWNER
+									variant={role === roles.OWNER
 										? 'default'
-										: user.role === roles.MANAGER
+										: role === roles.MANAGER
 											? 'secondary'
 											: 'outline'}
 								>
-									{user.role}
+									{role}
 								</Badge>
 							</div>
 							<div class="col-span-2">
-								<Badge
-									variant={user.status === 'active' ? 'success' : 'warning'}
-									class="capitalize"
-								>
-									{user.status}
-								</Badge>
+								<!-- <Badge variant={status === 'active' ? 'success' : 'warning'} class="capitalize">
+									{status}
+								</Badge> -->
 							</div>
 							<div class="col-span-2">
 								<DropdownMenu.Root>
-									<DropdownMenu.Trigger asChild>
+									<DropdownMenu.Trigger>
 										<Button variant="ghost" size="sm">
 											Actions
 											<Shield class="ml-2 h-4 w-4" />
@@ -136,7 +108,7 @@
 											<DropdownMenu.Label>Change Role</DropdownMenu.Label>
 											{#each Object.values(roles) as role}
 												{#if role !== roles.OWNER && role !== user.role}
-													<DropdownMenu.Item on:click={() => updateUserRole(user.id, role)}>
+													<DropdownMenu.Item onclick={() => updateUserRole(user.id, role)}>
 														Make {role}
 													</DropdownMenu.Item>
 												{/if}
@@ -144,7 +116,7 @@
 											<DropdownMenu.Separator />
 											<DropdownMenu.Item
 												class="text-destructive"
-												on:click={() => removeUser(user.id)}
+												onclick={() => removeUser(user.id)}
 											>
 												Remove User
 											</DropdownMenu.Item>

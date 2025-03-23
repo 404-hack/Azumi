@@ -8,8 +8,9 @@
 	import FoodPacks from './components/food-packs.svelte';
 	import { slide } from 'svelte/transition';
 	import { queryParam, ssp } from 'sveltekit-search-params';
+	import AddOptionModal from '$lib/components/modal/AddOptionModal.svelte';
 	let { data } = $props();
-	console.log('🚀 ~ data:', data);
+	let menuData = $derived(data.menuCategoryWithItems);
 	let showSearch = $state(false);
 	let tabValue = queryParam('tabValue', {
 		defaultValue: 'meals'
@@ -18,11 +19,13 @@
 	function toggleSearch() {
 		showSearch = !showSearch;
 	}
-	const formattedOptions = data.options.map((option) => ({
-		...option,
-		createdAt: option.createdAt ? new Date(option.createdAt) : null,
-		updatedAt: option.updatedAt ? new Date(option.updatedAt) : null
-	}));
+	const formattedOptions = $derived.by(() =>
+		data.options.map((option) => ({
+			...option,
+			createdAt: option.createdAt ? new Date(option.createdAt) : null,
+			updatedAt: option.updatedAt ? new Date(option.updatedAt) : null
+		}))
+	);
 </script>
 
 <div class="my-5 flex items-center justify-between gap-4">
@@ -55,13 +58,12 @@
 	</Tabs.List>
 
 	<Tabs.Content value="meals">
-		<Meals menuCategoryWithItems={data.menuCategoryWithItems} />
+		<Meals menuCategoryWithItems={menuData} />
 	</Tabs.Content>
 	<Tabs.Content value="option-items">
 		<OptionItems options={formattedOptions} />
 	</Tabs.Content>
 	<Tabs.Content value="option-groups">
-		love
 		<OptionGroup optionGroups={data.optionGroups} />
 	</Tabs.Content>
 	<Tabs.Content value="food-packs">

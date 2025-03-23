@@ -49,7 +49,6 @@
 	<Tabs.Root value="new" class="space-y-6">
 		<Tabs.List class="w-full">
 			<Tabs.Trigger value="new">New Orders</Tabs.Trigger>
-			<Tabs.Trigger value="preparing">Preparing</Tabs.Trigger>
 			<Tabs.Trigger value="ready">Ready</Tabs.Trigger>
 			<Tabs.Trigger value="completed">Completed</Tabs.Trigger>
 			<Tabs.Trigger value="cancelled">Cancelled</Tabs.Trigger>

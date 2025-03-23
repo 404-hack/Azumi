@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
-	import { Search, MapPin } from 'lucide-svelte';
+	import { Search, MapPin, Loader2, Navigation } from 'lucide-svelte';
 	import RestaurantList from '$lib/components/RestaurantList.svelte';
+	import { onMount } from 'svelte';
+	import { client } from '$lib/hc';
+	import type { TShop } from '@repo/server/types';
 
 	const categories = [
 		{ name: 'All', icon: '🌟' },
@@ -17,7 +20,82 @@
 	let searchTerm = $state('');
 	let selectedCategory = $state('All');
 	let location = $state('Enter your delivery address');
+
+	// New location-related states
+	let userCoordinates = $state<{ lat: number; lng: number } | null>(null);
+	let isLocating = $state(false);
+	let locationError = $state<string | null>(null);
+	let shops = $state<TShop[]>([]);
+	let isLoading = $state(false);
+	let userLocation = $state<{ latitude: number; longitude: number } | null>(null); // New state for user location
+
+	async function detectLocation() {
+		if (!navigator.geolocation) {
+			locationError = 'Geolocation is not supported by your browser';
+			return;
+		}
+
+		isLocating = true;
+		locationError = null;
+
+		try {
+			const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+				navigator.geolocation.getCurrentPosition(resolve, reject, {
+					enableHighAccuracy: true,
+					timeout: 5000,
+					maximumAge: 0
+				});
+			});
+
+			const { latitude: lat, longitude: lng } = position.coords;
+			userCoordinates = { lat, lng };
+
+			// Store for future use
+			localStorage.setItem('userLat', lat.toString());
+			localStorage.setItem('userLng', lng.toString());
+
+			// Update displayed location (you could use a reverse geocoding API here)
+			location = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+			// Fetch nearby shops
+			await fetchNearbyShops();
+		} catch (error: any) {
+			console.error('Error getting location', error);
+			locationError = error.message || 'Unable to get your location';
+		} finally {
+			isLocating = false;
+		}
+	}
+
+	// Fetch nearby shops using coordinates
+
+	// Load saved location on mount
+	let { data } = $props();
 </script>
+
+<!-- Updated location input with button -->
+<div class="relative flex-1">
+	<MapPin class="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+	<Input
+		type="text"
+		placeholder="Enter your delivery address"
+		class="pl-10"
+		bind:value={location}
+	/>
+	<Button
+		variant="ghost"
+		size="icon"
+		class="absolute right-1 top-1"
+		onclick={detectLocation}
+		disabled={isLocating}
+	>
+		{#if isLocating}
+			<Loader2 class="h-4 w-4 animate-spin" />
+		{:else}
+			<Navigation class="h-4 w-4" />
+		{/if}
+	</Button>
+</div>
 
 <div class="min-h-screen bg-background">
 	<!-- Hero Section -->
@@ -84,7 +162,7 @@
 		</div>
 
 		<!-- Restaurant List -->
-		<RestaurantList {searchTerm} category={selectedCategory} />
+		<RestaurantList {searchTerm} restaurants={data.restaurants} category={selectedCategory} />
 	</div>
 </div>
 

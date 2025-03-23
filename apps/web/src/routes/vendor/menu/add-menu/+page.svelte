@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowLeft, Camera, HelpCircle, Upload } from 'lucide-svelte';
+	import { ArrowLeft, Camera, HelpCircle, Loader2, Upload } from 'lucide-svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -22,7 +22,7 @@
 	import AddPackModal from '$lib/components/modal/AddPackModal.svelte';
 	import AddOptionGroupModal from '$lib/components/modal/AddOptionGroupModal.svelte';
 	import { client } from '$lib/hc';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 
 	let imagePreview: string | null = $state(null);
@@ -63,36 +63,15 @@
 		SPA: true,
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
-				// const formData = new FormData();
-
-				// // Add all form fields to FormData
-				// for (const key in form.data) {
-				// 	// Skip the image field as we'll handle it separately
-				// 	if (key !== 'image' && key in form.data) {
-				// 		// Type assertion to ensure TypeScript knows this is a valid key
-				// 		const typedKey = key as keyof typeof form.data;
-				// 		formData.append(key, String(form.data[typedKey]));
-				// 	}
-				// }
-
-				// // Add the image file if it exists
-				// if (form.data.image instanceof File) {
-				// 	formData.append('image', form.data.image);
-				// }
-
 				try {
-					// const response = await fetch(`${PUBLIC_API_BASE_URL}/menu/create`, {
-					// 	method: 'POST',
-					// 	body: JSON.stringify(form.data),
-					// 	credentials: 'include'
-					// });
-					const res = await client.menu.create.$post({
+					const res = await client.vendor.menu.create.$post({
 						json: {
 							...form.data
 						}
 					});
 					if (res.ok) {
 						const data = await res.json();
+						await invalidateAll();
 						goto('/vendor/menu/');
 					}
 				} catch (error) {
@@ -107,7 +86,6 @@
 <AddCategoryModal />
 <AddPackModal />
 <AddOptionGroupModal />
-<SuperDebug data={$formData} />
 
 <div class="min-h-screen bg-gray-50">
 	<div class="sticky top-0 z-10 border-b bg-white shadow-sm">
@@ -305,7 +283,7 @@
 			</Card.Root> -->
 
 			<!-- Additional Options -->
-			<!-- <Card.Root>
+			<Card.Root>
 				<Card.Header>
 					<Card.Title>Additional Options</Card.Title>
 					<Card.Description>Configure additional settings for this menu item</Card.Description>
@@ -320,12 +298,10 @@
 								<Switch {...props} bind:checked={$formData.inStock} />
 							{/snippet}
 						</Form.Control>
-
-						
 					</Form.Field>
 
 					<div class="grid gap-6 sm:grid-cols-2">
-						<Form.Field {form} name="packId">
+						<!-- <Form.Field {form} name="packId">
 							<Form.Control>
 								{#snippet children({ props })}
 									<Form.Label>Pack Options <Badge variant="outline">Optional</Badge></Form.Label>
@@ -349,19 +325,32 @@
 								{/snippet}
 							</Form.Control>
 							<Form.FieldErrors />
-						</Form.Field>
+						</Form.Field> -->
 
 						<Form.Field {form} name="optionGroupId">
 							<Form.Control>
 								{#snippet children({ props })}
 									<Form.Label>Option Group <Badge variant="outline">Optional</Badge></Form.Label>
 									<div class="space-y-2">
-										<Select.Root bind:value={$formData.optionGroupId}>
-											<Select.Trigger class="h-12">Select Group</Select.Trigger>
+										<Select.Root type="multiple" bind:value={$formData.optionGroupId}>
+											<Select.Trigger class="h-12">
+												{#if $formData.optionGroupId && $formData.optionGroupId.length > 0}
+													<div class="flex flex-wrap gap-1">
+														{#each $formData.optionGroupId as groupId}
+															<Badge variant="secondary" class="mr-1">
+																{data.optionGroups.find((group) => group.id === groupId)?.name ||
+																	'Unknown'}
+															</Badge>
+														{/each}
+													</div>
+												{:else}
+													Select Group
+												{/if}
+											</Select.Trigger>
 											<Select.Content>
-												<Select.Item value="breakfast">Breakfast</Select.Item>
-												<Select.Item value="lunch">Lunch</Select.Item>
-												<Select.Item value="dinner">Dinner</Select.Item>
+												{#each data.optionGroups as { name, id }}
+													<Select.Item value={id}>{name}</Select.Item>
+												{/each}
 											</Select.Content>
 										</Select.Root>
 										<div class="flex gap-2">
@@ -389,12 +378,16 @@
 						</Form.Field>
 					</div>
 				</Card.Content>
-			</Card.Root> 
-		-->
+			</Card.Root>
 
 			<div class="flex justify-end gap-4">
 				<!-- <Button variant="outline" size="lg">Save as Draft</Button> -->
-				<Form.Button size="lg" class="min-w-[150px]">Publish Item</Form.Button>
+				<Form.Button size="lg" class="min-w-[150px]">
+					{#if $delayed}
+						<Loader2 class="mr-2 animate-spin" />
+					{/if}
+					Publish Item
+				</Form.Button>
 			</div>
 		</div>
 	</form>

@@ -11,7 +11,7 @@
 	import { createOptionSchema } from '@repo/server/validations';
 	import { zod } from 'sveltekit-superforms/adapters';
 	import { client } from '$lib/hc';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 
 	export let data;
 
@@ -19,15 +19,17 @@
 		validators: zod(createOptionSchema),
 		SPA: true,
 		onUpdate: async ({ form }) => {
+			console.log('🚀 ~ onUpdate: ~ form:', form);
 			if (form.valid) {
-				const res = await client.option.create.$post({
+				const res = await client.vendor.option.create.$post({
 					json: {
 						...form.data
 					}
 				});
 				if (res.ok) {
 					const data = await res.json();
-					goto('/vendor/menu?tabValue=option-items');
+					await invalidateAll();
+					await goto('/vendor/menu?tabValue=option-items');
 				}
 			}
 		}
@@ -44,7 +46,7 @@
 		<p class="text-muted-foreground">Create a new option that can be added to option groups</p>
 	</div>
 
-	<form method="POST" use:enhance class="space-y-8">
+	<form use:enhance class="space-y-8">
 		<Card.Root>
 			<Card.Header>
 				<Card.Title>Option Details</Card.Title>

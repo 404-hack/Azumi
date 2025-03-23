@@ -8,6 +8,8 @@
 	import QuickLinks from '$lib/components/vendor/QuickLinks.svelte';
 
 	let profileCompletion = $state(65);
+	let { data } = $props();
+	$inspect(data);
 </script>
 
 <div class="space-y-6">
@@ -18,6 +20,7 @@
 					<img src="/placeholder.svg" alt="Vendor Logo" class="h-full w-full object-cover" />
 				</div>
 			</div>
+
 			<div class="absolute right-4 top-4">
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
@@ -48,8 +51,8 @@
 		<Card.Content class="pb-6 pt-16">
 			<div class="mb-4 flex items-end justify-between">
 				<div>
-					<h2 class="text-2xl font-bold">Tasty Bites Restaurant</h2>
-					<p class="text-sm text-muted-foreground">123 Foodie Street, Flavor Town, FT 12345</p>
+					<h2 class="text-2xl font-bold">{data.profile.name}</h2>
+					<p class="text-sm text-muted-foreground">{data.profile.description}</p>
 				</div>
 				<Button variant="outline" size="sm" class="flex items-center" href="/vendor/profile/edit">
 					<Edit2 class="mr-2 h-4 w-4" />
@@ -59,9 +62,9 @@
 			<div class="mt-6">
 				<div class="mb-2 flex items-center justify-between">
 					<h3 class="text-sm font-medium">Profile Completion</h3>
-					<span class="text-sm font-medium text-primary">{profileCompletion}%</span>
+					<span class="text-sm font-medium text-primary">{data.profile.profileCompletion}%</span>
 				</div>
-				<Progress value={profileCompletion} class="h-2" />
+				<Progress value={data.profile.profileCompletion} class="h-2" />
 			</div>
 		</Card.Content>
 	</Card.Root>
@@ -70,7 +73,7 @@
 		<Card.Root>
 			<Card.Content class="p-6">
 				<h3 class="mb-4 text-xl font-semibold">To-Do Before Going Live</h3>
-				<TodoList />
+				<TodoList todos={data.profile.todo} />
 			</Card.Content>
 		</Card.Root>
 

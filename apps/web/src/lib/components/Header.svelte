@@ -3,81 +3,98 @@
 	import { Input } from '$lib/components/ui/input';
 	import {
 		loginModalState,
-		orderSheetStore,
+		cartsSheetStore,
 		registerModalState
 	} from '$lib/states/modalState.svelte';
 	import CartSheet from './modal/CartSheet.svelte';
-	import OrderSheet from './modal/OrderSheet.svelte';
-	import { MapPin, Search, ShoppingBag, ChevronDown } from 'lucide-svelte';
+	import CartsSheet from './modal/CartsSheet.svelte';
+	import { MapPin, Search, ShoppingBag, ChevronDown, Menu, ShoppingCart } from 'lucide-svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Avatar, AvatarFallback, AvatarImage } from '$lib/components/ui/avatar';
 	import LoginModal from './modal/LoginModal.svelte';
 	import RegisterModal from './modal/RegisterModal.svelte';
-	import { onMount } from 'svelte';
-	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 	import { page } from '$app/state';
 	import { authClient } from '$lib/auth-client';
 	import { invalidateAll } from '$app/navigation';
+	import { Badge } from '$lib/components/ui/badge';
+
 	let location = 'Nairobi, Kenya';
 	let searchQuery = '';
+	let isMobileMenuOpen = $state(false);
 
 	let user = $derived(page.data.user);
+	console.log('🚀 ~ page.data.carts.length:', page.data.carts);
 </script>
 
 <header
-	class=" top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+	class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur transition-all duration-200 supports-[backdrop-filter]:bg-background/60"
 >
-	<div class="container grid h-16 w-full grid-cols-3 gap-3">
-		<div class="flex items-center gap-6">
-			<a href="/" class="hidden items-center space-x-2 md:flex">
+	<div class="container flex h-16 w-full items-center justify-between gap-4">
+		<!-- Logo and Location -->
+		<div class="flex items-center gap-4">
+			<a href="/" class="flex items-center space-x-2">
 				<span class="text-xl font-bold text-primary">AMO</span>
 			</a>
 
 			<button
-				class="hidden items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary md:flex"
+				class="group hidden items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary md:flex"
+				aria-label="Change location"
 			>
 				<MapPin class="h-4 w-4" />
 				<span>{location}</span>
-				<ChevronDown class="h-4 w-4" />
+				<ChevronDown class="h-4 w-4 transition-transform group-hover:rotate-180" />
 			</button>
 		</div>
 
-		<div class="flex flex-1 items-center justify-end space-x-4 md:justify-between">
-			<div class="hidden w-full max-w-xl md:flex">
-				<div class="relative w-full">
-					<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						type="search"
-						placeholder="Search restaurants or dishes..."
-						class="w-full pl-10 pr-4"
-						bind:value={searchQuery}
-					/>
-				</div>
+		<!-- Search -->
+		<div class="hidden max-w-xl flex-1 px-4 md:flex">
+			<div class="relative w-full">
+				<Search
+					class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+				/>
+				<Input
+					type="search"
+					placeholder="Search restaurants or dishes..."
+					class="w-full pl-10 pr-4 transition-all focus-visible:ring-2 focus-visible:ring-primary"
+					bind:value={searchQuery}
+					aria-label="Search"
+				/>
 			</div>
 		</div>
-		<!-- <form
-			class="flex h-fit w-full items-center justify-between rounded-3xl bg-muted px-3.5 focus-within:ring-2 focus-within:ring-primary"
-		>
-			<input
-				type="search"
-				bind:value={searchQuery}
-				placeholder="Search menu..."
-				class="h-11 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-				name=""
-				id=""
-			/>
-			<Search class="text-muted-foreground" />
-		</form> -->
-		<div>
+
+		<!-- User Navigation -->
+		<div class="flex items-center gap-3">
+			<!-- Order Sheet Button -->
+			{#if page.data.carts && page.data.carts.length}
+				<CartsSheet />
+				<Button
+					variant="outline"
+					size="icon"
+					class="relative hidden items-center gap-2 md:flex"
+					onclick={() => cartsSheetStore.setTrue()}
+				>
+					<ShoppingCart class="h-5 w-5" />
+					<Badge
+						class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full"
+					>
+						{page.data.carts.length}
+					</Badge>
+				</Button>
+			{/if}
+
 			{#if user}
-				<nav class="flex items-center justify-end gap-4">
+				<nav class="flex items-center gap-3">
 					<CartSheet />
 
 					<DropdownMenu.Root>
 						<DropdownMenu.Trigger>
-							<Button variant="ghost" class="relative h-8 w-8 rounded-full">
-								<Avatar class="h-8 w-8">
-									<AvatarImage src={user.image} alt="User profile" />
+							<Button
+								variant="ghost"
+								class="relative h-9 w-9 rounded-full p-0 hover:bg-muted/80"
+								aria-label="User menu"
+							>
+								<Avatar class="h-9 w-9">
+									<AvatarImage src={user.image} alt={user.name || 'User'} />
 									<AvatarFallback>
 										{user?.name
 											?.split(' ')
@@ -110,29 +127,75 @@
 										authClient.signOut();
 										await invalidateAll();
 									}}
-									class="flex w-full">Sign out</button
+									class="flex w-full"
 								>
+									Sign out
+								</button>
 							</DropdownMenu.Item>
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
 				</nav>
 			{:else}
-				<div class="hidden items-center justify-end gap-2 md:flex">
-					<Button onclick={() => loginModalState.setTrue()} variant="ghost">Login</Button>
-					<Button onclick={() => registerModalState.setTrue()}>Register</Button>
+				<div class="hidden items-center gap-2 md:flex">
+					<Button onclick={() => loginModalState.setTrue()} variant="ghost" size="sm">Login</Button>
+					<Button onclick={() => registerModalState.setTrue()} variant="default" size="sm"
+						>Register</Button
+					>
 				</div>
 			{/if}
-		</div>
 
-		<!-- <button
-			onclick={() => {
-				mobileAuthState.setTrue();
-			}}
-			class="flex size-10 items-center justify-center rounded-full hover:bg-secondary md:hidden"
-		>
-			<Menu class="size-6 " />
-		</button> -->
+			<!-- Mobile Menu Button -->
+			<Button
+				variant="ghost"
+				size="icon"
+				class="md:hidden"
+				onclick={() => (isMobileMenuOpen = !isMobileMenuOpen)}
+				aria-label="Menu"
+			>
+				<Menu class="h-5 w-5" />
+			</Button>
+		</div>
 	</div>
+
+	<!-- Mobile Search and Navigation -->
+	{#if isMobileMenuOpen}
+		<div class="border-t p-4 duration-300 animate-in slide-in-from-top md:hidden">
+			<div class="relative mb-4">
+				<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+				<Input
+					type="search"
+					placeholder="Search..."
+					class="w-full pl-10"
+					bind:value={searchQuery}
+				/>
+			</div>
+
+			<div class="flex flex-col gap-2">
+				{#if page.data.carts && page.data.carts.length}
+					<Button variant="outline" onclick={() => cartsSheetStore.setTrue()} class="justify-start">
+						<ShoppingBag class="mr-2 h-4 w-4" />
+						Orders
+					</Button>
+				{/if}
+
+				{#if !user}
+					<Button onclick={() => loginModalState.setTrue()} variant="ghost" class="justify-start"
+						>Login</Button
+					>
+					<Button
+						onclick={() => registerModalState.setTrue()}
+						variant="default"
+						class="justify-start">Register</Button
+					>
+				{/if}
+
+				<Button variant="ghost" class="justify-start">
+					<MapPin class="mr-2 h-4 w-4" />
+					{location}
+				</Button>
+			</div>
+		</div>
+	{/if}
 </header>
 
 <LoginModal />

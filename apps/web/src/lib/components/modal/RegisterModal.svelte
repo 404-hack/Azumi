@@ -6,10 +6,16 @@
 	import { zod } from 'sveltekit-superforms/adapters';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { registerSchema } from '$lib/formSchema';
-	import { registerModalState } from '$lib/states/modalState.svelte';
+	import { loginModalState, registerModalState } from '$lib/states/modalState.svelte';
 	import ResponsiveDialog from '../ResponsiveDialog.svelte';
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 	import { authClient } from '$lib/auth-client';
+
+	type Props = {
+		title?: string;
+	};
+	let { title }: Props = $props();
+
 	const form = superForm(defaults(zod(registerSchema)), {
 		validators: zod(registerSchema),
 		SPA: true,
@@ -17,20 +23,19 @@
 			if (form.valid) {
 				const { confirmPassword, email, firstName, lastName, password } = form.data;
 				// try {
-				// 	await fetch(`${PUBLIC_API_BASE_URL}/auth/register`, {
-				// 		method: 'POST',
-				// 		body: JSON.stringify({ confirmPassword, email, firstName, lastName, password }),
-				// 		headers: {
-				// 			'Content-Type': 'application/json'
-				// 		}
-				// 	});
-				// } catch {}
-				await fetch(`${PUBLIC_API_BASE_URL}/user/login`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json'
-					}
+				
+				await authClient.signUp.email({
+					email,
+					password,
+					name: `${firstName} ${lastName}`
 				});
+				// } catch {}
+				// await fetch(`${PUBLIC_API_BASE_URL}/user/login`, {
+				// 	method: 'POST',
+				// 	headers: {
+				// 		'Content-Type': 'application/json'
+				// 	}
+				// });
 			}
 		}
 	});
@@ -40,15 +45,15 @@
 
 <ResponsiveDialog
 	bind:open={registerModalState.value}
-	title="Create an account"
-	description="Enter your email and password to log in. Click login when you're ready."
+	title={title || 'Create an account'}
+	description="Please fill in the form below to create an account."
 >
 	<form method="POST" use:enhance>
 		<div class="grid grid-cols-2 items-center gap-4">
 			<Form.Field {form} name="firstName">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label>first Name</Form.Label>
+						<Form.Label>First Name</Form.Label>
 						<Input {...props} bind:value={$formData.firstName} />
 					{/snippet}
 				</Form.Control>
@@ -57,7 +62,7 @@
 			<Form.Field {form} name="lastName">
 				<Form.Control>
 					{#snippet children({ props })}
-						<Form.Label>last name</Form.Label>
+						<Form.Label>Last Name</Form.Label>
 						<Input {...props} bind:value={$formData.lastName} />
 					{/snippet}
 				</Form.Control>
@@ -72,7 +77,6 @@
 					<Input {...props} bind:value={$formData.email} />
 				{/snippet}
 			</Form.Control>
-			<Form.Description>This is your email address</Form.Description>
 			<Form.FieldErrors />
 		</Form.Field>
 		<Form.Field {form} name="password">
@@ -82,7 +86,6 @@
 					<Input {...props} type="password" bind:value={$formData.password} />
 				{/snippet}
 			</Form.Control>
-			<Form.Description>Add your password</Form.Description>
 			<Form.FieldErrors />
 		</Form.Field>
 		<Form.Field {form} name="confirmPassword">
@@ -92,10 +95,19 @@
 					<Input {...props} type="password" bind:value={$formData.confirmPassword} />
 				{/snippet}
 			</Form.Control>
-			<Form.Description>confirm your password</Form.Description>
 			<Form.FieldErrors />
 		</Form.Field>
 
+		<p class="text-sm text-muted-foreground">
+			Already have an account? <button
+				class="inline-block cursor-pointer text-primary hover:text-primary/80"
+				onclick={() => {
+					registerModalState.setFalse();
+					loginModalState.setTrue(); // Un-commented line to open the login modal
+				}}>Log in below</button
+			> .
+		</p>
+		<!-- Added line for clarity -->
 		<Form.Button disabled={$delayed} class="mt-2 w-full">
 			{#if $delayed}
 				<Loader2 class="h-6 w-6 animate-spin " />

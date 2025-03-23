@@ -6,143 +6,494 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { buttonVariants } from '$lib/components/ui/button/index.js';
 	import ResponsiveDialog from '../ResponsiveDialog.svelte';
-	import { productModalState } from '$lib/states/modalState.svelte';
+	import {
+		productModalState,
+		type MenuItemOptionGroup,
+		type OptionGroup
+	} from '$lib/states/modalState.svelte';
 	import { Minus, Plus, Star } from 'lucide-svelte';
 	import Button from '../ui/button/button.svelte';
 	import { blur } from 'svelte/transition';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group';
+	import { Alert, AlertDescription } from '$lib/components/ui/alert';
+	import { AlertCircle } from 'lucide-svelte';
+	import { ScrollArea } from '$lib/components/ui/scroll-area';
+	import Badge from '../ui/badge/badge.svelte';
+	import { formatCurrency } from '$lib/utils';
+	import { client } from '$lib/hc';
+	import { toast } from 'svelte-sonner';
+	import { invalidateAll } from '$app/navigation';
 
 	const isDesktop = new MediaQuery('(min-width: 768px)');
 	let quantity = $state(1);
-	let selectedVariants = $state<Record<string, { selected: boolean; quantity: number }>>({});
-	import { ScrollArea } from '$lib/components/ui/scroll-area';
-	import type { Snippet } from 'svelte';
-	import Badge from '../ui/badge/badge.svelte';
+	let isLoading = $state(false);
 
-	type Props = {
-		open?: boolean;
-		title: string;
-		description?: string;
-	};
-	let { open = $bindable(), title, description }: Props = $props();
-	let activeSnapPoint = $state(148);
+	// For option groups and option selection
+	let selectedOptions = $state<Record<string, { id: string; quantity: number }[]>>({});
 
-	const additionalItems = [
-		{ id: '1', name: 'Wasabi', price: 0.5 },
-		{ id: '2', name: 'Soy Sauce', price: 0.5 },
-		{ id: '3', name: 'Ginger', price: 0.5 },
-		{ id: '4', name: 'Extra Chopsticks', price: 0.25 }
-	];
+	// Get product data from the modal state
+	const product = $derived(productModalState.productData);
 
-	const basePrice = 16.99;
+	// Use the product price or default to a fallback price
+	let basePrice = $derived(product?.price ?? 16.99);
+	let productName = $derived(product?.name ?? 'Product');
+	let productDescription = $derived(product?.description ?? 'No description available');
+	let productImage = $derived(
+		product?.image ??
+			'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg'
+	);
+	let optionGroups = $derived(product?.menuItemOptionGroups ?? []);
 
-	let getTotalPrice = $derived.by(() => {
+	// Track validation state for option groups
+	let optionGroupErrors = $state<Record<string, string>>({});
+
+	// Helper function to check if an option group is required
+	function isRequired(group: MenuItemOptionGroup): boolean {
+		return group.optionGroup.minSelections > 0;
+	}
+
+	// Add this helper function near the top of the script section
+	function isMultipleSelect(optionGroup: OptionGroup): boolean {
+		return optionGroup.maxSelections === null || optionGroup.maxSelections > 1;
+	}
+
+	// Add helper function to get total quantity in an option group
+	function getTotalGroupQuantity(groupId: string): number {
+		if (!selectedOptions[groupId]) return 0;
+		return selectedOptions[groupId].reduce((total, selection) => total + selection.quantity, 0);
+	}
+
+	// Helper function to validate option group selections
+	function validateOptionGroup(group: MenuItemOptionGroup): string | null {
+		const selection = selectedOptions[group.optionGroup.id];
+		const totalQuantity = getTotalGroupQuantity(group.optionGroup.id);
+
+		if (isMultipleSelect(group.optionGroup)) {
+			if (group.optionGroup.minSelections > 0 && totalQuantity < group.optionGroup.minSelections) {
+				return `Please select at least ${group.optionGroup.minSelections} total item${group.optionGroup.minSelections > 1 ? 's' : ''}`;
+			}
+			if (
+				group.optionGroup.maxSelections !== null &&
+				totalQuantity > group.optionGroup.maxSelections
+			) {
+				return `Please select no more than ${group.optionGroup.maxSelections} total items`;
+			}
+		} else if (
+			!isMultipleSelect(group.optionGroup) &&
+			group.optionGroup.minSelections > 0 &&
+			!selection
+		) {
+			return 'Please select an option';
+		}
+
+		return null;
+	}
+
+	// Function to validate all option groups
+	function validateAllOptionGroups(): boolean {
+		let isValid = true;
+		optionGroupErrors = {};
+
+		if (!product?.menuItemOptionGroups) return true;
+
+		product.menuItemOptionGroups.forEach((group) => {
+			const error = validateOptionGroup(group);
+			if (error) {
+				optionGroupErrors[group.optionGroup.id] = error;
+				isValid = false;
+			}
+		});
+
+		return isValid;
+	}
+
+	// Calculate total price including all selected options, packs, etc.
+	function calculateTotalPrice(): string {
 		let total = basePrice * quantity;
 
-		// Add price of selected variants
-		for (const [id, variant] of Object.entries(selectedVariants)) {
-			if (variant.selected) {
-				const item = additionalItems.find((i) => i.id === id);
-				if (item) {
-					total += item.price * variant.quantity;
+		// Add price of selected option groups
+		if (optionGroups.length > 0) {
+			for (const { optionGroup } of optionGroups) {
+				const selections = selectedOptions[optionGroup.id] || [];
+
+				for (const selection of selections) {
+					const option = optionGroup.optionsToOptionGroups.find(
+						(og) => og.option.id === selection.id
+					)?.option;
+					if (option) {
+						total += option.price * selection.quantity * quantity;
+					}
 				}
 			}
 		}
 
-		return total.toFixed(2);
-	});
+		// Return the formatted price using the formatCurrency utility
+		return formatCurrency(total);
+	}
 
-	function incrementVariantQuantity(id: string) {
-		if (selectedVariants[id]) {
-			selectedVariants[id].quantity++;
+	// Use derived to recompute the total price whenever dependencies change
+	const getTotalPrice = $derived(calculateTotalPrice());
+
+	// Simplify canSelectMultiple to derive from price only
+	function canSelectMultiple(option: any): boolean {
+		return option.price > 0;
+	}
+
+	// Modify toggleOptionSelection to properly handle selection states
+	function toggleOptionSelection(groupId: string, optionId: string, group: OptionGroup) {
+		if (isMultipleSelect(group)) {
+			if (!Array.isArray(selectedOptions[groupId])) {
+				selectedOptions[groupId] = [];
+			}
+
+			const selections = selectedOptions[groupId];
+			const existingSelection = selections.find((s) => s.id === optionId);
+			const currentTotal = getTotalGroupQuantity(groupId);
+
+			const option = group.optionsToOptionGroups.find((og) => og.option.id === optionId)?.option;
+			if (!option) return;
+
+			// If unchecking (removing selection)
+			if (existingSelection) {
+				// Remove option entirely
+				selectedOptions[groupId] = selections.filter((s) => s.id !== optionId);
+
+				if (selectedOptions[groupId].length === 0 && group.minSelections > 0) {
+					optionGroupErrors[groupId] =
+						`Please select at least ${group.minSelections} item${group.minSelections > 1 ? 's' : ''}`;
+				} else {
+					delete optionGroupErrors[groupId];
+				}
+				return;
+			}
+
+			// If adding new selection
+			if (group.maxSelections !== null && currentTotal + 1 > group.maxSelections) {
+				optionGroupErrors[groupId] =
+					`You can only select up to ${group.maxSelections} total items in this group`;
+				return;
+			}
+
+			// Add new selection with quantity 1
+			selectedOptions[groupId] = [...selections, { id: optionId, quantity: 1 }];
+			delete optionGroupErrors[groupId];
+		} else {
+			// For radio buttons (single selection)
+			const currentSelection = selectedOptions[groupId]?.[0];
+
+			// If clicking the same option and it's not required (minSelections = 0), deselect it
+			if (currentSelection?.id === optionId && group.minSelections === 0) {
+				selectedOptions[groupId] = [];
+				delete optionGroupErrors[groupId];
+				return;
+			}
+
+			// Otherwise select the new option
+			selectedOptions[groupId] = [{ id: optionId, quantity: 1 }];
+			delete optionGroupErrors[groupId];
 		}
 	}
 
-	function decrementVariantQuantity(id: string) {
-		if (selectedVariants[id] && selectedVariants[id].quantity > 1) {
-			selectedVariants[id].quantity--;
+	// Modify updateOptionQuantity to properly handle zero quantity
+	function updateOptionQuantity(groupId: string, optionId: string, delta: number) {
+		if (!selectedOptions[groupId]) return;
+
+		const group = optionGroups.find((g) => g.optionGroup.id === groupId)?.optionGroup;
+		if (!group) return;
+
+		const selections = selectedOptions[groupId];
+		const optionIndex = selections.findIndex((s) => s.id === optionId);
+
+		if (optionIndex === -1) return;
+
+		const option = group.optionsToOptionGroups.find((og) => og.option.id === optionId)?.option;
+		if (!option) return;
+
+		// Don't allow quantity changes for free options
+		if (option.price === 0) {
+			optionGroupErrors[groupId] = 'Free options can only be selected once';
+			return;
+		}
+
+		const currentQuantity = selections[optionIndex].quantity;
+		const newQuantity = currentQuantity + delta;
+		const currentTotal = getTotalGroupQuantity(groupId);
+		const newTotal = currentTotal + delta;
+
+		// If reducing to zero or below, remove the option completely (deselect checkbox)
+		if (newQuantity <= 0) {
+			const newSelections = selections.filter((s) => s.id !== optionId);
+			selectedOptions[groupId] = newSelections;
+
+			// Check minimum selections after removal
+			if (newSelections.length === 0 && group.minSelections > 0) {
+				optionGroupErrors[groupId] =
+					`Please select at least ${group.minSelections} item${group.minSelections > 1 ? 's' : ''}`;
+			} else {
+				delete optionGroupErrors[groupId];
+			}
+			return;
+		}
+
+		// Check if new total would exceed group maximum
+		if (group.maxSelections !== null && newTotal > group.maxSelections) {
+			optionGroupErrors[groupId] =
+				`You can only select up to ${group.maxSelections} total items in this group`;
+			return;
+		}
+
+		// Update the quantity
+		selections[optionIndex].quantity = newQuantity;
+		selectedOptions[groupId] = [...selections];
+		delete optionGroupErrors[groupId];
+	}
+
+	function isOptionSelected(groupId: string, optionId: string): boolean {
+		return selectedOptions[groupId]?.some((s) => s.id === optionId) ?? false;
+	}
+
+	// Update getOptionQuantity helper
+	function getOptionQuantity(groupId: string, optionId: string): number {
+		return selectedOptions[groupId]?.find((s) => s.id === optionId)?.quantity ?? 0;
+	}
+
+	// Add helper to display remaining selections
+	function getRemainingSelections(group: OptionGroup): number | null {
+		if (group.maxSelections === null) return null;
+		const totalSelected = getTotalGroupQuantity(group.id);
+		return Math.max(0, group.maxSelections - totalSelected);
+	}
+
+	// Add to cart handler
+	async function handleAddToCart() {
+		if (!validateAllOptionGroups()) {
+			// Show error message or handle invalid state
+			return;
+		}
+
+		try {
+			isLoading = true;
+
+			// Format options array according to the API schema
+			const formattedOptions = [];
+
+			for (const [groupId, selections] of Object.entries(selectedOptions)) {
+				for (const selection of selections) {
+					formattedOptions.push({
+						optionId: selection.id,
+						optionGroupId: groupId,
+						quantity: selection.quantity
+					});
+				}
+			}
+
+			// Create request payload according to addCartItemSchema
+			const cartData = {
+				menuItemId: product?.id,
+				quantity: quantity,
+				specialInstructions: '',
+				options: formattedOptions.length > 0 ? formattedOptions : undefined
+			};
+
+			// Make the API request using the Hono client
+			const response = await client.cart.$post({
+				json: cartData
+			});
+			await invalidateAll();
+
+			if (response.ok) {
+				// Close the modal
+				productModalState.value = false;
+				toast.success('Item added to cart!');
+			} else {
+				const errorData = await response.json();
+				toast.error(errorData.error || 'Failed to add item to cart');
+			}
+		} catch (error) {
+			console.error('Error adding to cart:', error);
+			toast.error('Something went wrong. Please try again.');
+		} finally {
+			isLoading = false;
 		}
 	}
 </script>
 
 {#if isDesktop.current}
 	<Dialog.Root bind:open={productModalState.value}>
-		<Dialog.Content class=" overflow-hidden p-0 sm:max-w-[425px]  ">
+		<Dialog.Content class="overflow-hidden p-0 sm:max-w-[425px]">
 			<ScrollArea class="relative h-full max-h-[90vh] w-full">
 				<div class="">
 					<img
-						src="https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg"
+						src={productImage}
 						in:blur={{ duration: 300 }}
 						loading="lazy"
 						class="h-[350px] w-full object-cover"
-						alt=""
+						alt={productName}
 					/>
 				</div>
 				<div class="w-full overflow-auto">
 					<div class="grid gap-4 p-4">
-						<h1 class=" italian text-2xl font-bold capitalize lg:text-3xl">
-							Spicy Tuna Roll Deluxe
+						<h1 class="italian text-2xl font-bold capitalize lg:text-3xl">
+							{productName}
 						</h1>
 						<div class="flex items-center gap-2">
-							<p class="text-primary">${basePrice}</p>
-							<Badge>popular</Badge>
+							<p class="text-primary">{formatCurrency(basePrice)}</p>
+							<!-- <Badge>popular</Badge> -->
 						</div>
 						<p class="mt-2 text-sm text-muted-foreground">
-							Fresh sushi-grade tuna mixed with spicy mayo and crispy tempura flakes, wrapped in
-							premium nori and sushi rice. Topped with sliced avocado, spicy sauce, and tobiko.
-							Served with pickled ginger and wasabi. Contains 8 pieces.
+							{productDescription}
 						</p>
 					</div>
 				</div>
-				<Separator />
 
-				<div class="px-4 py-3">
-					<h3 class="mb-3 font-medium">Additional Items</h3>
-					<p class="mb-4 text-sm text-muted-foreground">Choose optional add-ons</p>
-					<div class="space-y-3">
-						{#each additionalItems as item (item.id)}
-							<div class="flex items-center space-x-2">
-								<Checkbox
-									checked={selectedVariants[item.id]?.selected || false}
-									onCheckedChange={(checked) => {
-										selectedVariants[item.id] = {
-											selected: checked,
-											quantity: checked ? 1 : 0
-										};
-									}}
-									id={item.id}
-								/>
-								<label for={item.id} class="flex flex-1 items-center justify-between text-sm">
-									<span>{item.name}</span>
-									<div class="flex items-center gap-2">
-										{#if selectedVariants[item.id]?.selected}
-											<div class="flex items-center gap-2">
-												<button
-													class="flex h-6 w-6 items-center justify-center rounded-full border transition-colors hover:border-primary hover:text-primary"
-													disabled={selectedVariants[item.id].quantity <= 1}
-													onclick={() => decrementVariantQuantity(item.id)}
+				{#if optionGroups && optionGroups.length > 0}
+					<Separator />
+					{#each optionGroups as { optionGroup }}
+						<div class="px-4 py-3">
+							<div class="flex items-center justify-between">
+								<h3 class="mb-3 font-medium">{optionGroup.name}</h3>
+								<div class="flex items-center gap-2">
+									{#if isRequired({ optionGroup })}
+										<span class="text-sm text-destructive">Required</span>
+									{/if}
+									{#if optionGroup.maxSelections !== null}
+										<span class="text-sm text-muted-foreground">
+											{getRemainingSelections(optionGroup)} remaining
+										</span>
+									{/if}
+								</div>
+							</div>
+							<p class="mb-4 text-sm text-muted-foreground">
+								{#if isMultipleSelect(optionGroup)}
+									{#if optionGroup.maxSelections === null}
+										Choose {optionGroup.minSelections} or more options
+									{:else}
+										Choose {optionGroup.minSelections} to {optionGroup.maxSelections} options
+									{/if}
+								{:else}
+									Choose one option
+								{/if}
+							</p>
+
+							{#if optionGroupErrors[optionGroup.id]}
+								<Alert variant="destructive" class="mb-4">
+									<AlertCircle class="h-4 w-4" />
+									<AlertDescription>
+										{optionGroupErrors[optionGroup.id]}
+									</AlertDescription>
+								</Alert>
+							{/if}
+
+							{#if isMultipleSelect(optionGroup)}
+								<div class="space-y-3">
+									{#each optionGroup.optionsToOptionGroups as { option }}
+										{#if option.inStock !== false}
+											<div class="flex items-center space-x-2">
+												<Checkbox
+													checked={isOptionSelected(optionGroup.id, option.id)}
+													onCheckedChange={() => {
+														toggleOptionSelection(optionGroup.id, option.id, optionGroup);
+													}}
+													id={`${optionGroup.id}-${option.id}`}
+												/>
+												<label
+													for={`${optionGroup.id}-${option.id}`}
+													class="flex flex-1 items-center justify-between text-sm"
 												>
-													<Minus class="h-3 w-3" />
-												</button>
-												<span class="w-4 text-center">{selectedVariants[item.id].quantity}</span>
-												<button
-													onclick={() => incrementVariantQuantity(item.id)}
-													class="flex h-6 w-6 items-center justify-center rounded-full border transition-colors hover:border-primary hover:text-primary"
-												>
-													<Plus class="h-3 w-3" />
-												</button>
+													<span>{option.name}</span>
+													<div class="flex items-center gap-2">
+														{#if isOptionSelected(optionGroup.id, option.id) && canSelectMultiple(option)}
+															<div class="flex items-center gap-2">
+																<button
+																	type="button"
+																	class="flex h-6 w-6 items-center justify-center rounded-full border text-sm"
+																	onclick={(e) => {
+																		e.stopPropagation();
+																		const currentQty = getOptionQuantity(optionGroup.id, option.id);
+																		if (currentQty <= 1) {
+																			// If at 1, toggling will remove the option
+																			toggleOptionSelection(optionGroup.id, option.id, optionGroup);
+																		} else {
+																			// Otherwise just decrease quantity
+																			updateOptionQuantity(optionGroup.id, option.id, -1);
+																		}
+																	}}
+																>
+																	<Minus class="h-3 w-3" />
+																</button>
+																<span class="w-4 text-center">
+																	{getOptionQuantity(optionGroup.id, option.id)}
+																</span>
+																<button
+																	type="button"
+																	class="flex h-6 w-6 items-center justify-center rounded-full border text-sm"
+																	onclick={() => updateOptionQuantity(optionGroup.id, option.id, 1)}
+																>
+																	<Plus class="h-3 w-3" />
+																</button>
+															</div>
+														{/if}
+														<span class="text-muted-foreground">
+															{option.price > 0 ? `+${formatCurrency(option.price)}` : 'Included'}
+														</span>
+													</div>
+												</label>
 											</div>
 										{/if}
-										<span class="text-muted-foreground">
-											+${(item.price * (selectedVariants[item.id]?.quantity || 0)).toFixed(2)}
-										</span>
-									</div>
-								</label>
-							</div>
-						{/each}
-					</div>
-				</div>
+									{/each}
+								</div>
+							{:else}
+								<RadioGroup
+									value={selectedOptions[optionGroup.id]?.[0]?.id ?? ''}
+									class="space-y-3"
+									onValueChange={(value) => {
+										// If clicking the currently selected radio and group is not required, deselect it
+										if (
+											selectedOptions[optionGroup.id]?.[0]?.id === value &&
+											optionGroup.minSelections === 0
+										) {
+											selectedOptions[optionGroup.id] = [];
+										} else {
+											// Normal case: Switch to new selection
+											selectedOptions[optionGroup.id] = [{ id: value, quantity: 1 }];
+										}
+									}}
+								>
+									{#each optionGroup.optionsToOptionGroups as { option }}
+										{#if option.inStock !== false}
+											<div class="flex items-center space-x-2">
+												<RadioGroupItem value={option.id} id={`${optionGroup.id}-${option.id}`} />
+												<label
+													for={`${optionGroup.id}-${option.id}`}
+													class="flex flex-1 items-center justify-between text-sm"
+													onclick={(e) => {
+														// If this is already selected and not required, prevent default and deselect
+														if (
+															selectedOptions[optionGroup.id]?.[0]?.id === option.id &&
+															optionGroup.minSelections === 0
+														) {
+															e.preventDefault();
+															e.stopPropagation();
+															selectedOptions[optionGroup.id] = [];
+														}
+													}}
+												>
+													<span>{option.name}</span>
+													<span class="text-muted-foreground">
+														{option.price > 0 ? `+${formatCurrency(option.price)}` : 'Included'}
+													</span>
+												</label>
+											</div>
+										{/if}
+									{/each}
+								</RadioGroup>
+							{/if}
+						</div>
+						<Separator />
+					{/each}
+				{/if}
 
 				<Separator class="mb-32" />
 
@@ -166,8 +517,13 @@
 							</button>
 						</div>
 					</div>
-					<Button class="w-full shadow-lg " size="lg">
-						Add to Cart - ${getTotalPrice}
+					<Button
+						class="w-full shadow-lg"
+						size="lg"
+						onclick={handleAddToCart}
+						disabled={Object.keys(optionGroupErrors).length > 0 || isLoading}
+					>
+						{isLoading ? 'Adding to Cart...' : `Add to Cart - ${getTotalPrice}`}
 					</Button>
 				</div>
 			</ScrollArea>
@@ -181,77 +537,178 @@
 			<ScrollArea class="max-h-[90vh] w-full overflow-auto">
 				<div class="">
 					<img
-						src="https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg"
+						src={productImage}
 						in:blur={{ duration: 300 }}
 						loading="lazy"
 						class="h-[350px] w-full object-cover"
-						alt=""
+						alt={productName}
 					/>
 				</div>
 				<div class="w-full overflow-auto">
 					<div class="grid gap-4 p-4">
-						<h1 class=" italian text-2xl font-bold capitalize lg:text-3xl">
-							Spicy Tuna Roll Deluxe
+						<h1 class="italian text-2xl font-bold capitalize lg:text-3xl">
+							{productName}
 						</h1>
 						<div class="flex items-center gap-2">
-							<p class="text-primary">${basePrice}</p>
+							<p class="text-primary">{formatCurrency(basePrice)}</p>
 							<Badge>popular</Badge>
 						</div>
 						<p class="mt-2 text-sm text-muted-foreground">
-							Fresh sushi-grade tuna mixed with spicy mayo and crispy tempura flakes, wrapped in
-							premium nori and sushi rice. Topped with sliced avocado, spicy sauce, and tobiko.
-							Served with pickled ginger and wasabi. Contains 8 pieces.
+							{productDescription}
 						</p>
 					</div>
 				</div>
-				<Separator />
 
-				<div class="px-4 py-3">
-					<h3 class="mb-3 font-medium">Additional Items</h3>
-					<p class="mb-4 text-sm text-muted-foreground">Choose optional add-ons</p>
-					<div class="space-y-3">
-						{#each additionalItems as item (item.id)}
-							<div class="flex items-center space-x-2">
-								<Checkbox
-									checked={selectedVariants[item.id]?.selected || false}
-									onCheckedChange={(checked) => {
-										selectedVariants[item.id] = {
-											selected: checked,
-											quantity: checked ? 1 : 0
-										};
-									}}
-									id={item.id}
-								/>
-								<label for={item.id} class="flex flex-1 items-center justify-between text-sm">
-									<span>{item.name}</span>
-									<div class="flex items-center gap-2">
-										{#if selectedVariants[item.id]?.selected}
-											<div class="flex items-center gap-2">
-												<button
-													class="flex h-6 w-6 items-center justify-center rounded-full border transition-colors hover:border-primary hover:text-primary"
-													disabled={selectedVariants[item.id].quantity <= 1}
-													onclick={() => decrementVariantQuantity(item.id)}
+				{#if optionGroups && optionGroups.length > 0}
+					<Separator />
+					{#each optionGroups as { optionGroup }}
+						<div class="px-4 py-3">
+							<div class="flex items-center justify-between">
+								<h3 class="mb-3 font-medium">{optionGroup.name}</h3>
+								<div class="flex items-center gap-2">
+									{#if isRequired({ optionGroup })}
+										<span class="text-sm text-destructive">Required</span>
+									{/if}
+									{#if optionGroup.maxSelections !== null}
+										<span class="text-sm text-muted-foreground">
+											{getRemainingSelections(optionGroup)} remaining
+										</span>
+									{/if}
+								</div>
+							</div>
+							<p class="mb-4 text-sm text-muted-foreground">
+								{#if isMultipleSelect(optionGroup)}
+									{#if optionGroup.maxSelections === null}
+										Choose {optionGroup.minSelections} or more options
+									{:else}
+										Choose {optionGroup.minSelections} to {optionGroup.maxSelections} options
+									{/if}
+								{:else}
+									Choose one option
+								{/if}
+							</p>
+
+							{#if optionGroupErrors[optionGroup.id]}
+								<Alert variant="destructive" class="mb-4">
+									<AlertCircle class="h-4 w-4" />
+									<AlertDescription>
+										{optionGroupErrors[optionGroup.id]}
+									</AlertDescription>
+								</Alert>
+							{/if}
+
+							{#if isMultipleSelect(optionGroup)}
+								<div class="space-y-3">
+									{#each optionGroup.optionsToOptionGroups as { option }}
+										{#if option.inStock !== false}
+											<div class="flex items-center space-x-2">
+												<Checkbox
+													checked={isOptionSelected(optionGroup.id, option.id)}
+													onCheckedChange={() => {
+														toggleOptionSelection(optionGroup.id, option.id, optionGroup);
+													}}
+													id={`mobile-${optionGroup.id}-${option.id}`}
+												/>
+												<label
+													for={`mobile-${optionGroup.id}-${option.id}`}
+													class="flex flex-1 items-center justify-between text-sm"
 												>
-													<Minus class="h-3 w-3" />
-												</button>
-												<span class="w-4 text-center">{selectedVariants[item.id].quantity}</span>
-												<button
-													onclick={() => incrementVariantQuantity(item.id)}
-													class="flex h-6 w-6 items-center justify-center rounded-full border transition-colors hover:border-primary hover:text-primary"
-												>
-													<Plus class="h-3 w-3" />
-												</button>
+													<span>{option.name}</span>
+													<div class="flex items-center gap-2">
+														{#if isOptionSelected(optionGroup.id, option.id) && canSelectMultiple(option)}
+															<div class="flex items-center gap-2">
+																<button
+																	type="button"
+																	class="flex h-6 w-6 items-center justify-center rounded-full border text-sm"
+																	onclick={(e) => {
+																		e.stopPropagation();
+																		const currentQty = getOptionQuantity(optionGroup.id, option.id);
+																		if (currentQty <= 1) {
+																			// If at 1, toggling will remove the option
+																			toggleOptionSelection(optionGroup.id, option.id, optionGroup);
+																		} else {
+																			// Otherwise just decrease quantity
+																			updateOptionQuantity(optionGroup.id, option.id, -1);
+																		}
+																	}}
+																>
+																	<Minus class="h-3 w-3" />
+																</button>
+																<span class="w-4 text-center">
+																	{getOptionQuantity(optionGroup.id, option.id)}
+																</span>
+																<button
+																	type="button"
+																	class="flex h-6 w-6 items-center justify-center rounded-full border text-sm"
+																	onclick={() => updateOptionQuantity(optionGroup.id, option.id, 1)}
+																>
+																	<Plus class="h-3 w-3" />
+																</button>
+															</div>
+														{/if}
+														<span class="text-muted-foreground">
+															{option.price > 0 ? `+${formatCurrency(option.price)}` : 'Included'}
+														</span>
+													</div>
+												</label>
 											</div>
 										{/if}
-										<span class="text-muted-foreground">
-											+${(item.price * (selectedVariants[item.id]?.quantity || 0)).toFixed(2)}
-										</span>
-									</div>
-								</label>
-							</div>
-						{/each}
-					</div>
-				</div>
+									{/each}
+								</div>
+							{:else}
+								<RadioGroup
+									value={selectedOptions[optionGroup.id]?.[0]?.id ?? ''}
+									class="space-y-3"
+									onValueChange={(value) => {
+										// If clicking the currently selected radio and group is not required, deselect it
+										if (
+											selectedOptions[optionGroup.id]?.[0]?.id === value &&
+											optionGroup.minSelections === 0
+										) {
+											selectedOptions[optionGroup.id] = [];
+										} else {
+											// Normal case: Switch to new selection
+											selectedOptions[optionGroup.id] = [{ id: value, quantity: 1 }];
+										}
+									}}
+								>
+									{#each optionGroup.optionsToOptionGroups as { option }}
+										{#if option.inStock !== false}
+											<div class="flex items-center space-x-2">
+												<RadioGroupItem
+													value={option.id}
+													id={`mobile-${optionGroup.id}-${option.id}`}
+												/>
+												<label
+													for={`mobile-${optionGroup.id}-${option.id}`}
+													class="flex flex-1 items-center justify-between text-sm"
+													onclick={(e) => {
+														// If this is already selected and not required, prevent default and deselect
+														if (
+															selectedOptions[optionGroup.id]?.[0]?.id === option.id &&
+															optionGroup.minSelections === 0
+														) {
+															e.preventDefault();
+															e.stopPropagation();
+															selectedOptions[optionGroup.id] = [];
+														}
+													}}
+												>
+													<span>{option.name}</span>
+													<span class="text-muted-foreground">
+														{option.price > 0 ? `+${formatCurrency(option.price)}` : 'Included'}
+													</span>
+												</label>
+											</div>
+										{/if}
+									{/each}
+								</RadioGroup>
+							{/if}
+						</div>
+						<Separator />
+					{/each}
+				{/if}
+
 				<Separator class="mb-32" />
 
 				<div class="fixed bottom-0 z-10 w-full bg-white px-3 py-4">
@@ -274,160 +731,17 @@
 							</button>
 						</div>
 					</div>
-					<Button class="w-full shadow-lg " size="lg">
-						Add to Cart - ${getTotalPrice}
+					<Button
+						class="w-full shadow-lg"
+						size="lg"
+						onclick={handleAddToCart}
+						disabled={Object.keys(optionGroupErrors).length > 0 || isLoading}
+						loading={isLoading}
+					>
+						{isLoading ? 'Adding to Cart...' : `Add to Cart - ${getTotalPrice}`}
 					</Button>
 				</div>
 			</ScrollArea>
 		</Drawer.Content>
 	</Drawer.Root>
 {/if}
-
-<!-- <ResponsiveDialog title="Product Modal"> -->
-<!-- <div class="flex h-[90vh] flex-col overflow-hidden p-0 sm:max-w-[425px]">
-		<div class="relative h-[200px]">
-			<img
-
-				src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-SSblrrWFVBSKVdSIWT9L0tYXDcyfYf.png"
-				alt="Sushi set"
-				class="absolute inset-0 h-full w-full object-cover"
-			/>
-			<Button
-				variant="ghost"
-				size="icon"
-				class="absolute right-2 top-2 z-10"
-				aria-label="Close dialog"
-			>
-				<Minus class="h-5 w-5 text-white" />
-			</Button>
-		</div>
-
-		<div class="-mt-10 flex-1 overflow-y-auto">
-			<div class="relative space-y-6 rounded-t-xl bg-white p-6">
-				<div>
-					<h2 class="flex items-center gap-1 text-2xl font-semibold">
-						<Star class="h-6 w-6 fill-yellow-400 text-yellow-400" />
-						Amijami Autumn Set 24 pcs
-						<Star class="h-6 w-6 fill-yellow-400 text-yellow-400" />
-					</h2>
-					<div class="mt-2 flex items-center gap-3">
-						<span class="text-xl text-red-500">€{50}</span>
-						<span class="text-sm text-muted-foreground line-through">35.50</span>
-						<span class="rounded bg-blue-500 px-2 py-0.5 text-sm text-white">Popular</span>
-					</div>
-				</div>
-
-				<div class="space-y-2">
-					<p class="text-sm">
-						Volcano maki (salmon, crab meat, unagi sauce, masago sauce, cream cheese, 8 pcs),
-					</p>
-					<p class="text-sm">
-						Philadelphia maki (salmon, avocado, cream cheese, sesame seeds, 8 pcs),
-					</p>
-					<button class="text-sm text-blue-500">show more</button>
-				</div>
-
-				<div>
-					<h3 class="mb-3 font-medium">Vali lisandid (tuleb eraldi soetada)</h3>
-					<p class="mb-4 text-sm text-muted-foreground">Choose up to 30 additional items</p>
-					<div class="space-y-3">
-						{#each [{ id: '1', name: 'Wasabi', price: 0.5 }, { id: '2', name: 'Soy Sauce', price: 0.5 }, { id: '3', name: 'Ginger', price: 0.5 }, { id: '4', name: 'Extra Chopsticks', price: 0.25 }] as item (item.id)}
-							<div class="flex items-center space-x-2">
-								<input
-									type="checkbox"
-									id={item.id}
-									onchange={(e) => {
-										const checked = e.currentTarget.checked;
-										selectedVariants = {
-											...selectedVariants,
-											[item.id]: checked
-										};
-									}}
-								/>
-								<label for={item.id} class="flex-1 text-sm">
-									{item.name}
-									<span class="ml-2 text-muted-foreground">+€{item.price.toFixed(2)}</span>
-								</label>
-							</div>
-						{/each}
-					</div>
-				</div>
-
-				<div>
-					<h3 class="mb-3 font-medium">Mitut rulli soovite vegan kreemjuustuga?</h3>
-					<p class="text-sm text-muted-foreground">Choose up to 4 additional items</p>
-				</div>
-			</div>
-		</div>
-
-		<div class="border-t bg-white p-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center rounded-lg bg-gray-100">
-					<Button
-						variant="ghost"
-						size="icon"
-						class="h-10 w-10 text-blue-500"
-						onclick={() => (quantity = Math.max(1, quantity - 1))}
-					>
-						<Minus class="h-4 w-4" />
-					</Button>
-					<span class="w-12 text-center">{quantity}</span>
-					<Button
-						variant="ghost"
-						size="icon"
-						class="h-10 w-10 text-blue-500"
-						onclick={() => quantity++}
-					>
-						<Plus class="h-4 w-4" />
-					</Button>
-				</div>
-				<Button class="bg-blue-500 px-8 text-white hover:bg-blue-600">
-					Add to order
-					<span class="ml-2">€{50}</span>
-				</Button>
-			</div>
-		</div>
-	</div> -->
-<!-- <div class="border-t pt-4">
-		<div class="mb-4 flex items-center justify-between">
-			<span class="font-medium">Quantity</span>
-			<div class="flex items-center gap-4">
-				<button
-					class="flex h-8 w-8 items-center justify-center rounded-full border transition-colors hover:border-primary hover:text-primary"
-					disabled={quantity <= 1}
-				>
-					<Minus class="h-4 w-4" />
-				</button>
-				<span class="w-4 text-center">{quantity}</span>
-				<button
-					onclick={() => quantity++}
-					class="flex h-8 w-8 items-center justify-center rounded-full border transition-colors hover:border-primary hover:text-primary"
-				>
-					<Plus class="h-4 w-4" />
-				</button>
-			</div>
-		</div>
-		<Button class="w-full" size="lg">
-			Add to Cart - ${10}
-		</Button>
-	</div> -->
-
-<!-- <div class="sticky bottom-0 flex items-center gap-1 bg-background p-4 drop-shadow-md">
-		<div
-			class="flex items-center gap-4 rounded-lg border border-primary/10 bg-primary/10 p-2 shadow-lg"
-		>
-			<Button size="icon" variant="outline">
-				<Minus />
-			</Button>
-			<p class="text-xl font-normal text-primary">6</p>
-			<Button size="icon" variant="outline">
-				<Plus />
-			</Button>
-		</div>
-		<Button type="submit" class="h-full flex-1 justify-between shadow-lg">
-			<span class="font-bold capitalize">add to order</span>
-
-			50
-		</Button>
-	</div> -->
-<!-- </ResponsiveDialog> -->

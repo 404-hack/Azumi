@@ -32,7 +32,7 @@
 	// 	}
 	// ];
 	const links = [
-		{ href: '/vendor/store-details', label: 'Store Details', icon: Store },
+		{ href: '/vendor/profile/edit', label: 'Store Details', icon: Store },
 		{ href: '/vendor/store-operations', label: 'Store Operations', icon: Clock },
 		{ href: '/vendor/wallet', label: 'Your Wallet', icon: Wallet },
 		{ href: '/vendor/manage-users', label: 'Manage Users', icon: Users }

@@ -4,181 +4,39 @@
 	import ProductCard from '$lib/components/ProductCard.svelte';
 	import Ticket from '$lib/components/Ticket.svelte';
 	import { Bike, Search, MapPin, Clock, Info } from 'lucide-svelte';
-
+	import { Badge } from '$lib/components/ui/badge';
+	import { page } from '$app/state';
 	let activeCategory = $state('');
 	let searchQuery = $state('');
 	let isMoreInfoOpen = $state(false);
 
-	// This would typically come from a database or API
-	const restaurant = {
-		id: '1',
-		name: 'Burger Palace',
-		image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-		rating: 4.5,
-		deliveryTime: '15-25 min',
-		tags: ['Burgers', 'American', 'Fast Food'],
-		description: 'Home of the juiciest burgers in town!',
-		menu: [
-			// Burgers
-			{
-				id: '1',
-				name: 'Classic Burger',
-				price: 9.99,
-				description: '100% beef patty with lettuce, tomato, and our secret sauce',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Burgers'
-			},
-			{
-				id: '2',
-				name: 'Cheeseburger',
-				price: 10.99,
-				description: 'Classic burger topped with melted cheddar cheese',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Burgers'
-			},
-			{
-				id: '3',
-				name: 'Bacon Deluxe',
-				price: 12.99,
-				description: 'Burger with crispy bacon, cheddar, and BBQ sauce',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Burgers'
-			},
-			{
-				id: '4',
-				name: 'Mushroom Swiss',
-				price: 11.99,
-				description: 'Burger with sautéed mushrooms and Swiss cheese',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Burgers'
-			},
-			// Vegetarian
-			{
-				id: '5',
-				name: 'Veggie Burger',
-				price: 8.99,
-				description: 'Plant-based patty with avocado and sprouts',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Vegetarian'
-			},
-			{
-				id: '6',
-				name: 'Garden Salad',
-				price: 7.99,
-				description: 'Fresh mixed greens with seasonal vegetables',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Vegetarian'
-			},
-			{
-				id: '7',
-				name: 'Grilled Portobello',
-				price: 9.99,
-				description: 'Marinated portobello mushroom with roasted vegetables',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Vegetarian'
-			},
-			// Sides
-			{
-				id: '8',
-				name: 'French Fries',
-				price: 3.99,
-				description: 'Crispy golden fries',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Sides'
-			},
-			{
-				id: '9',
-				name: 'Onion Rings',
-				price: 4.99,
-				description: 'Crispy battered onion rings',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Sides'
-			},
-			{
-				id: '10',
-				name: 'Sweet Potato Fries',
-				price: 4.99,
-				description: 'Crispy sweet potato fries with seasoning',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Sides'
-			},
-			// Beverages
-			{
-				id: '11',
-				name: 'Soft Drinks',
-				price: 2.99,
-				description: 'Various sodas and soft drinks',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Beverages'
-			},
-			{
-				id: '12',
-				name: 'Milkshake',
-				price: 5.99,
-				description: 'Creamy milkshake in various flavors',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Beverages'
-			},
-			{
-				id: '13',
-				name: 'Fresh Lemonade',
-				price: 3.99,
-				description: 'Homemade fresh lemonade',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Beverages'
-			},
-			// Desserts
-			{
-				id: '14',
-				name: 'Ice Cream Sundae',
-				price: 6.99,
-				description: 'Vanilla ice cream with toppings and whipped cream',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Desserts'
-			},
-			{
-				id: '15',
-				name: 'Chocolate Brownie',
-				price: 5.99,
-				description: 'Warm chocolate brownie with vanilla ice cream',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Desserts'
-			},
-			// Combos
-			{
-				id: '16',
-				name: 'Family Feast',
-				price: 29.99,
-				description: '4 burgers, 2 large fries, and 4 drinks',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Combos'
-			},
-			{
-				id: '17',
-				name: 'Burger Combo',
-				price: 13.99,
-				description: 'Burger, fries, and drink',
-				image: 'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg',
-				category: 'Combos'
-			}
-		]
-	};
-
 	let { data } = $props();
+	// Extract menu categories and their items from API data
+	const categories = $derived(
+		data.restaurant.menuCategories?.map((category) => category.name) || []
+	);
 
-	// Get unique categories
-	const categories = $derived([...new Set(restaurant.menu.map((item) => item.category))]);
+	// Get all menu items from all categories
+	const allMenuItems = $derived(
+		data.restaurant.menuCategories?.flatMap(
+			(category) =>
+				category.menus?.map((menu) => ({
+					...menu,
+					category: category.name
+				})) || []
+		) || []
+	);
 
 	// Filter menu items based on search query
 	const filteredMenu = $derived(
 		searchQuery
-			? restaurant.menu.filter(
+			? allMenuItems.filter(
 					(item) =>
-						item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-						item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-						item.category.toLowerCase().includes(searchQuery.toLowerCase())
+						item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+						item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+						item.category?.toLowerCase().includes(searchQuery.toLowerCase())
 				)
-			: restaurant.menu
+			: allMenuItems
 	);
 
 	// Group menu items by category
@@ -188,7 +46,7 @@
 				acc[category] = filteredMenu.filter((item) => item.category === category);
 				return acc;
 			},
-			{} as Record<string, typeof restaurant.menu>
+			{} as Record<string, typeof allMenuItems>
 		)
 	);
 
@@ -226,41 +84,112 @@
 	function clearSearch() {
 		searchQuery = '';
 	}
+
+	// Format time from 24hr to 12hr format
+	function formatTime(time: string): string {
+		if (!time) return '';
+		const [hour, minute] = time.split(':').map(Number);
+		const period = hour >= 12 ? 'PM' : 'AM';
+		const formattedHour = hour % 12 || 12;
+		return `${formattedHour}:${minute.toString().padStart(2, '0')} ${period}`;
+	}
+
+	// Get current day's operating hours
+	const getCurrentDayHours = (): string => {
+		const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+		const today = days[new Date().getDay()];
+
+		const todayHours = data.restaurant.operatingHours?.find(
+			(h) => h.day.toLowerCase() === today.toLowerCase()
+		);
+
+		if (todayHours) {
+			if (
+				todayHours.isOpen === false ||
+				todayHours.openTime === todayHours.closeTime ||
+				!todayHours.openTime ||
+				!todayHours.closeTime
+			) {
+				return 'Closed';
+			}
+			return `${formatTime(todayHours.openTime)}–${formatTime(todayHours.closeTime)}`;
+		}
+		return 'Closed';
+	};
 </script>
 
 <svelte:window on:scroll={handleScroll} />
 
 <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 	<div class="mb-8">
-		<div class="relative h-64 overflow-hidden rounded-lg">
-			<img
-				src={restaurant.image || '/placeholder.svg'}
-				alt={restaurant.name}
-				class="absolute inset-0 h-full w-full object-cover"
-			/>
+		<div class="relative mb-4 overflow-hidden">
+			<!-- Cover Image with smaller aspect ratio -->
+			<div class="relative aspect-[16/6] w-full overflow-hidden rounded-lg md:aspect-[4/1]">
+				<img
+					src={data.restaurant.coverImage || '/shop.avif'}
+					alt={data.restaurant.name}
+					class="h-full w-full object-cover object-center"
+					loading="eager"
+				/>
+				<div
+					class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"
+				></div>
+			</div>
+
+			<!-- Restaurant Info -->
+			<div class="relative px-3 sm:px-4">
+				<div class="flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:gap-4">
+					<!-- Logo -->
+					<div
+						class="z-10 -mt-12 size-20 overflow-hidden rounded-lg border-2 border-white bg-white shadow-lg sm:size-24 md:-mt-14"
+					>
+						<img
+							src={data.restaurant.logo || '/shop.avif'}
+							alt={`${data.restaurant.name} logo`}
+							class="h-full w-full object-cover"
+						/>
+					</div>
+
+					<!-- Restaurant Details -->
+					<div class="flex-1 pb-1">
+						<h1
+							class="text-xl font-bold capitalize tracking-tight text-gray-900 sm:text-2xl md:text-3xl"
+						>
+							{data.restaurant.name}
+						</h1>
+						<p class="mt-1 line-clamp-2 text-sm text-gray-600">
+							{data.restaurant.description}
+						</p>
+					</div>
+				</div>
+			</div>
 		</div>
-		<h1 class="mt-4 text-3xl font-bold">{restaurant.name}</h1>
-		<p class="mt-2 text-gray-600">{restaurant.description}</p>
 		<div class="mt-4 flex items-center text-xs">
 			<span class="text-yellow-500">★</span>
-			<span class="ml-1">{restaurant.rating}</span>
+			<span class="ml-1">{data.restaurant.totalRatings || 0}</span>
 			<span class="mx-2">•</span>
 			<div class="flex items-center gap-1">
 				<Bike class="size-4" />
-				<span>{restaurant.deliveryTime}</span>
+				<span>{data.restaurant.deliveryType}</span>
 			</div>
 			<span class="mx-2">•</span>
-			<span> Open until 21:30 </span>
+			<span> Open until {getCurrentDayHours()} </span>
 		</div>
 		<div class="mt-2 flex flex-wrap gap-2">
-			{#each restaurant.tags as tag, index}
+			{#if data.restaurant.tags}
+				{#each data.restaurant.tags as tag, index}
+					<Badge>
+						{tag}
+					</Badge>
+				{/each}
+			{:else}
 				<span class="rounded-full bg-gray-200 px-2 py-1 text-xs text-gray-700">
-					{tag}
+					{data.restaurant.shopType}
 				</span>
-			{/each}
+			{/if}
 		</div>
 	</div>
-	<Ticket />
+	<!-- <Ticket /> -->
 
 	<!-- Category Navigation and Search -->
 	<div
@@ -276,7 +205,7 @@
 							class="whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium transition-colors {activeCategory ===
 							category
 								? 'bg-primary text-primary-foreground'
-								: 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
+								: 'bg-gray-100 text-gray-700 hover:bg-gray-200'}</a>"
 						>
 							{category}
 						</button>
@@ -304,19 +233,6 @@
 					</button>
 				{/if}
 			</div>
-			<!-- <form
-				class="flex w-full items-center justify-between rounded-3xl bg-muted px-3.5 focus-within:ring-2 focus-within:ring-primary"
-			>
-				<input
-					type="search"
-					bind:value={searchQuery}
-					placeholder="Search menu..."
-					class="h-11 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-					name=""
-					id=""
-				/>
-				<Search class="text-muted-foreground" />
-			</form> -->
 		</div>
 	</div>
 
@@ -381,32 +297,35 @@
 					Location & Contact
 				</h2>
 				<div class="space-y-2">
-					<p class="font-medium">Ravi 13</p>
-					<p class="text-gray-600">10138 Tallinn</p>
-					<a
-						href="https://maps.google.com/?q=Ravi+13,+10138+Tallinn"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="mt-2 inline-flex items-center text-sm text-primary hover:text-primary/80"
-					>
-						See on map
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							class="ml-1"
+					<p class="font-medium">{data.restaurant.address}</p>
+					<p class="text-gray-600">Phone: {data.restaurant.phoneNumber}</p>
+					{#if data.restaurant.coordinates}
+						<a
+							href="https://maps.google.com/?q={data.restaurant.coordinates.lat},{data.restaurant
+								.coordinates.lng}"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="mt-2 inline-flex items-center text-sm text-primary hover:text-primary/80"
 						>
-							<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-							<polyline points="15 3 21 3 21 9" />
-							<line x1="10" y1="14" x2="21" y2="3" />
-						</svg>
-					</a>
+							See on map
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								class="ml-1"
+							>
+								<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+								<polyline points="15 3 21 3 21 9" />
+								<line x1="10" y1="14" x2="21" y2="3" />
+							</svg>
+						</a>
+					{/if}
 				</div>
 			</div>
 
@@ -414,23 +333,34 @@
 			<div>
 				<h2 class="mb-4 flex items-center gap-2 text-xl font-semibold">
 					<Clock class="size-5" />
-					Delivery Times
+					Operating Hours
 				</h2>
 				<div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-					<div class="font-medium">Monday</div>
-					<div class="text-gray-600">11:00–21:30</div>
-					<div class="font-medium">Tuesday</div>
-					<div class="text-gray-600">11:00–21:30</div>
-					<div class="font-medium">Wednesday</div>
-					<div class="text-gray-600">11:00–21:30</div>
-					<div class="font-medium">Thursday</div>
-					<div class="text-gray-600">11:00–21:30</div>
-					<div class="font-medium">Friday</div>
-					<div class="text-gray-600">11:00–21:30</div>
-					<div class="font-medium">Saturday</div>
-					<div class="text-gray-600">11:00–21:30</div>
-					<div class="font-medium">Sunday</div>
-					<div class="text-gray-600">11:00–21:30</div>
+					{#if data.restaurant.operatingHours && data.restaurant.operatingHours.length > 0}
+						{#each data.restaurant.operatingHours.sort((a, b) => {
+							const days = ['Monday', 'Tuesday', 'Wednesday', 'Thur</div>sday', 'Friday', 'Saturday', 'Sunday'];
+							return days.indexOf(a.day) - days.indexOf(b.day);
+						}) as hour}
+							<div class="font-medium">{hour.day}</div>
+							<div class="text-gray-600">
+								{#if !hour.isOpen || hour.openTime === hour.closeTime || !hour.openTime || !hour.closeTime}
+									Closed
+								{:else}
+									{formatTime(hour.openTime)}–{formatTime(hour.closeTime)}
+								{/if}
+							</div>
+						{/each}
+
+						<!-- Check for missing days and show them as closed -->
+						{#each ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as day}
+							{#if !data.restaurant.operatingHours.some((h) => h.day === day)}
+								<div class="font-medium">{day}</div>
+								<div class="text-gray-600">Closed</div>
+							{/if}
+						{/each}
+					{:else}
+						<div class="col-span-2 text-gray-600">No operating hours available</div>
+					{/if}
 				</div>
 			</div>
 		</div>
@@ -466,32 +396,33 @@
 					<div>
 						<h3 class="font-medium">About Us</h3>
 						<p class="mt-1 text-sm text-gray-600">
-							We are a family-owned restaurant committed to serving the best burgers in Tallinn
-							since 2010. Our ingredients are locally sourced, and our recipes are crafted with
-							care.
+							{data.restaurant.description}
 						</p>
 					</div>
 					<div>
 						<h3 class="font-medium">Delivery Information</h3>
 						<ul class="mt-1 space-y-1 text-sm text-gray-600">
-							<li>• Free delivery for orders over €30</li>
-							<li>• Average delivery time: 30-45 minutes</li>
-							<li>• Delivery radius: 5km from restaurant</li>
-						</ul>
-					</div>
-					<div>
-						<h3 class="font-medium">Payment Methods</h3>
-						<ul class="mt-1 space-y-1 text-sm text-gray-600">
-							<li>• Credit/Debit Cards</li>
-							<li>• Cash on Delivery</li>
-							<li>• Mobile Payment</li>
+							<li>• Delivery Type: {data.restaurant.deliveryType}</li>
+							{#if data.restaurant?.minimumOrderAmount > 0}
+								<li>• Minimum Order: ${data.restaurant.minimumOrderAmount}</li>
+							{/if}
 						</ul>
 					</div>
 					<div>
 						<h3 class="font-medium">Contact</h3>
 						<ul class="mt-1 space-y-1 text-sm text-gray-600">
-							<li>• Phone: +372 123 4567</li>
-							<li>• Email: info@burgerpalace.ee</li>
+							<li>• Phone: {data.restaurant.phoneNumber}</li>
+							<li>• Email: {data.restaurant.email}</li>
+							{#if data.restaurant.website}
+								<li>
+									• Website: <a
+										href={data.restaurant.website}
+										target="_blank"
+										rel="noopener noreferrer"
+										class="text-primary hover:underline">{data.restaurant.website}</a
+									>
+								</li>
+							{/if}
 						</ul>
 					</div>
 				</div>

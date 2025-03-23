@@ -62,14 +62,20 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.1.1",
+    "@googlemaps/js-api-loader": "^1.16.8",
     "@libsql/client": "^0.14.0",
+    "@mapbox/search-js-core": "^1.0.0",
+    "@mapbox/search-js-web": "^1.0.0",
+    "@repo/server": "workspace:*",
+    "@repo/types": "workspace:*",
     "better-auth": "^1.1.18",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.39.0",
+    "mapbox-gl": "^3.10.0",
+    "maplibre-gl": "^5.2.0",
     "nanoid": "^5.0.9",
+    "runed": "^0.24.1",
     "svelte-confetti": "^2.3.1",
-    "sveltekit-search-params": "^3.0.0",
-    "@repo/server": "workspace:*",
-    "@repo/types": "workspace:*"
+    "sveltekit-search-params": "^3.0.0"
   }
 }

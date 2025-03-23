@@ -30,6 +30,7 @@
 
 	let activeCategory = $state('');
 	let { menuCategoryWithItems }: Props = $props();
+	console.log('🚀 ~ menuCategoryWithItems:', menuCategoryWithItems);
 </script>
 
 <div class="space-y-6">
@@ -76,95 +77,115 @@
 
 		<!-- Table view (hidden on mobile) -->
 		<div class="hidden space-y-6 md:block">
-			{#each menuCategoryWithItems as category}
-				<div>
-					<h3 class="mb-4 text-lg font-medium">{category.name}</h3>
-					{#if category.menus.length === 0}
-						<div class="flex h-[200px] items-center justify-center rounded-md border border-dashed">
-							<p class="text-sm text-muted-foreground">No items in this category</p>
-						</div>
-					{:else}
-						<div class="rounded-md border">
-							<Table.Root>
-								<Table.Header>
-									<Table.Row>
-										<Table.Head>Item</Table.Head>
-										<Table.Head>Price</Table.Head>
-										<Table.Head>Prep Time</Table.Head>
-										<Table.Head>Status</Table.Head>
-										<Table.Head class="text-right">Actions</Table.Head>
-									</Table.Row>
-								</Table.Header>
-								<Table.Body>
-									{#each category.menus as meal}
+			{#each menuCategoryWithItems as category, i}
+				<details class="group rounded-lg border" open={i === 0}>
+					<summary
+						class="flex cursor-pointer items-center justify-between px-4 py-3 font-medium hover:bg-muted/50"
+					>
+						<h3 class="text-lg">{category.name}</h3>
+						<svg
+							class="h-5 w-5 transition-transform group-open:rotate-180"
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+						>
+							<path
+								fill="none"
+								stroke="currentColor"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="m6 9 6 6 6-6"
+							/>
+						</svg>
+					</summary>
+					<div class="px-4 pb-4">
+						{#if category.menus.length === 0}
+							<div
+								class="flex h-[200px] items-center justify-center rounded-md border border-dashed"
+							>
+								<p class="text-sm text-muted-foreground">No items in this category</p>
+							</div>
+						{:else}
+							<div class="rounded-md border">
+								<Table.Root>
+									<Table.Header>
 										<Table.Row>
-											<Table.Cell>
-												<div class="flex items-center gap-3"></div>
-												<div class="flex h-12 w-12 items-center justify-center rounded-md bg-muted">
-													{#if meal.image}
-														<img
-															src={meal.image}
-															alt={meal.name}
-															class="h-full w-full rounded-md object-cover"
-														/>
-													{:else}
-														<ImageIcon class="h-6 w-6 text-muted-foreground" />
-													{/if}
-												</div>
-												<div>
-													<p class="font-medium">{meal.name}</p>
-													<p class="text-sm text-muted-foreground">{meal.description}</p>
-												</div>
-											</Table.Cell>
-											<Table.Cell>${meal.price}</Table.Cell>
-											<Table.Cell>
-												<div class="flex items-center gap-1">
-													<Clock class="h-4 w-4" />
-													{100}min
-												</div>
-											</Table.Cell>
-
-											<Table.Cell>
-												<Badge variant={meal.inStock === true ? 'default' : 'destructive'}>
-													{meal.inStock}
-												</Badge>
-											</Table.Cell>
-											<Table.Cell class="text-right">
-												<ResponsiveDropdown>
-													{#snippet trigger()}
-														<Button variant="ghost" size="icon">
-															<MoreVertical class="h-4 w-4" />
-															<span class="sr-only">Open menu</span>
-														</Button>
-													{/snippet}
-													{#snippet children()}
-														<button class="dropdown-menu-item" onclick={() => {}}>
-															<Pencil class="mr-2 h-4 w-4" />
-															Edit Item
-														</button>
-														<button class="dropdown-menu-item" onclick={() => {}}>
-															<Settings class="mr-2 h-4 w-4" />
-															Manage Options
-														</button>
-														<button class="dropdown-menu-item" onclick={() => {}}>
-															<BarChart2 class="mr-2 h-4 w-4" />
-															View Analytics
-														</button>
-														<div class="dropdown-menu-separator" />
-														<button class="dropdown-menu-item text-destructive" onclick={() => {}}>
-															<Trash class="mr-2 h-4 w-4" />
-															Delete Item
-														</button>
-													{/snippet}
-												</ResponsiveDropdown>
-											</Table.Cell>
+											<Table.Head>Item</Table.Head>
+											<Table.Head>Price</Table.Head>
+											<Table.Head>Status</Table.Head>
+											<Table.Head class="text-right">Actions</Table.Head>
 										</Table.Row>
-									{/each}
-								</Table.Body>
-							</Table.Root>
-						</div>
-					{/if}
-				</div>
+									</Table.Header>
+									<Table.Body>
+										{#each category.menus as meal}
+											<Table.Row>
+												<Table.Cell>
+													<div class="flex items-center gap-3">
+														<div
+															class="flex h-12 w-12 items-center justify-center rounded-md bg-muted"
+														>
+															{#if meal.image}
+																<img
+																	src={meal.image}
+																	alt={meal.name}
+																	class="h-full w-full rounded-md object-cover"
+																/>
+															{:else}
+																<ImageIcon class="h-6 w-6 text-muted-foreground" />
+															{/if}
+														</div>
+														<div>
+															<p class="font-medium">{meal.name}</p>
+															<p class="text-sm text-muted-foreground">{meal.description}</p>
+														</div>
+													</div>
+												</Table.Cell>
+												<Table.Cell>${meal.price}</Table.Cell>
+												<Table.Cell>
+													<Badge variant={meal.inStock === true ? 'default' : 'destructive'}>
+														{meal.inStock}
+													</Badge>
+												</Table.Cell>
+												<Table.Cell class="text-right">
+													<ResponsiveDropdown>
+														{#snippet trigger()}
+															<Button variant="ghost" size="icon">
+																<MoreVertical class="h-4 w-4" />
+																<span class="sr-only">Open menu</span>
+															</Button>
+														{/snippet}
+														{#snippet children()}
+															<button class="dropdown-menu-item" on:click={() => {}}>
+																<Pencil class="mr-2 h-4 w-4" />
+																Edit Item
+															</button>
+															<button class="dropdown-menu-item" on:click={() => {}}>
+																<Settings class="mr-2 h-4 w-4" />
+																Manage Options
+															</button>
+															<button class="dropdown-menu-item" on:click={() => {}}>
+																<BarChart2 class="mr-2 h-4 w-4" />
+																View Analytics
+															</button>
+															<div class="dropdown-menu-separator" />
+															<button
+																class="dropdown-menu-item text-destructive"
+																on:click={() => {}}
+															>
+																<Trash class="mr-2 h-4 w-4" />
+																Delete Item
+															</button>
+														{/snippet}
+													</ResponsiveDropdown>
+												</Table.Cell>
+											</Table.Row>
+										{/each}
+									</Table.Body>
+								</Table.Root>
+							</div>
+						{/if}
+					</div>
+				</details>
 			{/each}
 		</div>
 	{/if}

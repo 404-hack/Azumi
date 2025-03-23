@@ -32,7 +32,7 @@
 				class="flex items-center gap-1 bg-background/90 px-2.5 py-1 text-sm"
 			>
 				<Clock class="h-3.5 w-3.5" />
-				{deliveryTime}
+				{deliveryTime} minutes
 			</Badge>
 		</div>
 	</div>

@@ -1,3 +1,4 @@
+export const prerender = true;
 export const ssr = false;
 import { authClient } from '$lib/auth-client';
 

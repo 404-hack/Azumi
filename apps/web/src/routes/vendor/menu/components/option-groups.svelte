@@ -18,7 +18,8 @@
 	import ResponsiveDropdown from '$lib/components/ResponsiveDropdown.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import ResponsiveDialog from '$lib/components/ResponsiveDialog.svelte';
-	import { goto } from '$app/navigation';
+	import AddOptionModal from '$lib/components/modal/AddOptionModal.svelte';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { Label } from '$lib/components/ui/label';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -26,103 +27,62 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { cn } from '$lib/utils';
 	import { buttonVariants } from '$lib/components/ui/button';
-	import type { TOptionGroupWithOptions } from '@repo/server/types';
+	import type { TOption, TOptionGroupWithOptions } from '@repo/server/types';
+	import { addOptionModalState, deleteModalState } from '$lib/states/modalState.svelte';
+	import DeleteConfirmModal from '$lib/components/modal/DeleteConfirmModal.svelte';
+	import { client } from '$lib/hc';
 	const isDesktop = new MediaQuery('(min-width: 768px)');
 	type Props = {
 		optionGroups: TOptionGroupWithOptions[];
 	};
 
 	let { optionGroups }: Props = $props();
-	console.log('🚀 ~ optionGroups:', optionGroups);
+
+	// Track the current option group ID for the modal
+	let currentOptionGroupId = $state<string | null>(null);
 
 	let deleteDialogOpen = $state(false);
-	let optionToDelete: { groupId: string; optionId: string; name: string } | null = $state(null);
 	let editDialogOpen = $state(false);
 	let editingOption: {
 		groupId: string;
 		option: { id: string; name: string; price: number; available: boolean };
 	} | null = $state(null);
 
-	// let openGroups = $state<Record<string, boolean>>({});
+	// Function to open the add option modal with the current group ID
+	function openAddOptionModal(groupId: string) {
+		currentOptionGroupId = groupId;
+		addOptionModalState.setTrue();
+	}
 
-	// function handleDeleteClick(groupId: string, option: { id: string; name: string }) {
-	// 	optionToDelete = { groupId, optionId: option.id, name: option.name };
-	// 	deleteDialogOpen = true;
-	// }
+	let deletingId: string | null = $state(null);
+	let optionToDelete: TOption | null = $state(null);
 
-	// function handleDeleteConfirm() {
-	// 	if (!optionToDelete) return;
+	const deleteOption = async (id: string) => {
+		try {
+			deletingId = id;
+			await client.option.vendor[':id'].$delete({
+				param: { id }
+			});
+			toast.success(`${optionToDelete?.name} was successfully deleted`);
 
-	// 	const groupIndex = optionGroups.findIndex((g) => g.id === optionToDelete.groupId);
-	// 	if (groupIndex !== -1) {
-	// 		optionGroups[groupIndex].options = optionGroups[groupIndex].options.filter(
-	// 			(o) => o.id !== optionToDelete.optionId
-	// 		);
-	// 		optionGroups = optionGroups;
-	// 		toast.success('Option deleted successfully');
-	// 	}
-	// 	deleteDialogOpen = false;
-	// 	optionToDelete = null;
-	// }
+			// You might want to refresh the options list or emit an event here
+		} finally {
+			deletingId = null;
+			invalidateAll();
+			deleteModalState.setFalse();
+		}
+	};
 
-	// function handleEditClick(
-	// 	groupId: string,
-	// 	option: { id: string; name: string; price: number; available: boolean }
-	// ) {
-	// 	editingOption = { groupId, option: { ...option } };
-	// 	editDialogOpen = true;
-	// }
+	const handleDeleteClick = (option: TOption) => {
+		optionToDelete = option;
+		deleteModalState.setTrue();
+	};
 
-	// function handleEditConfirm() {
-	// 	if (!editingOption) return;
-
-	// 	const groupIndex = optionGroups.findIndex((g) => g.id === editingOption.groupId);
-	// 	if (groupIndex !== -1) {
-	// 		const optionIndex = optionGroups[groupIndex].options.findIndex(
-	// 			(o) => o.id === editingOption.option.id
-	// 		);
-	// 		if (optionIndex !== -1) {
-	// 			optionGroups[groupIndex].options[optionIndex] = editingOption.option;
-	// 			optionGroups = optionGroups;
-	// 			toast.success('Option updated successfully');
-	// 		}
-	// 	}
-	// 	editDialogOpen = false;
-	// 	editingOption = null;
-	// }
-
-	// function handleToggleAvailability(groupId: string, option: { id: string; available: boolean }) {
-	// 	const groupIndex = optionGroups.findIndex((g) => g.id === groupId);
-	// 	if (groupIndex !== -1) {
-	// 		const optionIndex = optionGroups[groupIndex].options.findIndex((o) => o.id === option.id);
-	// 		if (optionIndex !== -1) {
-	// 			optionGroups[groupIndex].options[optionIndex].available = !option.available;
-	// 			optionGroups = optionGroups;
-	// 			toast.success(
-	// 				`Option ${optionGroups[groupIndex].options[optionIndex].available ? 'enabled' : 'disabled'}`
-	// 			);
-	// 		}
-	// 	}
-	// }
-
-	// function handleEditGroup(groupId: string) {
-	// 	goto(`/vendor/menu/edit-option-group/${groupId}`);
-	// }
-
-	// function handleAddOption(groupId: string) {
-	// 	goto(`/vendor/menu/add-option?groupId=${groupId}`);
-	// }
-
-	// function toggleGroup(groupId: string) {
-	// 	openGroups[groupId] = !openGroups[groupId];
-	// 	openGroups = openGroups;
-	// }
-
-	// function onButtonClick(e: MouseEvent, handler: () => void) {
-	// 	e.preventDefault();
-	// 	e.stopPropagation();
-	// 	handler();
-	// }
+	const handleConfirmDelete = () => {
+		if (optionToDelete) {
+			deleteOption(optionToDelete.id);
+		}
+	};
 </script>
 
 <div class="space-y-6 pb-6">
@@ -205,15 +165,21 @@
 					>
 						<div class="border-t">
 							<div class="flex justify-end p-2">
-								<Button variant="outline" size="sm">
+								<Button variant="outline" size="sm" onclick={() => openAddOptionModal(group.id)}>
 									<Plus class="mr-2 h-4 w-4" />
 									Add Option
 								</Button>
 							</div>
-							{#if group.options.length === 0}
+							{#if group.optionsToOptionGroups.length === 0}
 								<div class="flex flex-col items-center justify-center p-8 text-center">
 									<p class="mb-2 text-sm text-muted-foreground">No options in this group yet</p>
-									<Button variant="outline" size="sm">
+									<Button
+										variant="outline"
+										onclick={() => {
+											openAddOptionModal(group.id);
+										}}
+										size="sm"
+									>
 										<Plus class="mr-2 h-4 w-4" />
 										Add Option
 									</Button>
@@ -223,14 +189,14 @@
 									<Table.Header>
 										<Table.Row>
 											<Table.Head class="w-[40px]" />
-											<Table.Head>Option</Table.Head>
+											<Table.Head>Name</Table.Head>
 											<Table.Head>Price</Table.Head>
 											<Table.Head>Status</Table.Head>
 											<Table.Head class="text-right">Actions</Table.Head>
 										</Table.Row>
 									</Table.Header>
 									<Table.Body>
-										{#each group.options as option}
+										{#each group.optionsToOptionGroups as { option }}
 											<Table.Row>
 												<Table.Cell>
 													<GripVertical class="h-4 w-4 text-muted-foreground" />
@@ -269,7 +235,10 @@
 																Toggle Availability
 															</button>
 															<div class="dropdown-menu-separator" />
-															<button class="dropdown-menu-item text-destructive">
+															<button
+																onclick={() => handleDeleteClick(option)}
+																class="dropdown-menu-item text-destructive"
+															>
 																<Trash class="mr-2 h-4 w-4" />
 																Delete Option
 															</button>
@@ -282,7 +251,7 @@
 								</Table.Root>
 							{:else}
 								<div class="divide-y">
-									{#each group.options as option}
+									{#each group.optionsToOptionGroups as { option }}
 										<div class="flex items-center gap-4 p-4">
 											<div class="flex-1 space-y-1">
 												<div class="flex items-center gap-2">
@@ -332,6 +301,14 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Add the option modal with the current group ID -->
+<AddOptionModal optionGroupId={currentOptionGroupId} />
+<DeleteConfirmModal
+	itemName={optionToDelete?.name}
+	loading={!!deletingId}
+	handleConfirm={handleConfirmDelete}
+/>
 
 <style>
 	@keyframes collapsible-down {

@@ -4,14 +4,53 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import type { TOption } from '@repo/server/types';
+	import { deleteModalState } from '$lib/states/modalState.svelte';
+	import DeleteConfirmModal from '$lib/components/modal/DeleteConfirmModal.svelte';
+	import { client } from '$lib/hc';
+	import { toast } from 'svelte-sonner';
+	import { invalidateAll } from '$app/navigation';
 
 	type Props = {
 		options: TOption[];
 	};
 	let { options }: Props = $props();
-	console.log('🚀 ~ options:', options);
+
+	// Add loading state
+	let deletingId: string | null = $state(null);
+	let optionToDelete: TOption | null = $state(null);
+
+	const deleteOption = async (id: string) => {
+		try {
+			deletingId = id;
+			await client.option.vendor[':id'].$delete({
+				param: { id }
+			});
+			toast.success(`${optionToDelete?.name} was successfully deleted`);
+
+			// You might want to refresh the options list or emit an event here
+		} finally {
+			deletingId = null;
+			invalidateAll();
+			deleteModalState.setFalse();
+		}
+	};
+
+	const handleDeleteClick = (option: TOption) => {
+		optionToDelete = option;
+		deleteModalState.setTrue();
+	};
+
+	const handleConfirmDelete = () => {
+		if (optionToDelete) {
+			deleteOption(optionToDelete.id);
+		}
+	};
+	const load = async () => {
+		await invalidateAll();
+	};
 </script>
 
+<button onclick={() => load()}>load it</button>
 <div class="space-y-4">
 	<div class="flex items-center justify-between">
 		<h2 class="text-2xl font-semibold">Option Items</h2>
@@ -51,7 +90,9 @@
 							<Table.Cell class="text-right">
 								<div class="flex justify-end gap-2">
 									<Button variant="outline" size="sm">Edit</Button>
-									<Button variant="destructive" size="sm">Delete</Button>
+									<Button variant="destructive" size="sm" onclick={() => handleDeleteClick(item)}>
+										Delete
+									</Button>
 								</div>
 							</Table.Cell>
 						</Table.Row>
@@ -61,3 +102,8 @@
 		</div>
 	{/if}
 </div>
+<DeleteConfirmModal
+	itemName={optionToDelete?.name}
+	loading={!!deletingId}
+	handleConfirm={handleConfirmDelete}
+/>

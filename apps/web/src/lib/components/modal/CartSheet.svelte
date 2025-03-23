@@ -10,10 +10,10 @@
 <!-- Cart Trigger Button -->
 
 <!-- Cart Sheet -->
-<Sheet.Root open={cart.isOpen} onOpenChange={() => cart.toggleCart()}>
+<Sheet.Root bind:open={cart.isOpen}>
 	<Sheet.Trigger>
 		<Button variant="outline" size="icon" onclick={cart.toggleCart} class="relative">
-			<ShoppingCart class="h-5 w-5" />
+			<ShoppingBag class="h-4 w-4" />
 			<span
 				class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground"
 			>
@@ -21,7 +21,8 @@
 			</span>
 		</Button>
 	</Sheet.Trigger>
-	<Sheet.Content class="w-full sm:max-w-lg">
+	
+	<Sheet.Content class="w-full sm:max-w-lg overflow-y-auto rounded-s-lg p-4 pt-10">
 		<Sheet.Header>
 			<Sheet.Title class="flex items-center gap-2">
 				<ShoppingBag class="h-5 w-5" />
@@ -31,9 +32,9 @@
 		</Sheet.Header>
 
 		<div class="mt-8 flex-1 overflow-y-auto">
-			<CartItem id="1" name="Spicy Tuna Roll" price={12.99} quantity={2} />
-			<CartItem id="2" name="California Roll" price={9.99} quantity={1} />
-			<CartItem id="3" name="Dragon Roll" price={14.99} quantity={1} />
+			<CartItem image='/shop.avif' id="1" name="Spicy Tuna Roll" price={12.99} quantity={2} />
+			<CartItem image='/shop.avif' id="2" name="California Roll" price={9.99} quantity={1} />
+			<CartItem image='/shop.avif' id="3" name="Dragon Roll" price={14.99} quantity={1} />
 		</div>
 
 		<div class="border-t pt-4">

@@ -5,24 +5,36 @@
 	import Label from '$lib/components/ui/label/label.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { defaults, superForm } from 'sveltekit-superforms';
-	import { zod, zodClient } from 'sveltekit-superforms/adapters';
+	import { zod } from 'sveltekit-superforms/adapters';
 	import * as Select from '$lib/components/ui/select';
-	import { Badge } from '$lib/components/ui/badge';
-	import { Loader, Store } from 'lucide-svelte';
-	import { onMount } from 'svelte';
+	import { Loader, Store, MapPin } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client.js';
-	import { PUBLIC_API_BASE_URL } from '$env/static/public';
-	import {} from '@repo/server/hc';
 	import { createShopSchema } from '@repo/server/validations';
 	import { client } from '$lib/hc.js';
+	import { loginModalState, registerModalState } from '$lib/states/modalState.svelte.js';
+	import LoginModal from '$lib/components/modal/LoginModal.svelte';
+	import RegisterModal from '$lib/components/modal/RegisterModal.svelte';
+	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
+	import { getCurrentPosition, reverseGeocode } from '$lib/utils/geolocation';
+	import type { Place } from '$lib/types/places';
+	import { Loader2 } from 'lucide-svelte';
+
 	let { data } = $props();
+	const session = authClient.useSession();
 	const form = superForm(defaults(zod(createShopSchema)), {
 		validators: zod(createShopSchema),
 		SPA: true,
+		resetForm: false,
+		dataType: 'json',
 		onUpdate: async ({ form }) => {
-			
+			console.log('🚀 ~ onUpdate: ~ form:', form);
+			// check if coordinates are selected
+			if (form.data.address && form.errors.coordinates) {
+				toast.error('Please select a location from the suggestions.');
+				return;
+			}
 			if (form.valid) {
 				const res = await client.shop.create.$post({
 					json: {
@@ -30,20 +42,85 @@
 						type: form.data.type,
 						email: form.data.email,
 						phone: form.data.phone,
-						address: form.data.address,
+						address: form.data.coordinates.address,
+						coordinates: form.data.coordinates
 					}
 				});
-				if(res.ok){
-					await goto('/create-a-page/application-sent')
-				}else{
-					toast.error('An error occurred while creating your store. Please try again later.')
+				if (res.ok) {
+					await goto('/create-a-page/application-sent');
+				} else {
+					toast.error('An error occurred while creating your store. Please try again later.');
 				}
+				// check if the user is logged in
+				// if ($session.data) {
+				// } else {
+				// 	registerModalState.setTrue();
+				// 	toast.error('You need to be logged in to create a shop.');
+				// }
 			}
 		}
 	});
 
-	const { form: formData, enhance, delayed } = form;
+	const { form: formData, enhance, delayed, capture, restore, submit } = form;
+	export const snapshot = { capture, restore };
+
+	// Optional: Store coordinates for future use
+	let selectedLocation = $state<{ lat: number; lng: number } | null>(null);
+
+	// Function to handle place selection
+	function handlePlaceSelect(place: Place) {
+		if (place) {
+			$formData.coordinates = {
+				lat: place.lat,
+				lng: place.lng,
+				address: place.address,
+				name: place.name
+			};
+			selectedLocation = { lat: place.lat, lng: place.lng };
+		}
+	}
+
+	let isGettingLocation = $state(false);
+
+	async function useCurrentLocation() {
+		try {
+			isGettingLocation = true;
+			const position = await getCurrentPosition();
+			const { latitude, longitude } = position.coords;
+
+			selectedLocation = {
+				lat: latitude,
+				lng: longitude
+			};
+
+			const address = await reverseGeocode(latitude, longitude);
+			$formData.address = address;
+			$formData.coordinates = {
+				lat: latitude,
+				lng: longitude,
+				address,
+				name: address
+			};
+			toast.success('Location obtained successfully');
+		} catch (error: unknown) {
+			const errorMessage = error instanceof Error ? error.message : 'Failed to get location';
+			toast.error(errorMessage);
+		} finally {
+			isGettingLocation = false;
+		}
+	}
 </script>
+
+<svelte:head>
+	<title>Create Your Store - African Market</title>
+	<meta
+		name="description"
+		content="Create your store on African Market and start selling to customers across Africa."
+	/>
+</svelte:head>
+
+<RegisterModal title="You need to be registered in first before you can create a shop" />
+<LoginModal title="You need to be logged in first before you can create a shop" />
 
 <div class="container mx-auto max-w-3xl px-4 py-12">
 	<div class="mb-10 text-center">
@@ -67,11 +144,7 @@
 						{#snippet children({ props })}
 							<div class="space-y-2">
 								<Form.Label>Store Name</Form.Label>
-								<Input
-									{...props}
-									bind:value={$formData.name}
-									placeholder="Enter your store name"
-								/>
+								<Input {...props} bind:value={$formData.name} placeholder="Enter your store name" />
 								<Form.Description>This is how customers will identify your store</Form.Description>
 							</div>
 						{/snippet}
@@ -87,8 +160,8 @@
 								<Select.Root bind:value={$formData.type} type="single" name={props.name}>
 									<Select.Trigger {...props} class="w-full">
 										<span class="">
-											{data.shopTypes.find((shopType) => shopType.id === $formData.type)
-												?.name || 'Select business type'}
+											{data.shopTypes.find((shopType) => shopType.id === $formData.type)?.name ||
+												'Select business type'}
 										</span>
 									</Select.Trigger>
 									<Select.Content>
@@ -128,9 +201,9 @@
 									<Form.Label>Phone Number</Form.Label>
 									<Input
 										{...props}
-										type="tel"
+										type="number"
 										bind:value={$formData.phone}
-										placeholder="+1234567890"
+										placeholder="+234..."
 									/>
 								</div>
 							{/snippet}
@@ -142,14 +215,33 @@
 				<Form.Field {form} name="address">
 					<Form.Control>
 						{#snippet children({ props })}
-							<div class="space-y-2">
+							<div class="relative space-y-2">
 								<Form.Label>Business Address</Form.Label>
-								<Input
+								<PlacesInput
 									{...props}
 									bind:value={$formData.address}
-									placeholder="Enter your business address"
+									onPlaceSelect={handlePlaceSelect}
 								/>
+								<Form.Description>
+									Start typing to see address suggestions for locations across Nigeria.
+								</Form.Description>
 							</div>
+
+							<Button
+								type="button"
+								variant="outline"
+								onclick={() => useCurrentLocation()}
+								class="mt-2 w-full"
+								disabled={isGettingLocation}
+							>
+								{#if isGettingLocation}
+									<Loader2 class="mr-2 h-4 w-4 animate-spin" />
+									Getting location...
+								{:else}
+									<MapPin class="mr-2 h-4 w-4" />
+									Use Current Location
+								{/if}
+							</Button>
 						{/snippet}
 					</Form.Control>
 					<Form.FieldErrors />
@@ -173,3 +265,25 @@
 		</Card.Root>
 	</form>
 </div>
+
+<style>
+	/* Address suggestions dropdown styling */
+	:global(.pac-container) {
+		border-radius: 0.375rem;
+		box-shadow:
+			0 10px 15px -3px rgba(0, 0, 0, 0.1),
+			0 4px 6px -2px rgba(0, 0, 0, 0.05);
+		border: 1px solid rgb(229, 231, 235);
+		margin-top: 0.25rem;
+		z-index: 1000;
+	}
+
+	:global(.pac-item) {
+		padding: 0.5rem 0.75rem;
+		cursor: pointer;
+	}
+
+	:global(.pac-item:hover) {
+		background-color: rgba(243, 244, 246);
+	}
+</style>

@@ -14,26 +14,22 @@
 	import { Loader } from 'lucide-svelte';
 	const form = superForm(defaults(zod(createMenuCategorySchema)), {
 		validators: zodClient(createMenuCategorySchema),
-		SPA:true,
+		SPA: true,
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
-				
-					const res = await client.menu.category.create.$post({
-						json:{
-							name: form.data.name,
-							published: form.data.published,
-
-						}
-					})
-					const data = await res.json()
-					if(res.ok){
-						toast.success(data.message)
-						addCategoryModalState.setFalse()
-					}else{
-						toast.error(data.message)
+				const res = await client.vendor.menu.category.create.$post({
+					json: {
+						name: form.data.name,
+						published: form.data.published
 					}
-					
-				
+				});
+				const data = await res.json();
+				if (res.ok) {
+					toast.success(data.message);
+					addCategoryModalState.setFalse();
+				} else {
+					toast.error(data.message);
+				}
 			}
 		}
 	});
@@ -43,7 +39,7 @@
 
 <ResponsiveDialog title="Add Category" bind:open={addCategoryModalState.value}>
 	<form method="POST" use:enhance class="grid items-start gap-4">
-	<Form.Field {form} name="name">
+		<Form.Field {form} name="name">
 			<Form.Control>
 				{#snippet children({ props })}
 					<Form.Label>Category name</Form.Label>
@@ -57,7 +53,7 @@
 				{#snippet children({ props })}
 					<div class="flex items-center justify-between">
 						<Form.Label>Publish Now</Form.Label>
-						<Switch {...props}  bind:checked={$formData.published} />
+						<Switch {...props} bind:checked={$formData.published} />
 					</div>
 				{/snippet}
 			</Form.Control>
@@ -66,10 +62,10 @@
 
 		<Button class="shadow-md" type="submit">
 			{#if $delayed}
-				<Loader class="mr-2 animate-spin"  />
-				{:else}
-Save changes
+				<Loader class="mr-2 animate-spin" />
+			{:else}
+				Save changes
 			{/if}
-			</Button>
+		</Button>
 	</form>
 </ResponsiveDialog>

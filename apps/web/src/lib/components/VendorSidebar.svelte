@@ -10,7 +10,8 @@
 		UserCircle,
 		ChevronLeft,
 		LogOut,
-		Store
+		Store,
+		Tag
 	} from 'lucide-svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { page } from '$app/state';
@@ -20,7 +21,7 @@
 
 	let isCollapsed = $state(false);
 	let isStoreOpen = $state(true);
-	let pendingOrders = $state(3);
+	let pendingOrders = 3;
 	let data = page.data;
 	const sidebarItems = [
 		{
@@ -35,6 +36,12 @@
 			title: 'Menu',
 			icon: Menu,
 			href: '/vendor/menu'
+		},
+		{
+			id: 2,
+			title: 'Categories',
+			icon: Tag,
+			href: '/vendor/categories'
 		},
 		{
 			id: 3,

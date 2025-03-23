@@ -74,7 +74,7 @@
 	</div>
 
 	<div class="mt-12 text-center">
-		<Button href='/vendor/orders' variant="outline" size="lg">
+		<Button href="/vendor/orders" variant="outline" size="lg">
 			Go to your dashboard
 			<ArrowRight class="ml-2 size-4" />
 		</Button>
