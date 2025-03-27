@@ -1,0 +1,37 @@
+{
+	"name": "@repo/server",
+	"exports": {
+		"./hc": "./src/hc.ts",
+		"./validations": "./src/lib/validation/index.ts",
+		"./types": "./src/lib/types/index.ts"
+	},
+	"scripts": {
+		"dev": "wrangler dev",
+		"deploy": "wrangler deploy --minify",
+		"build": "tsc -p tsconfig.build.json",
+		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
+		"db:push": "drizzle-kit push --config=drizzle-dev.config.ts",
+		"db:push:prod": "drizzle-kit push",
+		"db:migrate:prod": "drizzle-kit migrate",
+		"db:generate:prod": "drizzle-kit generate",
+		"db:generate": "drizzle-kit generate  --config=drizzle-dev.config.ts",
+		"db:migrate": "drizzle-kit migrate --config=drizzle-dev.config.ts",
+		"db:studio:prod": "drizzle-kit studio",
+		"db:studio": "drizzle-kit studio --config=drizzle-dev.config.ts"
+	},
+	"dependencies": {
+		"@hono/zod-validator": "^0.4.3",
+		"@paystack/inline-js": "^2.22.2",
+		"better-auth": "^1.1.18",
+		"better-sqlite3": "^11.8.1",
+		"drizzle-kit": "^0.30.4",
+		"drizzle-orm": "^0.39.3",
+		"hono": "^4.7.1",
+		"nanoid": "^5.1.0",
+		"zod": "^3.24.2"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20250214.0",
+		"wrangler": "^4.4.0"
+	}
+}

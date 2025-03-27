@@ -34,6 +34,7 @@
 	import CartItem from '$lib/components/CartItem.svelte';
 	import { client } from '$lib/hc.js';
 	import PaystackPop from '@paystack/inline-js';
+	import { goto } from '$app/navigation';
 	let loading = false;
 	let shippingMethodId = 'standard-shipping';
 	let couponCode = '';
@@ -97,7 +98,30 @@
 		const responseData = await res.json();
 		console.log('🚀 ~ checkOut ~ responseData:', responseData);
 		const popup = new PaystackPop();
-		popup.resumeTransaction(responseData.data.accessCode);
+		popup.resumeTransaction(responseData.data.accessCode, {
+			async onSuccess(transaction) {
+				console.log('Transaction successful:', transaction);
+				// Access transaction details from response
+				const { reference, status, message, trxref } = transaction;
+				toast.success('Payment successful!');
+
+				// You can navigate to a success page or update UI
+				if (status === 'success') {
+					// Update order status with the transaction reference
+					console.log(`Order confirmed with reference: ${reference}`);
+					try {
+						await goto(`/checkout/confirmation/${trxref}`);
+					} catch (error) {
+						console.error('Navigation error:', error);
+						toast.error('Could not navigate to confirmation page');
+					}
+				}
+			},
+			onCancel() {
+				console.log('Transaction cancelled');
+				toast.error('Payment cancelled!');
+			}
+		});
 	}
 </script>
 

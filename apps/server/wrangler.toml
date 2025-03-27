@@ -1,0 +1,42 @@
+name = "african-market-online-backend"
+main = "src/index.ts"
+compatibility_date = "2025-02-15"
+compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+
+[observability]
+enabled = true
+
+# For more details on how to configure Wrangler, refer to:
+# https://developers.cloudflare.com/workers/wrangler/configuration/
+
+# Uncomment the following sections as needed:
+
+[placement]
+mode = "smart"
+
+# [vars]
+# MY_VARIABLE = "production_value"
+
+# [assets]
+# directory = "./public/"
+# binding = "ASSETS"
+
+# [[services]]
+# binding = "MY_SERVICE"
+# service = "my-service"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "amo-db"
+database_id = "3e09638d-a3ee-475a-b7bc-ae2f0cbb90ef"
+
+
+[[r2_buckets]]
+bucket_name = "amo-bucket"
+binding = "BUCKET"
+
+# [[workflows]]
+# # The name of the Workflow
+# name = "workflows-tutorial"
+# binding = "MY_WORKFLOW"
+# class_name = "MyWorkflow"
