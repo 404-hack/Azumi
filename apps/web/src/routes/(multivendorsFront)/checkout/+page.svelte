@@ -32,7 +32,8 @@
 	import AddAddressModal from '$lib/components/modal/AddAddressModal.svelte';
 	import DeliveryAddressModal from '$lib/components/modal/DeliveryAddressModal.svelte';
 	import CartItem from '$lib/components/CartItem.svelte';
-
+	import { client } from '$lib/hc.js';
+	import PaystackPop from '@paystack/inline-js';
 	let loading = false;
 	let shippingMethodId = 'standard-shipping';
 	let couponCode = '';
@@ -79,9 +80,24 @@
 
 	async function checkOut() {
 		loading = true;
-		await new Promise((resolve) => setTimeout(resolve, 1500));
+		const res = await client.order.create.$post({
+			json: {
+				deliveryAddressId,
+				deliveryNotes,
+				vendorNotes,
+
+				cartId: data.cart.id,
+				deliveryFee: 0,
+				serviceFee: 0,
+				discount: 0
+			}
+		});
+
 		loading = false;
-		toast.success('Order placed successfully!');
+		const responseData = await res.json();
+		console.log('🚀 ~ checkOut ~ responseData:', responseData);
+		const popup = new PaystackPop();
+		popup.resumeTransaction(responseData.data.accessCode);
 	}
 </script>
 
@@ -185,8 +201,8 @@
 						<CartItem
 							image="/shop.avif"
 							id={item.menuItemId}
-							name={item.menuItem.name}
-							price={item.menuItem.price}
+							name={item?.menuItem.name}
+							price={item?.menuItem.price}
 							quantity={item.quantity}
 						/>
 					{/each}
