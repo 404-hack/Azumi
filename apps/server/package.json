@@ -8,7 +8,6 @@
 	"scripts": {
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy --minify",
-		"build": "tsc -p tsconfig.build.json",
 		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
 		"db:push": "drizzle-kit push --config=drizzle-dev.config.ts",
 		"db:push:prod": "drizzle-kit push",
