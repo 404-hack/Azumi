@@ -1,8 +1,8 @@
 import { client } from '$lib/hc.js';
 import { error } from '@sveltejs/kit';
 
-export const load = async ({ url }) => {
-	const shopId = url.searchParams.get('shopId');
+export const load = async ({ params }) => {
+	const { shopId } = params;
 
 	// Run both requests in parallel
 	const [cartResponse, addressResponse] = await Promise.all([

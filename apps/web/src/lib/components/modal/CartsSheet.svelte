@@ -321,7 +321,7 @@
 	 * Proceed to checkout for a specific shop
 	 */
 	function checkoutShop(shopId: string): void {
-		goto(`/checkout?shopId=${shopId}`);
+		goto(`/checkout/${shopId}`);
 		cartsSheetStore.setFalse();
 	}
 

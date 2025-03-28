@@ -24,7 +24,7 @@ import paystackWebhookRoute from "./routes/paystack-webhook.route";
 
 // Create app instance using factory
 const app = factory
-  .createApp()
+  .createApp({ strict: false })
   .basePath("/api")
   // Add global middleware
   .use("*", customCors);

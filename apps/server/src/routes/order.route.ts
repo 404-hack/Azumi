@@ -273,13 +273,13 @@ const orderRoute = factory
       // This is a temporary state while payment is processing
       // The webhook will update this to "converted" on successful payment
       // or revert to "active" if payment fails
-      await db
-        .update(cartTable)
-        .set({
-          status: "PENDING_PAYMENT", // Update cart status to pending payment
-        })
-        .where(eq(cartTable.id, data.cartId))
-        .execute();
+      // await db
+      //   .update(cartTable)
+      //   .set({
+      //     status: "PENDING_PAYMENT", // Update cart status to pending payment
+      //   })
+      //   .where(eq(cartTable.id, data.cartId))
+      //   .execute();
 
       // Get the complete order with items
       const completeOrder = await db.query.orderTable.findFirst({
