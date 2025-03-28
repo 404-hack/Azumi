@@ -15,7 +15,8 @@
         "!.next/cache/**",
         ".svelte-kit/**",
         "build/**",
-        "dist/**"
+        "dist/**",
+        "package/**"
       ]
     },
     "lint": {
