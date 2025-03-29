@@ -295,6 +295,10 @@ importers:
         version: 8.24.0(eslint@9.20.0(jiti@1.21.7))(typescript@5.7.3)
 
   packages/types:
+    dependencies:
+      zod:
+        specifier: ^3.24.2
+        version: 3.24.2
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
