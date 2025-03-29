@@ -1,5 +1,5 @@
-export const prerender = true;
-export const ssr = false;
+// export const prerender = true;
+// export const ssr = false;
 import { authClient } from '$lib/auth-client';
 
 export const load = async () => {
