@@ -103,6 +103,7 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
       "http://localhost:5173",
       "http://127.0.0.1:8787",
       "http://localhost:8787",
+      "https://hanzari-web.sphade012.workers.dev/",
     ],
     plugins: [
       organization({
