@@ -12,14 +12,6 @@ directory = ".svelte-kit/cloudflare"
 [observability]
 enabled = true
 
-[[d1_databases]]
-binding = "DB"
-database_name = "afoDb"
-database_id = "0e436dfc-c45a-4885-ae11-a5d9b13c9eed"
-
-[[r2_buckets]]
-bucket_name = "amo-bucket"
-binding = "amo_bucket"
 
 # Smart Placement
 # Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
