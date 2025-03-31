@@ -21,7 +21,8 @@ import vendorRoute from "./routes/vendor.route";
 import cartRoute from "./routes/cart.route";
 import addressRoute from "./routes/address.route";
 import paystackWebhookRoute from "./routes/paystack-webhook.route";
-
+import * as process from 'node:process';
+process.env.
 // Create app instance using factory
 const app = factory
   .createApp({ strict: false })

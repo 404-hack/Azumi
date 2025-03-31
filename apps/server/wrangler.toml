@@ -27,13 +27,8 @@ mode = "smart"
 [env.staging]
 [[d1_databases]]
 binding = "DB"
-database_name = "amo-db"
-database_id = "3e09638d-a3ee-475a-b7bc-ae2f0cbb90ef"
-
-
-[[r2_buckets]]
-bucket_name = "amo-bucket"
-binding = "BUCKET"
+database_name = "azumi-db"
+database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18"
 
 # [[workflows]]
 # # The name of the Workflow
