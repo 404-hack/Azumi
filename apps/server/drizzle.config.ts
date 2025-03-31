@@ -1,7 +1,4 @@
 import { defineConfig } from "drizzle-kit";
-if (!process.env.CLOUDFLARE_ACCOUNT_ID)
-  throw new Error("CLOUDFLARE_ACCOUNT_ID is not set");
-
 export default defineConfig({
   schema: "./src/lib/server/db/schema",
   dbCredentials: {
@@ -14,5 +11,4 @@ export default defineConfig({
   dialect: "sqlite",
   out: "./migrations",
   driver: "d1-http",
-
 });

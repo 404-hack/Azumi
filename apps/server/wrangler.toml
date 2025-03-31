@@ -1,7 +1,7 @@
-name = "hanzari-backend"
+name = "azumi-server"
 main = "src/index.ts"
-compatibility_date = "2025-02-15"
-compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+compatibility_date = "2025-03-15"
+compatibility_flags = ["nodejs_compat","nodejs_compat_populate_process_env"]
 
 [observability]
 enabled = true
@@ -24,7 +24,7 @@ mode = "smart"
 # [[services]]
 # binding = "MY_SERVICE"
 # service = "my-service"
-
+[env.staging]
 [[d1_databases]]
 binding = "DB"
 database_name = "amo-db"
