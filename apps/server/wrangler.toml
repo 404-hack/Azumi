@@ -14,28 +14,11 @@ enabled = true
 [placement]
 mode = "smart"
 
-# [vars]
-# MY_VARIABLE = "production_value"
 
-# [assets]
-# directory = "./public/"
-# binding = "ASSETS"
-
-# [[services]]
-# binding = "MY_SERVICE"
-# service = "my-service"
+[env.staging]
    
-    [[env.production.d1_databases]]
-    binding = "DB"
-    database_name = "azumi-db-staging"
-    database_id = "f61b1aa2-0166-44ad-8a1a-38574ea0fb7f"
+    d1_databases = [ { binding = "DB", database_name = "azumi-db-staging", database_id = "f61b1aa2-0166-44ad-8a1a-38574ea0fb7f" } ]
 
- [[env.staging.d1_databases]]
-    binding = "DB"
-    database_name = "azumi-db"
-    database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18"
-# [[workflows]]
-# # The name of the Workflow
-# name = "workflows-tutorial"
-# binding = "MY_WORKFLOW"
-# class_name = "MyWorkflow"
+[env.production]
+
+    d1_databases = [ { binding = "DB", database_name = "azumi-db", database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18" } ]
