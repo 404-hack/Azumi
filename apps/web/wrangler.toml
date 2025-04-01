@@ -10,8 +10,8 @@ pages_build_output_dir = ".svelte-kit/cloudflare"
 # binding = "ASSETS"
 # directory = ".svelte-kit/cloudflare"
 
-[observability]
-enabled = true
+# [observability]
+# enabled = true
 
 
 # Smart Placement
