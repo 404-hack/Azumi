@@ -5,10 +5,10 @@ import dotenv from "dotenv";
 // dotenv.config();
 
 export default defineConfig({
-  schema: "./src/lib/server/db/schema",
+  schema: "./src/lib/db/schema",
   dbCredentials: {
     accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-    token: process.env.CLOUDFLARE_TOKEN!,
+    token: process.env.CLOUDFLARE_API_TOKEN!,
     databaseId: process.env.CLOUDFLARE_DATABASE_ID!,
   },
   verbose: true,
