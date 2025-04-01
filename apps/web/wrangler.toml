@@ -5,6 +5,7 @@ name = "azumi-web"
 # main = ".svelte-kit/cloudflare/_worker.js"
 compatibility_date = "2025-01-09"
 pages_build_output_dir = ".svelte-kit/cloudflare"
+    d1_databases = [ { binding = "DB", database_name = "azumi-db-staging", database_id = "f61b1aa2-0166-44ad-8a1a-38574ea0fb7f" } ]
 
 # [assets]
 # binding = "ASSETS"
