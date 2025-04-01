@@ -9,7 +9,10 @@ const ALLOWED_ORIGINS = [
 const customCors = factory.createMiddleware(async (c, next) => {
   const origin = c.req.header("Origin");
   const corsMiddlewareHandler = cors({
-    origin: ["http://localhost:5173"],
+    origin: [
+      "http://localhost:5173",
+      "https://hanzari-web.sphade012.workers.dev",
+    ],
     allowMethods: ["POST", "GET", "OPTIONS", "PUT", "DELETE", "PATCH"],
     allowHeaders: ["Content-Type", "Authorization"], // Allow needed headers
     exposeHeaders: ["Content-Length"],
