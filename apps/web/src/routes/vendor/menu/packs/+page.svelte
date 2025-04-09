@@ -1,4 +1,4 @@
-<script lang="ts">
+<!-- <script lang="ts">
     import { goto } from "$app/navigation";
     import { Button } from "$lib/components/ui/button";
     import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "$lib/components/ui/card";
@@ -170,4 +170,4 @@
             </Button>
         </div>
     {/if}
-</div>
+</div> -->
