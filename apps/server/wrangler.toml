@@ -1,4 +1,4 @@
-name = "azumi-server"
+name = "azumi-server-staging"
 main = "src/index.ts"
 compatibility_date = "2025-03-15"
 compatibility_flags = ["nodejs_compat","nodejs_compat_populate_process_env"]
