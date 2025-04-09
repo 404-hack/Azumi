@@ -1,4 +1,4 @@
-<script lang="ts">
+<!-- <script lang="ts">
 	import { ArrowLeft, Plus, Search, ChevronDown, X } from 'lucide-svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
@@ -289,4 +289,4 @@
 			{/each}
 		</Accordion.Root>
 	{/if}
-</div>
+</div> -->

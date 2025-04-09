@@ -1,4 +1,4 @@
-<script lang="ts">
+<!-- <script lang="ts">
 	import { ArrowLeft, Trash } from 'lucide-svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
@@ -216,4 +216,4 @@
 	itemName={data.menuItem.name}
 	loading={isDeleting}
 	handleConfirm={handleDelete}
-/>
+/> -->
