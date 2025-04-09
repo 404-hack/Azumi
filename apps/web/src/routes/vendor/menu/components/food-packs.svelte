@@ -72,7 +72,7 @@
 		try {
 			isLoading = true;
 
-			const response = await client.vendor.packs.$get();
+			const response = await client.vendor.pack.$get();
 			console.log('🚀 ~ fetchFoodPacks ~ response:', response);
 
 			if (response.ok) {
@@ -113,7 +113,7 @@
 				<button onclick={toggleSearch} class="hover:text-primary">
 					<Search class="h-4 w-4" />
 				</button>
-				<Button href="/vendor/menu/add-pack" class="flex-1 md:flex-none">
+				<Button href="/vendor/menu/packs/new" class="flex-1 md:flex-none">
 					<Plus class="mr-2 h-4 w-4" />
 					Add Food Pack
 				</Button>
@@ -149,7 +149,6 @@
 						<Table.Head>Name</Table.Head>
 						<Table.Head class="hidden md:table-cell">Description</Table.Head>
 						<Table.Head>Price</Table.Head>
-						<Table.Head class="hidden md:table-cell">Menu Items</Table.Head>
 						<Table.Head class="text-right">Actions</Table.Head>
 					</Table.Row>
 				</Table.Header>
@@ -178,7 +177,7 @@
 										{#snippet children()}
 											<button
 												class="dropdown-menu-item"
-												onclick={() => goto(`/vendor/menu/edit-pack/${pack.id}`)}
+												onclick={() => goto(`/vendor/menu/packs/${pack.id}`)}
 											>
 												<Pencil class="mr-2 h-4 w-4" />
 												Edit Pack

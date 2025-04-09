@@ -6,10 +6,11 @@ import * as schema from "./db/schema";
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { Variables } from "./types";
 import { openAPI, organization } from "better-auth/plugins";
-export type Environment = {
-  Bindings: CloudflareBindings;
-  Variables: Variables;
-};
+import { env } from "cloudflare:workers";
+// export type Environment = {
+//   Bindings: CloudflareBindings;
+//   Variables: Variables;
+// };
 
 // export const auth = betterAuth({
 //   database: drizzleAdapter("", {
@@ -98,12 +99,7 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
         secure: true,
       },
     },
-    trustedOrigins: [
-      "http://localhost:5173/",
-      "http://localhost:5173",
-      "http://127.0.0.1:8787",
-      "http://localhost:8787",
-    ],
+    trustedOrigins: ["*"], // Allow any origin
     plugins: [
       organization({
         schema: {
@@ -113,7 +109,7 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
         },
 
         async sendInvitationEmail(data) {
-          const inviteLink = `https://example.com/accept-invitation/${data.id}`;
+          const inviteLink = `${env.CLIENT_URL}/accept-invitation/${data.id}`;
           console.log({
             email: data.email,
             invitedByUsername: data.inviter.user.name,

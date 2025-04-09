@@ -8,14 +8,22 @@
 	} from '$lib/states/modalState.svelte';
 	import CartSheet from './modal/CartSheet.svelte';
 	import CartsSheet from './modal/CartsSheet.svelte';
-	import { MapPin, Search, ShoppingBag, ChevronDown, Menu, ShoppingCart } from 'lucide-svelte';
+	import {
+		MapPin,
+		Search,
+		ShoppingBag,
+		ChevronDown,
+		Menu,
+		ShoppingCart,
+		Store
+	} from 'lucide-svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Avatar, AvatarFallback, AvatarImage } from '$lib/components/ui/avatar';
 	import LoginModal from './modal/LoginModal.svelte';
 	import RegisterModal from './modal/RegisterModal.svelte';
 	import { page } from '$app/state';
 	import { authClient } from '$lib/auth-client';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { Badge } from '$lib/components/ui/badge';
 
 	let location = 'Nairobi, Kenya';
@@ -23,17 +31,17 @@
 	let isMobileMenuOpen = $state(false);
 
 	let user = $derived(page.data.user);
-	console.log('🚀 ~ page.data.carts.length:', page.data.carts);
+	const organizations = authClient.useListOrganizations();
 </script>
 
 <header
 	class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur transition-all duration-200 supports-[backdrop-filter]:bg-background/60"
 >
 	<div class="container flex h-16 w-full items-center justify-between gap-4">
-		<!-- Logo and Location -->
+		<!-- Logo and Locatio`n -->
 		<div class="flex items-center gap-4">
 			<a href="/" class="flex items-center space-x-2">
-				<span class="text-xl font-bold text-primary">AMO</span>
+				<span class="text-xl font-bold text-primary">Azumi</span>
 			</a>
 
 			<button
@@ -47,7 +55,7 @@
 		</div>
 
 		<!-- Search -->
-		<div class="hidden max-w-xl flex-1 px-4 md:flex">
+		<!-- <div class="hidden max-w-xl flex-1 px-4 md:flex">
 			<div class="relative w-full">
 				<Search
 					class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -60,7 +68,7 @@
 					aria-label="Search"
 				/>
 			</div>
-		</div>
+		</div> -->
 
 		<!-- User Navigation -->
 		<div class="flex items-center gap-3">
@@ -117,10 +125,31 @@
 							<DropdownMenu.Item>
 								<a href="/me/favorites" class="flex w-full">Favorites</a>
 							</DropdownMenu.Item>
-							<DropdownMenu.Separator />
 							<DropdownMenu.Item>
 								<a href="/me/settings" class="flex w-full">Settings</a>
 							</DropdownMenu.Item>
+							<DropdownMenu.Separator />
+							{#if $organizations.isPending}
+								<p>Loading...</p>
+							{:else if $organizations.data === null}
+								<span class="sr-only">no organizations</span>
+							{:else}
+								{#each $organizations.data as organization}
+									<DropdownMenu.Item
+										onclick={() => {
+											authClient.organization.setActive({
+												organizationSlug: organization.slug
+											});
+											goto('/vendor/menu');
+										}}
+									>
+										<Store />
+										{organization.name}
+									</DropdownMenu.Item>
+								{/each}
+							{/if}
+
+							<DropdownMenu.Separator />
 							<DropdownMenu.Item class="text-red-500">
 								<button
 									onclick={async () => {

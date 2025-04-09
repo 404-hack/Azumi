@@ -254,9 +254,8 @@
 					Promo code
 				</h4>
 				<p class="mb-2 mt-4 text-sm text-muted-foreground md:mb-4 md:mt-8">
-					If you have an <span class="font-display font-medium capitalize text-black"
-						>african market online</span
-					> promo code, enter it below to claim your benefits.
+					If you have an <span class="font-display font-medium capitalize text-black">Azumi</span> promo
+					code, enter it below to claim your benefits.
 				</p>
 				<form
 					class="flex w-full items-center rounded-md border-2 bg-white px-3 text-foreground focus-within:ring-2 focus-within:ring-primary md:max-w-lg"

@@ -1,5 +1,5 @@
 {
-  "name": "african-martket-monorepo",
+  "name": "azumi",
   "private": true,
   "scripts": {
     "build": "turbo run build",

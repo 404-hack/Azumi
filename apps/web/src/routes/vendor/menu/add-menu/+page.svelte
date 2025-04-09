@@ -64,7 +64,7 @@
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
 				try {
-					const res = await client.vendor.menu.create.$post({
+					const res = await client.vendor.menu.$post({
 						json: {
 							...form.data
 						}
@@ -83,11 +83,21 @@
 	const { form: formData, enhance, delayed } = form;
 </script>
 
-<AddCategoryModal />
-<AddPackModal />
-<AddOptionGroupModal />
+<AddCategoryModal
+afterSubmit={(category) => {
+		$formData.categoryId = category.id;
+	}}
 
-<div class="min-h-screen bg-gray-50">
+
+/>
+<AddPackModal afterSubmit={(pack) => {
+	$formData.packId = pack.id;
+}} />
+<AddOptionGroupModal options={data.options} afterSubmit={(newGroup)=>{
+	$formData.optionGroupId = [...($formData.optionGroupId || []), newGroup.id];
+}} />
+
+<div class="min-h-screen ">
 	<div class="sticky top-0 z-10 border-b bg-white shadow-sm">
 		<div class="container mx-auto">
 			<div class="flex h-16 items-center gap-4 px-4">
@@ -301,31 +311,7 @@
 					</Form.Field>
 
 					<div class="grid gap-6 sm:grid-cols-2">
-						<!-- <Form.Field {form} name="packId">
-							<Form.Control>
-								{#snippet children({ props })}
-									<Form.Label>Pack Options <Badge variant="outline">Optional</Badge></Form.Label>
-									<div class="space-y-2">
-										<Select.Root bind:value={$formData.packId}>
-											<Select.Trigger>Select pack option</Select.Trigger>
-											<Select.Content>
-												<Select.Item value="small">Small Pack</Select.Item>
-												<Select.Item value="medium">Medium Pack</Select.Item>
-												<Select.Item value="large">Large Pack</Select.Item>
-											</Select.Content>
-										</Select.Root>
-										<Button
-											variant="link"
-											class="h-auto p-0"
-											onclick={() => addPackModalState.setTrue()}
-										>
-											+ Add new pack option
-										</Button>
-									</div>
-								{/snippet}
-							</Form.Control>
-							<Form.FieldErrors />
-						</Form.Field> -->
+					
 
 						<Form.Field {form} name="optionGroupId">
 							<Form.Control>
@@ -354,11 +340,7 @@
 											</Select.Content>
 										</Select.Root>
 										<div class="flex gap-2">
-											<Button
-												variant="link"
-												href="/vendor/menu/add-option-group"
-												class="h-auto p-0 text-primary">+ Create New Option Group</Button
-											>
+											
 											<Button
 												variant="link"
 												onclick={() => {
@@ -370,10 +352,39 @@
 									</div>
 								{/snippet}
 							</Form.Control>
-							<Form.Description>
-								Add option groups to allow customers to customize their order. Quick Add for simple
-								groups, Create New for detailed options.
-							</Form.Description>
+							
+							<Form.FieldErrors />
+						</Form.Field>
+						<Form.Field {form} name="packId">
+							<Form.Control>
+								{#snippet children({ props })}
+									<Form.Label>Pack Options <Badge variant="outline">Optional</Badge></Form.Label>
+									<div class="space-y-2">
+										<Select.Root type="single" bind:value={$formData.packId}>
+											<Select.Trigger class='capitalize' >
+												{$formData.packId
+													? data.packs.find((pack) => pack.id === $formData.packId)?.name ||
+													  'Unknown'
+													: 'Select pack'}
+											</Select.Trigger>
+											<Select.Content>
+												{#each data.packs as { name, id }}
+													<Select.Item value={id}>{name}</Select.Item>
+												{/each}
+												
+											</Select.Content>
+										</Select.Root>
+										
+										<Button
+											variant="link"
+											class="h-auto p-0"
+											onclick={() => addPackModalState.setTrue()}
+										>
+											+ Add new pack option
+										</Button>
+									</div>
+								{/snippet}
+							</Form.Control>
 							<Form.FieldErrors />
 						</Form.Field>
 					</div>

@@ -14,53 +14,13 @@
 
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod } from 'sveltekit-superforms/adapters';
-	import {  updateShopSchema } from '@repo/server/validations';
+	import { updateShopSchema } from '@repo/server/validations';
 	import StoreOperationForm from './StoreOperationForm.svelte';
 	import StoreHoursForm from './StoreHoursForm.svelte';
 	let { data } = $props();
 	let isOpen = $state(data.profile.active ?? false); // Store status (open/closed)
 	let automaticStatus = $state(false);
 	let deliveryType = $state('instant'); // 'instant' or 'preorder'
-
-	// Default schedule (applies to all days unless overridden)
-	let defaultSchedule = $state({
-		openTime: '09:00',
-		closeTime: '22:00',
-		isOpen: true
-	});
-
-	// Specific day overrides
-	let specificDays = $state([
-		// Initially empty, users will add days as needed
-	]);
-
-	// Available days to add (will be filtered as days are selected)
-	const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-	// Get remaining days that haven't been added as specific overrides
-	let availableDays = $derived(allDays.filter((day) => !specificDays.some((sd) => sd.day === day)));
-
-	// For adding a new specific day
-	let selectedDayToAdd = $state('');
-
-	function addSpecificDay() {
-		if (selectedDayToAdd && !specificDays.some((d) => d.day === selectedDayToAdd)) {
-			specificDays = [
-				...specificDays,
-				{
-					day: selectedDayToAdd,
-					openTime: defaultSchedule.openTime,
-					closeTime: defaultSchedule.closeTime,
-					isOpen: true
-				}
-			];
-			selectedDayToAdd = '';
-		}
-	}
-
-	function removeSpecificDay(index: number) {
-		specificDays = specificDays.filter((_, i) => i !== index);
-	}
 
 	async function updateStoreStatus() {
 		// Here you would typically update the store status in your backend
@@ -105,45 +65,6 @@
 		enhance: deliveryTypeFormEnhance,
 		delayed: deliveryTypeFormDelayed
 	} = deliveryTypeForm;
-
-	// Initialize with default operating hours if no existing data
-	const initialOperatingHours = {
-		monday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
-		tuesday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
-		wednesday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
-		thursday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
-		friday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
-		saturday: { isOpen: true, openTime: '09:00', closeTime: '22:00' },
-		sunday: { isOpen: true, openTime: '09:00', closeTime: '22:00' }
-	};
-
-	// Get operating hours data from the server or use defaults
-	// const operationHoursForm = superForm(defaults(zod(operatingHoursSchema)), {
-	// 	validators: zod(operatingHoursSchema),
-	// 	SPA: true,
-	// 	dataType: 'json',
-	// 	onUpdate: async ({ form }) => {
-	// 		if (form.valid) {
-	// 			const res = await client.vendor['operating-hours'].$post({
-	// 				json: {
-	// 					...form.data
-	// 				}
-	// 			});
-	// 			if (res.ok) {
-	// 				toast.success('Operating hours updated successfully');
-	// 				await invalidateAll();
-	// 			}
-	// 			console.log(form.data);
-	// 		}
-	// 	}
-	// });
-
-	// const {
-	// 	form: operatingHoursData,
-	// 	enhance: operatingHoursEnhance,
-	// 	delayed: operatingHoursDelayed,
-	// 	errors: operatingHoursErrors
-	// } = operationHoursForm;
 </script>
 
 <div class="container mx-auto space-y-6 p-4">

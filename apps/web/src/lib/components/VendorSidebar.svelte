@@ -47,13 +47,15 @@
 			id: 3,
 			title: 'Payouts',
 			icon: Wallet,
-			href: '/vendor/payouts'
+			href: '/vendor/wallet'
 		},
 		{
 			id: 4,
 			title: 'Insights',
 			icon: BarChart2,
-			href: '/vendor/insights'
+			disabled: true,
+			badgeText: 'Coming Soon',
+			badgeVariant: 'secondary'
 		},
 		{
 			id: 5,
@@ -77,19 +79,6 @@
 	const organizations = authClient.useListOrganizations();
 </script>
 
-<!-- <button
-	onclick={async () => {
-		await authClient.organization.update({
-			data: {
-				metadata: {
-					active: true
-				}
-			}
-		});
-	}}
->
-	update store active state
-</button> -->
 <Sidebar.Root class="border-r bg-background">
 	<div class="space-y-4 py-4">
 		<div class="px-3 py-2">
@@ -118,20 +107,32 @@
 		</div>
 		<div class="px-3">
 			<div class="space-y-1">
-				{#each sidebarItems as { href, icon: Icon, title, badge }}
-					<a
-						{href}
-						class={cn(
-							'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
-							page.url.pathname === href && 'bg-primary text-primary-foreground'
-						)}
-					>
-						<Icon class="h-4 w-4" />
-						<span>{title}</span>
-						{#if badge}
-							<Badge variant="destructive" class="ml-auto">{badge}</Badge>
-						{/if}
-					</a>
+				{#each sidebarItems as { href, icon: Icon, title, badge, disabled, badgeText, badgeVariant }}
+					{#if disabled}
+						<div
+							class="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium opacity-60"
+						>
+							<Icon class="h-4 w-4" />
+							<span>{title}</span>
+							{#if badgeText}
+								<Badge variant={badgeVariant || 'outline'} class="ml-auto">{badgeText}</Badge>
+							{/if}
+						</div>
+					{:else}
+						<a
+							{href}
+							class={cn(
+								'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+								page.url.pathname === href && 'bg-primary text-primary-foreground'
+							)}
+						>
+							<Icon class="h-4 w-4" />
+							<span>{title}</span>
+							{#if badge}
+								<Badge variant="destructive" class="ml-auto">{badge}</Badge>
+							{/if}
+						</a>
+					{/if}
 				{/each}
 			</div>
 		</div>

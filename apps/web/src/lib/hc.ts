@@ -1,5 +1,6 @@
+import { PUBLIC_API_BASE_URL } from '$env/static/public';
 import { hcWithType } from '@repo/server/hc';
-export const client = hcWithType('http://127.0.0.1:8787', {
+export const client = hcWithType(PUBLIC_API_BASE_URL, {
 	init: {
 		credentials: 'include'
 	}

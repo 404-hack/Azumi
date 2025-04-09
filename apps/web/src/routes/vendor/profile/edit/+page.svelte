@@ -21,28 +21,34 @@
 	console.log('🚀 ~ data:', data);
 
 	// Create the form using superForm
-	const form = superForm(defaults({ ...data.profile }, zod(updateShopSchema)), {
-		validators: zod(updateShopSchema),
-		SPA: true, // Enable client-side form handling (SPA mode)
-		resetForm: false, // Don't reset form after submission
-		dataType: 'json',
-		onUpdated: async ({ form }) => {
-			if (form.valid) {
-				await client.vendor.$patch({
-					json: {
-						...form.data
+	const form = superForm(
+		defaults({ ...data.profile, phone: data.profile.phoneNumber }, zod(updateShopSchema)),
+		{
+			validators: zod(updateShopSchema),
+			SPA: true, // Enable client-side form handling (SPA mode)
+			resetForm: false, // Don't reset form after submission
+			dataType: 'json',
+			onUpdated: async ({ form }) => {
+				if (form.valid) {
+					const res = await client.vendor.$patch({
+						json: {
+							...form.data
+						}
+					});
+
+					if (res.ok) {
+						toast.success('Profile updated successfully');
+					} else {
+						toast.error('Failed to update profile');
 					}
-				});
-				// Handle form submission
-				console.log('Form submitted successfully:', form.data);
-				// You can send the form data to your server here
+				}
+			},
+			onError: ({ result }) => {
+				console.error('Form submission error:', result.error);
+				// Handle errors appropriately
 			}
-		},
-		onError: ({ result }) => {
-			console.error('Form submission error:', result.error);
-			// Handle errors appropriately
 		}
-	});
+	);
 	const { form: formData, delayed, submitting, enhance, errors } = form;
 
 	let isGettingLocation = $state(false);
@@ -156,7 +162,7 @@
 									<Form.Label>Phone Number</Form.Label>
 									<Input
 										{...props}
-										type="number"
+										type="tel"
 										bind:value={$formData.phone}
 										placeholder="Enter phone number"
 									/>

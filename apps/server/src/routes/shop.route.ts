@@ -46,85 +46,9 @@ const shopRoute = factory
       const maxLon = lng + lonDelta;
 
       // Get all shops - we'll filter them by coordinates
-      const shops = await db.query.shopTable.findMany({
-        with: {
-          operatingHours: true,
-          menuCategories: {
-            with: {
-              menus: {
-                where: (menuItems, { eq }) => eq(menuItems.inStock, true),
-                orderBy: (menuItems, { asc }) => asc(menuItems.name),
-              },
-            },
-          },
-        },
-      });
-
-      // Bike delivery speed in km/h
-      const averageBikeSpeed = 15;
-
-      // Filter shops by coordinates and calculate distance
-      const shopsWithDistance = shops
-        .map((shop) => {
-          // Directly access coordinates as specified by user
-          const coordinates = shop.coordinates as any;
-          if (!coordinates || !coordinates.lat || !coordinates.lng) {
-            return null;
-          }
-
-          const shopLat = coordinates.lat;
-          const shopLng = coordinates.lng;
-
-          // Check if shop is within boundary box
-          if (
-            shopLat < minLat ||
-            shopLat > maxLat ||
-            shopLng < minLon ||
-            shopLng > maxLon
-          ) {
-            return null;
-          }
-
-          // Haversine formula to calculate distance in kilometers
-          const R = 6371; // Earth's radius in km
-          const dLat = ((shopLat - lat) * Math.PI) / 180;
-          const dLon = ((shopLng - lng) * Math.PI) / 180;
-          const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos((lat * Math.PI) / 180) *
-              Math.cos((shopLat * Math.PI) / 180) *
-              Math.sin(dLon / 2) *
-              Math.sin(dLon / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          const distanceInKm = R * c;
-
-          // Calculate estimated delivery time in minutes
-          const estimatedDeliveryMinutes =
-            Math.ceil((distanceInKm / averageBikeSpeed) * 60) + 5;
-
-          // Skip shops that are too far away
-          if (distanceInKm > maxDeliveryDistance) {
-            return null;
-          }
-
-          return {
-            ...shop,
-            distance: parseFloat(distanceInKm.toFixed(1)), // Distance in km
-            distanceUnit: "km",
-            estimatedDeliveryTime: estimatedDeliveryMinutes,
-            estimatedDeliveryTimeUnit: "minutes",
-          };
-        })
-        .filter((shop): shop is NonNullable<typeof shop> => shop !== null) // Type-safe null filtering
-        .sort((a, b) => a.distance - b.distance);
-
-      // Limit the number of results to avoid overwhelming the client
-      const limitedResults = shopsWithDistance.slice(0, 20);
-      console.log("🚀 ~ .get ~ limitedResults:", limitedResults);
 
       return c.json({
         data: {
-          restaurants: limitedResults,
           userLocation: { latitude: lat, longitude: lng },
         },
       });

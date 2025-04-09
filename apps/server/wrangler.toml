@@ -1,10 +1,14 @@
-name = "hanzari-backend"
+name = "azumi-server"
 main = "src/index.ts"
-compatibility_date = "2025-02-15"
-compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+compatibility_date = "2025-03-15"
+compatibility_flags = ["nodejs_compat","nodejs_compat_populate_process_env"]
 
 [observability]
 enabled = true
+
+# Weekly vendor payout job - runs every Sunday at 00:01 AM
+# [triggers]
+# crons = ["1 0 * * 0"]
 
 # For more details on how to configure Wrangler, refer to:
 # https://developers.cloudflare.com/workers/wrangler/configuration/
@@ -14,29 +18,16 @@ enabled = true
 [placement]
 mode = "smart"
 
-# [vars]
-# MY_VARIABLE = "production_value"
 
-# [assets]
-# directory = "./public/"
-# binding = "ASSETS"
-
-# [[services]]
-# binding = "MY_SERVICE"
-# service = "my-service"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "amo-db"
-database_id = "3e09638d-a3ee-475a-b7bc-ae2f0cbb90ef"
+[env.staging]
+   
+    vars = {  CLIENT_URL =  'http://localhost:5173/'}
+   
+     
+    d1_databases = [ { binding = "DB", database_name = "azumi-db-staging", database_id = "f61b1aa2-0166-44ad-8a1a-38574ea0fb7f" } ]
 
 
-[[r2_buckets]]
-bucket_name = "amo-bucket"
-binding = "BUCKET"
+[env.production]
 
-# [[workflows]]
-# # The name of the Workflow
-# name = "workflows-tutorial"
-# binding = "MY_WORKFLOW"
-# class_name = "MyWorkflow"
+    d1_databases = [ { binding = "DB", database_name = "azumi-db", database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18" } ]
+

@@ -1,8 +1,10 @@
 import { factory } from "../lib/factory";
 import { orderTable, cartTable } from "../lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { Context } from "hono";
 import { Variables } from "../lib/types";
+import { nanoid } from "nanoid";
+import { shopPaymentMethodTable } from "../lib/db/schema/shop.schema";
 
 const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
   try {
@@ -54,13 +56,26 @@ const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
     const event = body.event;
     console.log(`Processing Paystack webhook event: ${event}`);
 
-    if (event === "charge.success") {
-      await handleSuccessfulPayment(c, body.data);
-    } else if (event === "charge.failed") {
-      await handleFailedPayment(c, body.data);
-    } else {
-      // Log other events for debugging but still return success
-      console.log(`Unhandled Paystack event: ${event}`, body);
+    // Handle different types of events
+    switch (event) {
+      case "charge.success":
+        await handleSuccessfulPayment(c, body.data);
+        break;
+      case "charge.failed":
+        await handleFailedPayment(c, body.data);
+        break;
+      case "transfer.success":
+        await handleSuccessfulTransfer(c, body.data);
+        break;
+      case "transfer.failed":
+        await handleFailedTransfer(c, body.data);
+        break;
+      case "transfer.reversed":
+        await handleReversedTransfer(c, body.data);
+        break;
+      default:
+        // Log other events for debugging but still return success
+        console.log(`Unhandled Paystack event: ${event}`, body);
     }
 
     // 4. Acknowledge receipt
@@ -193,6 +208,190 @@ async function handleFailedPayment(
     // Send notification to customer about payment failure
   } catch (error) {
     console.error("Error handling failed payment:", error);
+  }
+}
+
+/**
+ * Handle successful transfer (vendor payout) webhook event
+ */
+async function handleSuccessfulTransfer(
+  c: Context<{
+    Bindings: CloudflareBindings;
+    Variables: Variables;
+  }>,
+  data: any
+) {
+  const db = c.get("db");
+
+  try {
+    console.log("Processing successful transfer:", data);
+
+    const transferCode = data.transfer_code;
+    const recipientCode = data.recipient?.recipient_code;
+    const amount = data.amount / 100; // Amount is in kobo, convert to NGN
+    const reason = data.reason;
+
+    if (!recipientCode) {
+      console.error("Missing recipient code in transfer data");
+      return;
+    }
+
+    // Find the shop associated with this recipient code
+    const paymentMethod = await db.query.shopPaymentMethodTable.findFirst({
+      where: sql`${shopPaymentMethodTable.additionalDetails} LIKE '%${recipientCode}%'`,
+    });
+
+    if (!paymentMethod) {
+      console.error(`No payment method found for recipient: ${recipientCode}`);
+      return;
+    }
+
+    // Record the successful transfer in vendor's transaction history (if you have a transaction table)
+    // Instead of using transactions, we just make individual updates
+
+    // 1. Log this successful payout in your system
+    console.log(
+      `Successfully paid ${amount} NGN to vendor with shop ID ${paymentMethod.shopId}, transfer code: ${transferCode}`
+    );
+
+    // 2. Update vendor orders to mark them as paid out (if you track this)
+    // This would typically be part of your business logic to mark orders as paid to vendor
+
+    // 3. Log the transfer details for reconciliation
+    const transferRecord = {
+      transferCode,
+      recipientCode,
+      amount,
+      reason,
+      status: "success",
+      shopId: paymentMethod.shopId,
+      processedAt: new Date().toISOString(),
+    };
+
+    console.log("Transfer record:", transferRecord);
+
+    // Update any other state in your application that needs to know about this successful transfer
+  } catch (error) {
+    console.error("Error handling successful transfer:", error);
+  }
+}
+
+/**
+ * Handle failed transfer (vendor payout) webhook event
+ */
+async function handleFailedTransfer(
+  c: Context<{
+    Bindings: CloudflareBindings;
+    Variables: Variables;
+  }>,
+  data: any
+) {
+  const db = c.get("db");
+
+  try {
+    console.log("Processing failed transfer:", data);
+
+    const transferCode = data.transfer_code;
+    const recipientCode = data.recipient?.recipient_code;
+    const amount = data.amount / 100; // Amount is in kobo, convert to NGN
+    const reason = data.reason;
+    const failureReason = data.failures || "Unknown reason";
+
+    if (!recipientCode) {
+      console.error("Missing recipient code in transfer data");
+      return;
+    }
+
+    // Find the shop associated with this recipient code
+    const paymentMethod = await db.query.shopPaymentMethodTable.findFirst({
+      where: sql`${shopPaymentMethodTable.additionalDetails} LIKE '%${recipientCode}%'`,
+    });
+
+    if (!paymentMethod) {
+      console.error(`No payment method found for recipient: ${recipientCode}`);
+      return;
+    }
+
+    // Log the failed transfer
+    console.log(
+      `Failed to pay ${amount} NGN to vendor with shop ID ${paymentMethod.shopId}, transfer code: ${transferCode}`
+    );
+    console.log(`Failure reason: ${failureReason}`);
+
+    // Record the failed transfer for retry
+    const failedTransferRecord = {
+      transferCode,
+      recipientCode,
+      amount,
+      reason,
+      status: "failed",
+      shopId: paymentMethod.shopId,
+      failureReason,
+      processedAt: new Date().toISOString(),
+    };
+
+    console.log("Failed transfer record:", failedTransferRecord);
+
+    // Flag this for manual review or automated retry
+  } catch (error) {
+    console.error("Error handling failed transfer:", error);
+  }
+}
+
+/**
+ * Handle reversed transfer (vendor payout) webhook event
+ */
+async function handleReversedTransfer(
+  c: Context<{
+    Bindings: CloudflareBindings;
+    Variables: Variables;
+  }>,
+  data: any
+) {
+  const db = c.get("db");
+
+  try {
+    console.log("Processing reversed transfer:", data);
+
+    const transferCode = data.transfer_code;
+    const recipientCode = data.recipient?.recipient_code;
+    const amount = data.amount / 100; // Amount is in kobo, convert to NGN
+
+    if (!recipientCode) {
+      console.error("Missing recipient code in transfer data");
+      return;
+    }
+
+    // Find the shop associated with this recipient code
+    const paymentMethod = await db.query.shopPaymentMethodTable.findFirst({
+      where: sql`${shopPaymentMethodTable.additionalDetails} LIKE '%${recipientCode}%'`,
+    });
+
+    if (!paymentMethod) {
+      console.error(`No payment method found for recipient: ${recipientCode}`);
+      return;
+    }
+
+    // Log the reversed transfer
+    console.log(
+      `Transfer of ${amount} NGN to vendor with shop ID ${paymentMethod.shopId} was reversed, transfer code: ${transferCode}`
+    );
+
+    // Record this reversal
+    const reversedTransferRecord = {
+      transferCode,
+      recipientCode,
+      amount,
+      status: "reversed",
+      shopId: paymentMethod.shopId,
+      processedAt: new Date().toISOString(),
+    };
+
+    console.log("Reversed transfer record:", reversedTransferRecord);
+
+    // Update your financial records to reflect this reversal
+  } catch (error) {
+    console.error("Error handling reversed transfer:", error);
   }
 }
 

@@ -100,7 +100,7 @@
 			: '-translate-x-full'}"
 	>
 		<div class="flex h-14 items-center border-b px-4">
-			<span class="font-semibold">African Market</span>
+			<span class="font-semibold">Azumi</span>
 			<!-- Close button for mobile -->
 			<Button
 				variant="ghost"
