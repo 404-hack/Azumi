@@ -47,10 +47,12 @@ export const SHOP_STATUS = [
   "SUSPENDED",
 ] as const;
 
-export const SHOP_AGREEMENTS_TYPE = [
-  "TERMS_OF_SERVICE",
-  "PRIVACY_POLICY",
-  "REFUND_POLICY",
-  "DELIVERY_POLICY",
-  "RETURN_POLICY",
-] as const;
+export const SHOP_AGREEMENTS_TYPE = ["VENDOR_TERMS"] as const;
+
+export const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://staging.azumi.pages.dev",
+  "https://azumi-server-staging.sphade012.workers.dev",
+  // Add your production origins here
+];

@@ -97,11 +97,11 @@
 				</p>
 			</div>
 			<div class="flex gap-2">
-				<Button variant="outline" href="/vendor/menu/add-option" class="flex-1 md:flex-none">
+				<Button variant="outline" href="/vendor/menu/options/new" class="flex-1 md:flex-none">
 					<Plus class="mr-2 h-4 w-4" />
 					Add New Option
 				</Button>
-				<Button href="/vendor/menu/add-option-group" class="flex-1 md:flex-none">
+				<Button href="/vendor/menu/option-groups/new" class="flex-1 md:flex-none">
 					<Plus class="mr-2 h-4 w-4" />
 					Add Option Group
 				</Button>
@@ -121,7 +121,7 @@
 				Create your first option group to add variations like sizes, toppings, or add-ons to your
 				menu items.
 			</p>
-			<a href="/vendor/menu/add-option-group" class={buttonVariants({ size: 'sm' })}>
+			<a href="/vendor/menu/option-groups/new" class={buttonVariants({ size: 'sm' })}>
 				<Plus class="mr-2 h-4 w-4" />
 				Add Option Group
 			</a>
@@ -144,7 +144,7 @@
 							</p>
 						</div>
 						<div class="flex items-center gap-2">
-							<Button variant="outline" size="sm">Edit Group</Button>
+							<Button variant="outline" href={`/vendor/menu/option-groups/${group.id}`} size="sm">Edit Group</Button>
 							<Collapsible.Trigger>
 								{#snippet child({ props })}
 									<Button

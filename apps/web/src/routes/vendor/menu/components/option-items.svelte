@@ -8,12 +8,13 @@
 	import DeleteConfirmModal from '$lib/components/modal/DeleteConfirmModal.svelte';
 	import { client } from '$lib/hc';
 	import { toast } from 'svelte-sonner';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 
 	type Props = {
 		options: TOption[];
 	};
 	let { options }: Props = $props();
+	console.log('🚀 ~ options:', options);
 
 	// Add loading state
 	let deletingId: string | null = $state(null);
@@ -50,27 +51,32 @@
 	};
 </script>
 
-<button onclick={() => load()}>load it</button>
 <div class="space-y-4">
 	<div class="flex items-center justify-between">
 		<h2 class="text-2xl font-semibold">Option Items</h2>
-		<Button href="/vendor/menu/add-option">
-			<Plus class="mr-2 h-4 w-4" />
-			Add Option Item
-		</Button>
+		{#if options.length > 0}
+			<Button href="/vendor/menu/options/new">
+				<Plus class="mr-2 h-4 w-4" />
+				Add Option Item
+			</Button>
+		{/if}
 	</div>
 
 	{#if options.length === 0}
-		<div class="rounded-md border p-8 text-center">
-			<p class="text-gray-500">
-				No option items found. Create your first option item to get started.
-			</p>
-			<div class="mt-4">
-				<Button href="/vendor/menu/add-option">
-					<Plus class="mr-2 h-4 w-4" />
-					Add Option Item
-				</Button>
+		<div
+			class="flex flex-col items-center justify-center rounded-md border border-dashed p-12 text-center"
+		>
+			<div class="mb-4 rounded-full bg-muted p-3">
+				<Plus class="h-6 w-6 text-muted-foreground" />
 			</div>
+			<h3 class="mb-2 text-lg font-medium">No options yet</h3>
+			<p class="mb-4 max-w-sm text-sm text-muted-foreground">
+				create your first option item to get started.
+			</p>
+			<Button href="/vendor/menu/options/new">
+				<Plus class="mr-2 h-4 w-4" />
+				Add Option
+			</Button>
 		</div>
 	{:else}
 		<div class="rounded-md border">
@@ -79,6 +85,7 @@
 					<Table.Row>
 						<Table.Head>Name</Table.Head>
 						<Table.Head>Price</Table.Head>
+						<Table.Head>status</Table.Head>
 						<Table.Head class="text-right">Actions</Table.Head>
 					</Table.Row>
 				</Table.Header>
@@ -87,9 +94,21 @@
 						<Table.Row>
 							<Table.Cell class="font-medium">{item.name}</Table.Cell>
 							<Table.Cell>${item.price}</Table.Cell>
+							<Table.Cell>
+								<Badge variant={item.inStock ? 'default' : 'destructive'}>
+
+									{item.inStock ? 'available' : 'unavailable'}
+								</Badge>
+							</Table.Cell>
 							<Table.Cell class="text-right">
 								<div class="flex justify-end gap-2">
-									<Button variant="outline" size="sm">Edit</Button>
+									<Button
+										variant="outline"
+										onclick={() => {
+											goto(`/vendor/menu/options/${item.id}`);
+										}}
+										size="sm">Edit</Button
+									>
 									<Button variant="destructive" size="sm" onclick={() => handleDeleteClick(item)}>
 										Delete
 									</Button>

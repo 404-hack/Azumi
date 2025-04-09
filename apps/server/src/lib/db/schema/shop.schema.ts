@@ -39,7 +39,7 @@ export const shopTable = sqliteTable("shop_table", {
   website: text("website"),
   description: text("description"),
   metadata: text("metadata", { mode: "json" }),
-  phoneNumber: integer("phone_number"),
+  phoneNumber: text("phone_number"),
   address: text("address"),
   commission: integer("commission").default(10),
   minimumOrderAmount: integer("minimum_order_amount").default(0),
@@ -62,7 +62,7 @@ export const shopTable = sqliteTable("shop_table", {
 
 export const member = sqliteTable("member", {
   id: text("id").primaryKey(),
-  organizationId: text()
+  organizationId: text("organization_id")
     .notNull()
     .references(() => shopTable.id, { onDelete: "cascade" }),
   userId: text("user_id")
@@ -146,26 +146,25 @@ export const shopAgreementsTable = sqliteTable("shopAgreements", {
   ...timestamps,
 });
 
-export const shopPaymentMethodTable = sqliteTable("shopPaymentMethod", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => nanoid()),
-  shopId: text("shop_id")
-    .notNull()
-    .references(() => shopTable.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  type: text("type", {
-    enum: PAYMENT_METHODS,
-  }).notNull(),
-  instructions: text("instructions"),
-  accountNumber: text("account_number"),
-  accountName: text("account_name"),
-  bankName: text("bank_name"),
-  isDefault: integer("is_default", { mode: "boolean" }).default(false),
-  isEnabled: integer("is_enabled", { mode: "boolean" }).default(true),
-  additionalDetails: text("additional_details"),
-  ...timestamps,
-});
+export const shopPaymentMethodTable = sqliteTable(
+  "shopPaymentMethod",
+  {
+    id: text("id").$defaultFn(() => nanoid()),
+    shopId: text("shop_id")
+      .notNull()
+      .references(() => shopTable.id, { onDelete: "cascade" }),
+    type: text("type", {
+      enum: PAYMENT_METHODS,
+    }).notNull(),
+    accountNumber: text("account_number"),
+    accountName: text("account_name"),
+    bankName: text("bank_name"),
+    paystackRecipientCode: text("paystack_recipient_code"),
+    bankCode: text("bank_code"),
+    ...timestamps,
+  },
+  (table) => [primaryKey({ columns: [table.accountNumber, table.shopId] })]
+);
 export const shopRelations = relations(shopTable, ({ one, many }) => ({
   todo: one(shopTodoTable, {
     fields: [shopTable.id],

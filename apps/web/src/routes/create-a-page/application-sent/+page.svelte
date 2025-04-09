@@ -8,10 +8,10 @@
 		<div class="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-primary/10">
 			<CircleCheck class="size-12 text-primary" />
 		</div>
-		<h1 class="font-display text-4xl font-bold tracking-tight">Application Submitted!</h1>
+		<h1 class="font-display text-4xl font-bold tracking-tight">Welcome to Azumi!</h1>
 		<p class="mt-3 text-lg text-muted-foreground">
-			Thank you for choosing to partner with African Market Online. We're excited to have you join
-			our marketplace!
+			Your vendor account has been created. We'll reach out within 24-48 hours to help you get
+			started.
 		</p>
 	</div>
 
@@ -25,10 +25,9 @@
 				>
 					<span class="font-display text-xl font-bold">1</span>
 				</div>
-				<h2 class="font-display text-2xl font-bold">Initial Contact</h2>
+				<h2 class="font-display text-2xl font-bold">Store Profile</h2>
 				<p class="mt-2 text-muted-foreground">
-					Our dedicated sales team will reach out to you within the next 24-48 hours to discuss your
-					application and answer any questions.
+					Add your store name, contact details, address, and description.
 				</p>
 			</div>
 
@@ -38,10 +37,9 @@
 				>
 					<span class="font-display text-xl font-bold">2</span>
 				</div>
-				<h2 class="font-display text-2xl font-bold">Partnership Agreement</h2>
+				<h2 class="font-display text-2xl font-bold">Menu</h2>
 				<p class="mt-2 text-muted-foreground">
-					We'll work together to create a tailored partnership agreement that meets your business
-					needs and ensures mutual success.
+					Add at least one menu item to showcase your offerings.
 				</p>
 			</div>
 
@@ -51,11 +49,30 @@
 				>
 					<span class="font-display text-xl font-bold">3</span>
 				</div>
-				<h2 class="font-display text-2xl font-bold">Store Setup</h2>
+				<h2 class="font-display text-2xl font-bold">Business Hours</h2>
+				<p class="mt-2 text-muted-foreground">Set your operating hours for customer orders.</p>
+			</div>
+
+			<div class="relative pl-16">
+				<div
+					class="absolute left-0 top-0 flex h-16 w-16 items-center justify-center rounded-full bg-background shadow"
+				>
+					<span class="font-display text-xl font-bold">4</span>
+				</div>
+				<h2 class="font-display text-2xl font-bold">Payments</h2>
 				<p class="mt-2 text-muted-foreground">
-					Our team will guide you through setting up your digital storefront, including product
-					listings, pricing, and operations training.
+					Set up your payment method to receive customer payments.
 				</p>
+			</div>
+
+			<div class="relative pl-16">
+				<div
+					class="absolute left-0 top-0 flex h-16 w-16 items-center justify-center rounded-full bg-background shadow"
+				>
+					<span class="font-display text-xl font-bold">5</span>
+				</div>
+				<h2 class="font-display text-2xl font-bold">Terms</h2>
+				<p class="mt-2 text-muted-foreground">Review and accept our platform's terms of service.</p>
 			</div>
 
 			<div class="relative pl-16">
@@ -64,18 +81,18 @@
 				>
 					<span class="font-display text-xl font-bold text-primary">✓</span>
 				</div>
-				<h2 class="font-display text-2xl font-bold">Launch Your Store</h2>
+				<h2 class="font-display text-2xl font-bold">Activation</h2>
 				<p class="mt-2 text-muted-foreground">
-					Once everything is set up, you'll be ready to start selling to customers across Africa.
-					Our support team will be there every step of the way.
+					After completing these steps, you can request store activation. We'll review and activate
+					your store within 24 hours.
 				</p>
 			</div>
 		</div>
 	</div>
 
 	<div class="mt-12 text-center">
-		<Button href="/vendor/orders" variant="outline" size="lg">
-			Go to your dashboard
+		<Button href="/vendor/profile" variant="outline" size="lg">
+			Start Setup
 			<ArrowRight class="ml-2 size-4" />
 		</Button>
 	</div>

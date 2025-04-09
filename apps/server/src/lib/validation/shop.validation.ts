@@ -11,7 +11,22 @@ export const coordinatesSchema = z.object({
 export const createShopSchema = z.object({
   name: z.string().min(1, { message: "Shop name is required" }),
   address: z.string().min(1, { message: "Address is required" }),
-  phone: z.number().int().min(1, { message: "Phone number is required" }),
+  phone: z
+    .string()
+    .min(1, { message: "Phone number is required" })
+    .regex(/^(?:\+?234|0)[789][01]\d{8}$/, {
+      message: "Please enter a valid Nigerian phone number",
+    })
+    .transform((val) => {
+      // Normalize to international format
+      if (val.startsWith("0")) {
+        return "+234" + val.slice(1);
+      }
+      if (val.startsWith("234")) {
+        return "+" + val;
+      }
+      return val;
+    }),
   email: z.string().email({ message: "Invalid email format" }),
   type: z.string().min(1, { message: "Business type is required" }),
   active: z.boolean().default(false),

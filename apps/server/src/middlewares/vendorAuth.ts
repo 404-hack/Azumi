@@ -10,12 +10,13 @@ const vendorAuthMiddleware = factory.createMiddleware(async (c, next) => {
   const session = c.get("session");
   const orgId = session?.activeOrganizationId;
 
-  if (!orgId) {
+  if (!orgId || !session) {
     return c.json({ message: "Unauthorized" }, 401);
   }
 
-  // Store the orgId in context for easy access in route handlers
+  // Store the session and orgId in context for easy access in route handlers
   c.set("orgId", orgId);
+
   await next();
 });
 

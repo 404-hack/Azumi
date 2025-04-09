@@ -3,15 +3,16 @@ import { drizzle } from "drizzle-orm/d1";
 import type { Variables } from "./types";
 import * as schema from "./db/schema";
 import { createAuth } from "./auth";
+import { env } from "cloudflare:workers";
+
 // Our factory with environment and variables types
 export const factory = createFactory<{
-  Bindings: CloudflareBindings;
   Variables: Variables;
 }>({
   initApp: (app) => {
     // Global middleware for database
     app.use(async (c, next) => {
-      const db = drizzle(c.env.DB, { schema, casing: "snake_case" });
+      const db = drizzle(env.DB, { schema, casing: "snake_case" });
       c.set("db", db);
 
       const auth = await createAuth(db);

@@ -9,7 +9,6 @@ export const load = async () => {
 	const { data } = await response.json();
 
 	return {
-		restaurants: data.restaurants,
 		userLocation: data.userLocation
 	};
 };

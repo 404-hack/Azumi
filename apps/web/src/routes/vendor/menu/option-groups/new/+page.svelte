@@ -4,7 +4,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import * as Card from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Plus, GripVertical, X } from 'lucide-svelte';
+	import { Plus, GripVertical, X, Search } from 'lucide-svelte';
 	import * as Form from '$lib/components/ui/form';
 	import { Switch } from '$lib/components/ui/switch';
 	import { defaults, superForm } from 'sveltekit-superforms/client';
@@ -23,7 +23,7 @@
 		SPA: true,
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
-				const res = await client.vendor['option-group'].create.$post({
+				const res = await client.vendor['option-group'].$post({
 					json: {
 						...form.data
 					}
@@ -37,6 +37,26 @@
 		}
 	});
 	const { form: formData, errors: formErrors, enhance } = form;
+
+	// Add state for option filtering
+	let searchQuery = $state('');
+	
+	// Computed property for filtered options
+	let filteredOptions = $derived(data.options.filter(option => {
+		const matchesSearch = option.name.toLowerCase().includes(searchQuery.toLowerCase());
+		return matchesSearch;
+	}));
+	
+	// Function to toggle all options
+	function toggleAllOptions(selectAll: boolean) {
+		if (selectAll) {
+			$formData.optionsId = [...new Set([...$formData.optionsId, ...filteredOptions.map(o => o.id)])];
+		} else {
+			$formData.optionsId = $formData.optionsId.filter(id => 
+				!filteredOptions.some(o => o.id === id)
+			);
+		}
+	}
 </script>
 
 <div class="container max-w-2xl py-10">
@@ -44,7 +64,6 @@
 		<h1 class="text-3xl font-bold">Add Option Group</h1>
 		<p class="text-muted-foreground">Create a new group of options for your menu items</p>
 	</div>
-	<SuperDebug data={$formData} />
 	<form use:enhance class="space-y-8">
 		<Card.Root>
 			<Card.Header>
@@ -63,7 +82,6 @@
 							/>
 						{/snippet}
 					</Form.Control>
-					<Form.Description>The name of your option group</Form.Description>
 					<Form.FieldErrors />
 				</Form.Field>
 
@@ -76,7 +94,6 @@
 									<Input {...props} type="number" min="0" bind:value={$formData.minSelections} />
 								{/snippet}
 							</Form.Control>
-							<Form.Description>Minimum number of options required</Form.Description>
 							<Form.FieldErrors />
 						</Form.Field>
 
@@ -87,7 +104,6 @@
 									<Input {...props} type="number" min="1" bind:value={$formData.maxSelections} />
 								{/snippet}
 							</Form.Control>
-							<Form.Description>Maximum number of options allowed</Form.Description>
 							<Form.FieldErrors />
 						</Form.Field>
 					</div>
@@ -101,17 +117,55 @@
 									Select the options to include in this group
 								</p>
 							</div>
-							<div class="flex items-center gap-2"></div>
-							<Button variant="outline" size="sm" onclick={() => addOptionModalState.setTrue()}>
-								<Plus class="mr-2 h-4 w-4" />
-								Add Option
-							</Button>
-							<Badge variant="outline">{data.options.length} options</Badge>
+							<div class="flex items-center gap-2">
+								<Button variant="outline" size="sm" onclick={() => addOptionModalState.setTrue()}>
+									<Plus class="mr-2 h-4 w-4" />
+									Add Option
+								</Button>
+								<Badge variant="outline">{data.options.length} options</Badge>
+							</div>
 						</div>
 					</div>
 
-					<div class="mt-3 grid gap-3 sm:grid-cols-2">
-						{#each data.options as option}
+					<!-- Search and filter controls -->
+					<div class="flex flex-col sm:flex-row gap-3">
+						<div class="relative flex-1">
+							<Search class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+							<Input 
+								type="search"
+								placeholder="Search options..." 
+								class="pl-9"
+								bind:value={searchQuery}
+							/>
+						</div>
+					</div>
+					
+					<!-- Select all option -->
+					{#if filteredOptions.length > 0}
+						<div class="flex items-center space-x-2 border-b pb-2">
+							<Checkbox 
+								id="select-all"
+								checked={filteredOptions.every(o => $formData.optionsId.includes(o.id))}
+								onCheckedChange={(v) => toggleAllOptions(!!v)}
+							/>
+							<Label for="select-all" class="text-sm font-medium cursor-pointer">
+								{filteredOptions.every(o => $formData.optionsId.includes(o.id)) 
+									? "Deselect all" 
+									: "Select all displayed options"}
+							</Label>
+						</div>
+					{/if}
+					
+					<!-- Options grid with results count -->
+					<div class="text-sm text-muted-foreground mb-2">
+						Showing {filteredOptions.length} of {data.options.length} options
+						{#if searchQuery}
+							for "{searchQuery}"
+						{/if}
+					</div>
+
+					<div class="mt-3 grid gap-3 sm:grid-cols-2 max-h-[400px] overflow-y-auto p-1">
+						{#each filteredOptions as option}
 							{@const checked = $formData.optionsId.includes(option.id)}
 							<div
 								class="flex items-center space-x-3 rounded-md border p-3 transition-colors hover:bg-muted/50"
@@ -120,7 +174,6 @@
 									id={`option-${option.id}`}
 									aria-labelledby={`option-${option.id}-label`}
 									{checked}
-									bind:value={option.id}
 									onCheckedChange={(v) => {
 										if (v) {
 											$formData.optionsId = [...$formData.optionsId, option.id];
@@ -142,88 +195,20 @@
 											+₦{option.price.toFixed(2)}
 										</p>
 									{/if}
+									
 								</div>
 							</div>
 						{/each}
 					</div>
 
-					{#if data.options.length === 0}
+					{#if filteredOptions.length === 0}
 						<div class="rounded-md border border-dashed p-4 text-center text-muted-foreground">
-							No options available. Create options first.
+							{searchQuery ? `No options matching "${searchQuery}"` : 'No options available. Create options first.'}
 						</div>
 					{/if}
 				</div>
 
 				<AddOptionModal optionGroupId={null} />
-
-				<!-- <Form.Field {form} name="options">
-					<Form.Control>
-						{#snippet children({ props })}
-							<div class="flex items-center justify-between">
-								<div>
-									<Form.Label>Options</Form.Label>
-									<Form.Description>Add options for this group</Form.Description>
-								</div>
-								<Button type="button" variant="outline" size="sm" onclick={addOption}>
-									<Plus class="mr-2 h-4 w-4" />
-									Add Option
-								</Button>
-							</div>
-
-							<div class="space-y-4">
-								{#each $formData.options as option, i}
-									<div class="flex items-center gap-4">
-										<GripVertical class="h-4 w-4 text-muted-foreground" />
-										<div class="grid flex-1 gap-4 sm:grid-cols-2">
-											<Form.Field {form} name="name">
-												<Form.Control>
-													{#snippet children({ props })}
-														<Form.Label>Name</Form.Label>
-														<Input {...props} bind:value={option.name} placeholder="Option name" />
-													{/snippet}
-												</Form.Control>
-												<Form.FieldErrors />
-											</Form.Field>
-
-											<Form.Field {form} name="minSelections">
-												<Form.Control>
-													{#snippet children({ props })}
-														<Form.Label>Additional Price</Form.Label>
-														<div class="relative">
-															<span class="absolute left-3 top-2.5 text-muted-foreground">$</span>
-															<Input
-																{...props}
-																type="number"
-																min="0"
-																step="0.01"
-																class="pl-7"
-																placeholder="0.00"
-																bind:value={option.price}
-															/>
-														</div>
-													{/snippet}
-												</Form.Control>
-												<Form.FieldErrors />
-											</Form.Field>
-										</div>
-										{#if $formData.options.length > 1}
-											<Button
-												type="button"
-												variant="ghost"
-												size="icon"
-												class="text-muted-foreground hover:text-destructive"
-												onclick={() => removeOption(i)}
-											>
-												<X class="h-4 w-4" />
-											</Button>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						{/snippet}
-					</Form.Control>
-					<Form.FieldErrors />
-				</Form.Field> -->
 			</Card.Content>
 			<Card.Footer>
 				<div class="flex justify-end gap-4">

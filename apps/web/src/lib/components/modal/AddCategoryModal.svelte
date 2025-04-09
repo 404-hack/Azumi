@@ -12,23 +12,44 @@
 	import { client } from '$lib/hc';
 	import { toast } from 'svelte-sonner';
 	import { Loader } from 'lucide-svelte';
+	import { invalidateAll } from '$app/navigation';
+	import type { TMenuCategory } from '@repo/server/types';
+
+	type Props = {
+		afterSubmit?: (category: TMenuCategory) => void
+	};
+
+	let { afterSubmit }: Props = $props();
+
 	const form = superForm(defaults(zod(createMenuCategorySchema)), {
 		validators: zodClient(createMenuCategorySchema),
 		SPA: true,
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
-				const res = await client.vendor.menu.category.create.$post({
-					json: {
-						name: form.data.name,
-						published: form.data.published
+				try {
+					console.log('Submitting category form:', form.data);
+					const res = await client.vendor.menu.category.create.$post({
+						json: {
+							name: form.data.name,
+							published: form.data.published
+						}
+					});
+					const data = await res.json();
+					console.log('Category submission response:', data);
+
+					if (res.ok) {
+						toast.success(data.message || 'Category created successfully');
+						await invalidateAll(); // Refresh the data
+						addCategoryModalState.setFalse();
+						if (afterSubmit) {
+							afterSubmit(data.data);
+						}
+					} else {
+						toast.error(data.message || 'Failed to create category');
 					}
-				});
-				const data = await res.json();
-				if (res.ok) {
-					toast.success(data.message);
-					addCategoryModalState.setFalse();
-				} else {
-					toast.error(data.message);
+				} catch (error) {
+					console.error('Error creating category:', error);
+					toast.error('An error occurred while creating the category');
 				}
 			}
 		}

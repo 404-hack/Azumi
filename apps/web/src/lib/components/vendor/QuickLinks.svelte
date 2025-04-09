@@ -1,5 +1,15 @@
 <script lang="ts">
-	import { Store, Coffee, DollarSign, MapPin, Settings, Clock, Wallet, Users } from 'lucide-svelte';
+	import {
+		Store,
+		Coffee,
+		DollarSign,
+		MapPin,
+		Settings,
+		Clock,
+		Wallet,
+		Users,
+		ReceiptText
+	} from 'lucide-svelte';
 
 	// const links = [
 	// 	{
@@ -35,7 +45,8 @@
 		{ href: '/vendor/profile/edit', label: 'Store Details', icon: Store },
 		{ href: '/vendor/store-operations', label: 'Store Operations', icon: Clock },
 		{ href: '/vendor/wallet', label: 'Your Wallet', icon: Wallet },
-		{ href: '/vendor/manage-users', label: 'Manage Users', icon: Users }
+		{ href: '/vendor/manage-users', label: 'Manage Users', icon: Users },
+		{ href: '/vendor/terms', label: ' Terms & Conditions', icon: ReceiptText }
 	];
 </script>
 

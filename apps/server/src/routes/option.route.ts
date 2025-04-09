@@ -51,6 +51,22 @@ const optionRoute = factory
     }
 
     return c.json(group);
+  })
+
+  // Get single option by ID
+  .get("/:id", async (c) => {
+    const { id } = c.req.param();
+    const db = c.get("db");
+
+    const option = await db.query.optionTable.findFirst({
+      where: eq(optionTable.id, id),
+    });
+
+    if (!option) {
+      return c.json({ error: "Option not found" }, 404);
+    }
+
+    return c.json(option);
   });
 
 export default optionRoute;

@@ -1,5 +1,6 @@
 import { factory } from "../lib/factory";
 import { zValidator } from "@hono/zod-validator";
+import { env } from "cloudflare:workers";
 import {
   createMenuSchema,
   createMenuCategorySchema,
@@ -7,6 +8,7 @@ import {
   updateMenuSchema,
   createPackSchema,
   updateShopSchema,
+  updatePackSchema,
 } from "../lib/validation/index";
 import {
   menuItemTable,
@@ -24,9 +26,11 @@ import {
 import {
   createOptionGroupSchema,
   createOptionSchema,
+  updateOptionGroupSchema,
 } from "../lib/validation/option.validation";
 import { packTable } from "../lib/db/schema/pack.schema";
 import {
+  orderTable,
   shopAgreementsTable,
   shopOperatingHoursTable,
   shopPaymentMethodTable,
@@ -36,6 +40,7 @@ import {
 import { ShopTodoService } from "../services/shopTodo.service";
 import { z } from "zod";
 import { dayScheduleSchema } from "../lib/validation/shop.validation";
+import { nanoid } from "nanoid";
 
 const todoService = new ShopTodoService();
 
@@ -172,7 +177,7 @@ const vendorRoute = factory
   })
 
   // Create a menu item
-  .post("/menu/create", zValidator("json", createMenuSchema), async (c) => {
+  .post("/menu", zValidator("json", createMenuSchema), async (c) => {
     try {
       const data = c.req.valid("json");
       const db = c.get("db");
@@ -212,31 +217,12 @@ const vendorRoute = factory
 
         await db.insert(menuItemOptionGroups).values(optionGroupEntries);
       }
-
-      // Check if vendor has more than one menu item and update todo
-      const menuCount = await db
-        .select({ count: sql`count(*)` })
-        .from(menuItemTable)
-        .where(eq(menuItemTable.shopId, orgId))
-        .then((result) => Number(result[0]?.count || 0));
-
-      console.log("🚀 ~ .post ~ menuCount:", menuCount);
-      if (menuCount > 1) {
-        // First check if the todo flag is already true
-        const shopTodo = await db.query.shopTodoTable.findFirst({
-          where: eq(shopTodoTable.shopId, orgId),
-        });
-        console.log("🚀 ~ .post ~ shopTodo:", shopTodo);
-
-        // Only update if the flag is currently false
-        if (shopTodo && !shopTodo.uploadAtLeastOneMenu) {
-          await db
-            .update(shopTodoTable)
-            .set({
-              uploadAtLeastOneMenu: true,
-            })
-            .where(eq(shopTodoTable.shopId, orgId));
-        }
+      // handle pack if provided
+      if (data.packId) {
+        await db
+          .update(menuItemTable)
+          .set({ packId: data.packId })
+          .where(eq(menuItemTable.id, menuItem.id));
       }
 
       return c.json({
@@ -285,32 +271,27 @@ const vendorRoute = factory
     "/menu/category/create",
     zValidator("json", createMenuCategorySchema),
     async (c) => {
-      try {
-        const body = c.req.valid("json");
-        const db = c.get("db");
-        const orgId = c.get("orgId");
+      const body = c.req.valid("json");
+      const db = c.get("db");
+      const orgId = c.get("orgId");
 
-        const category = await db
-          .insert(menuCategoryTable)
-          .values({
-            name: body.name,
-            published: body.published,
-            shopId: orgId,
-          })
-          .returning()
-          .get();
+      const category = await db
+        .insert(menuCategoryTable)
+        .values({
+          name: body.name,
+          published: body.published,
+          shopId: orgId,
+        })
+        .returning()
+        .get();
 
-        return c.json(
-          {
-            message: "Category created successfully",
-            data: category,
-          },
-          201
-        );
-      } catch (error) {
-        console.error("Error creating category:", error);
-        return c.json({ message: "Internal server error" }, 500);
-      }
+      return c.json(
+        {
+          message: "Category created successfully",
+          data: category,
+        },
+        201
+      );
     }
   )
 
@@ -402,6 +383,116 @@ const vendorRoute = factory
     return c.json({ data: options });
   })
 
+  // Get a single option by ID
+  .get("/option/:id", async (c) => {
+    const { id } = c.req.param();
+    const db = c.get("db");
+    const orgId = c.get("orgId");
+
+    const option = await db.query.optionTable.findFirst({
+      where: (table, { and, eq }) =>
+        and(eq(table.id, id), eq(table.shopId, orgId)),
+      columns: {
+        name: true,
+        price: true,
+        inStock: true,
+        id: true,
+      },
+    });
+
+    if (!option) {
+      return c.json(
+        {
+          message: "Option not found or you don't have permission to access it",
+        },
+        404
+      );
+    }
+
+    return c.json({ data: option });
+  })
+  // edit a single option
+  .patch(
+    "/option/:id",
+    zValidator(
+      "json",
+      z.object({
+        name: z.string().optional(),
+        price: z.number().optional(),
+        inStock: z.boolean().optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        const { id } = c.req.param();
+        const data = c.req.valid("json");
+        const db = c.get("db");
+        const orgId = c.get("orgId");
+
+        // Verify the option belongs to this vendor
+        const existingOption = await db.query.optionTable.findFirst({
+          where: (table, { and, eq }) =>
+            and(eq(table.id, id), eq(table.shopId, orgId)),
+        });
+
+        if (!existingOption) {
+          return c.json(
+            {
+              message:
+                "Option not found or you don't have permission to edit it",
+            },
+            404
+          );
+        }
+
+        // Update the option
+        const updatedOption = await db
+          .update(optionTable)
+          .set(data)
+          .where(and(eq(optionTable.id, id), eq(optionTable.shopId, orgId)))
+          .returning()
+          .get();
+
+        return c.json({
+          message: "Option updated successfully",
+          data: updatedOption,
+        });
+      } catch (error) {
+        return c.json({ message: "Internal server error" }, 500);
+      }
+    }
+  )
+  // get a single option group by id
+  .get("/option-group/:id", async (c) => {
+    const { id } = c.req.param();
+    const db = c.get("db");
+    const orgId = c.get("orgId");
+
+    // Fetch the option group with its associated options
+    const optionGroup = await db.query.optionGroupTable.findFirst({
+      where: (table, { and, eq }) =>
+        and(eq(table.id, id), eq(table.shopId, orgId)),
+      with: {
+        optionsToOptionGroups: {
+          with: {
+            option: true,
+          },
+        },
+      },
+    });
+
+    if (!optionGroup) {
+      return c.json(
+        {
+          message:
+            "Option group not found or you don't have permission to access it",
+        },
+        404
+      );
+    }
+
+    return c.json({ data: optionGroup });
+  })
   // Get vendor option groups with options
   .get("/option-groups", async (c) => {
     const db = c.get("db");
@@ -445,7 +536,7 @@ const vendorRoute = factory
 
   // Create option group with options
   .post(
-    "/option-group/create",
+    "/option-group",
     zValidator("json", createOptionGroupSchema),
     async (c) => {
       const data = c.req.valid("json");
@@ -568,11 +659,86 @@ const vendorRoute = factory
       message: "Option successfully added to group",
     });
   })
+  // edit an option group with options  by id
+  .patch(
+    "/option-group/:id",
+    zValidator("json", updateOptionGroupSchema),
+    async (c) => {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+      const data = c.req.valid("json");
+
+      // Verify the option group belongs to this vendor
+      const optionGroup = await db.query.optionGroupTable.findFirst({
+        where: (table, { and, eq }) =>
+          and(eq(table.id, id), eq(table.shopId, orgId)),
+      });
+
+      if (!optionGroup) {
+        return c.json(
+          {
+            message:
+              "Option group not found or you don't have permission to edit it",
+          },
+          404
+        );
+      }
+
+      // Update the option group
+      await db
+        .update(optionGroupTable)
+        .set({
+          name: data.name,
+          maxSelections: data.maxSelections,
+          minSelections: data.minSelections,
+        })
+        .where(
+          and(eq(optionGroupTable.id, id), eq(optionGroupTable.shopId, orgId))
+        );
+
+      const res = await db
+        .delete(optionToOptionGroupTable)
+        .where(eq(optionToOptionGroupTable.optionGroupId, id))
+        .returning()
+        .get();
+      console.log(res);
+
+      // Update associations between option group and options in junction table
+      if (data.optionsId && data.optionsId.length > 0) {
+        // Delete existing associations
+
+        // Create new associations
+        await db.insert(optionToOptionGroupTable).values(
+          data.optionsId.map((optionId) => ({
+            optionId,
+            optionGroupId: id,
+          }))
+        );
+      }
+
+      // Fetch updated option group with options
+      const updatedGroup = await db.query.optionGroupTable.findFirst({
+        where: (table, { eq }) => eq(table.id, id),
+        with: {
+          optionsToOptionGroups: {
+            with: {
+              option: true,
+            },
+          },
+        },
+      });
+
+      return c.json({
+        message: "Option group updated successfully",
+        data: updatedGroup,
+      });
+    }
+  )
 
   // ===== PACK ROUTES =====
-
   // Get all packs for vendor
-  .get("/packs", async (c) => {
+  .get("/pack", async (c) => {
     try {
       const db = c.get("db");
       const orgId = c.get("orgId");
@@ -593,7 +759,6 @@ const vendorRoute = factory
       return c.json({ message: "Internal server error" }, 500);
     }
   })
-
   // Get single pack with details
   .get("/pack/:id", async (c) => {
     try {
@@ -622,7 +787,6 @@ const vendorRoute = factory
       return c.json({ message: "Internal server error" }, 500);
     }
   })
-
   // Create new pack
   .post("/pack/create", zValidator("json", createPackSchema), async (c) => {
     try {
@@ -653,7 +817,46 @@ const vendorRoute = factory
       return c.json({ message: "Internal server error" }, 500);
     }
   })
+  // Edit a pack by id
+  .patch("/pack/:id", zValidator("json", updatePackSchema), async (c) => {
+    try {
+      const { id } = c.req.param();
+      const data = c.req.valid("json");
+      const db = c.get("db");
+      const orgId = c.get("orgId");
 
+      // Verify the pack belongs to this vendor
+      const existingPack = await db.query.packTable.findFirst({
+        where: (table, { and, eq }) =>
+          and(eq(table.id, id), eq(table.shopId, orgId)),
+      });
+
+      if (!existingPack) {
+        return c.json(
+          {
+            message: "Pack not found or you don't have permission to edit it",
+          },
+          404
+        );
+      }
+
+      // Update the pack
+      const updatedPack = await db
+        .update(packTable)
+        .set(data)
+        .where(and(eq(packTable.id, id), eq(packTable.shopId, orgId)))
+        .returning()
+        .get();
+
+      return c.json({
+        message: "Pack updated successfully",
+        data: updatedPack,
+      });
+    } catch (error) {
+      console.error("Error updating pack:", error);
+      return c.json({ message: "Internal server error" }, 500);
+    }
+  })
   // Delete a pack
   .delete("/pack/:id", async (c) => {
     try {
@@ -694,7 +897,6 @@ const vendorRoute = factory
     }
   })
   // Operating hours
-
   .patch("/", zValidator("json", updateShopSchema), async (c) => {
     try {
       const data = c.req.valid("json");
@@ -718,13 +920,6 @@ const vendorRoute = factory
           403
         );
       }
-
-      // Check organization membership and role
-      // const member = await auth.api.getActiveMember();
-
-      // if (!member || member.role !== "admin") {
-      //   return c.json({ error: "Only admins can update shop details" }, 403);
-      // }
 
       const updatedShop = await db
         .update(shopTable)
@@ -754,13 +949,7 @@ const vendorRoute = factory
       if (!shop) {
         return c.json({ error: "Shop not found" }, 404);
       }
-      // let todoData = null;
-
-      // if (includeTodo) {
-      //   // Pass the db instance to the todo service
       let todoData = await todoService.getComputedTodos(shop.id, db);
-      console.log("🚀 ~ .get ~ todoData:", todoData);
-      // }
       if (!todoData) {
         return c.json({ error: "Todo data not found" }, 404);
       }
@@ -792,13 +981,7 @@ const vendorRoute = factory
         console.log("🚀 ~ schedule:", schedule);
         const orgId = c.get("orgId");
 
-        // Delete existing hours
-        // await db
-        //   .delete(shopOperatingHoursTable)
-        //   .where(eq(shopOperatingHoursTable.shopId, orgId));
-
         // Insert new hours
-        // Use onConflictDoUpdate for more efficient upsert operation
         const operatingHours = await Promise.all(
           schedule.map(async (day) => {
             return db
@@ -831,7 +1014,521 @@ const vendorRoute = factory
         });
       } catch (error) {
         console.error("Error updating operating hours:", error);
-        return c.json({ error: "Internal server error" }, 500);
+        return c.json({ message: "Internal server error" }, 500);
+      }
+    }
+  )
+
+  // ===== PAYMENT & BANKING ROUTES =====
+
+  // Get banks list from Paystack
+  .get("/banks", async (c) => {
+    try {
+      // Fetch list of banks from Paystack
+      const response = await fetch(
+        "https://api.paystack.co/bank?currency=NGN",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        return c.json(
+          {
+            success: false,
+            message: "Failed to fetch banks from payment provider",
+          },
+          500
+        );
+      }
+
+      const data: { status: boolean } = await response.json();
+
+      // Return only active banks and format them
+      if (data.status) {
+        const banks = data.data
+          .filter((bank: any) => bank.active)
+          .map((bank: any) => ({
+            id: bank.id,
+            name: bank.name,
+            code: bank.code,
+          }));
+
+        return c.json({ success: true, data: banks });
+      } else {
+        return c.json(
+          {
+            success: false,
+            message: "Failed to process bank list",
+          },
+          400
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching banks:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Internal server error",
+        },
+        500
+      );
+    }
+  })
+
+  // Verify bank account
+  .post(
+    "/verify-account",
+    zValidator(
+      "json",
+      z.object({
+        accountNumber: z.string().length(10),
+        bankCode: z.string(),
+      })
+    ),
+    async (c) => {
+      try {
+        const { accountNumber, bankCode } = c.req.valid("json");
+
+        // Call Paystack to verify the account
+        const response = await fetch(
+          `https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (data.status) {
+          return c.json({
+            success: true,
+            data: {
+              accountName: data.data.account_name,
+            },
+          });
+        } else {
+          return c.json(
+            {
+              success: false,
+              message: data.message || "Could not verify account",
+            },
+            400
+          );
+        }
+      } catch (error) {
+        console.error("Error verifying account:", error);
+        return c.json(
+          {
+            success: false,
+            message: "Internal server error",
+          },
+          500
+        );
+      }
+    }
+  )
+
+  // Create/save payment method (bank account)
+  .post(
+    "/payment-methods",
+    zValidator(
+      "json",
+      z.object({
+        type: z.enum(["BANK_TRANSFER", "CARD", "MOBILE_MONEY"]),
+        accountNumber: z.string().optional(),
+        accountName: z.string().optional(),
+        bankName: z.string().optional(),
+        bankCode: z.string().optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        const paymentMethodData = c.req.valid("json");
+        const orgId = c.get("orgId");
+        const db = c.get("db");
+        // For bank transfers, create a Paystack recipient
+        let paystackRecipientCode = null;
+        if (
+          paymentMethodData.type === "BANK_TRANSFER" &&
+          paymentMethodData.accountNumber &&
+          paymentMethodData.accountName &&
+          paymentMethodData.bankCode
+        ) {
+          try {
+            const response = await fetch(
+              "https://api.paystack.co/transferrecipient",
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  type: "nuban",
+                  name: paymentMethodData.accountName,
+                  account_number: paymentMethodData.accountNumber,
+                  bank_code: paymentMethodData.bankCode,
+                  currency: "NGN", // Adjust as needed for your market
+                }),
+              }
+            );
+
+            const data = await response.json();
+
+            if (data.status) {
+              paystackRecipientCode = data.data.recipient_code;
+            } else {
+              throw new Error(data.message || "Failed to create recipient");
+            }
+          } catch (error) {
+            console.error("Error creating Paystack recipient:", error);
+            throw error;
+          }
+        }
+
+        // Create new payment method entry
+        const paymentMethod = await db
+          .insert(shopPaymentMethodTable)
+          .values({
+            shopId: orgId,
+            type: paymentMethodData.type,
+            accountNumber: paymentMethodData.accountNumber,
+            accountName: paymentMethodData.accountName,
+            bankName: paymentMethodData.bankName,
+            bankCode: paymentMethodData.bankCode,
+            paystackRecipientCode: paystackRecipientCode,
+          })
+          .returning()
+          .get();
+
+        return c.json({
+          success: true,
+          data: paymentMethod,
+        });
+      } catch (error) {
+        console.error("Error creating payment method:", error);
+        return c.json(
+          {
+            success: false,
+            message: "Failed to create payment method",
+          },
+          500
+        );
+      }
+    }
+  )
+
+  // Get vendor payment methods
+  .get("/payment-methods", async (c) => {
+    try {
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+
+      const paymentMethods = await db.query.shopPaymentMethodTable.findMany({
+        where: eq(shopPaymentMethodTable.shopId, orgId),
+      });
+
+      return c.json({
+        success: true,
+        data: paymentMethods,
+      });
+    } catch (error) {
+      console.error("Error fetching payment methods:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to fetch payment methods",
+        },
+        500
+      );
+    }
+  })
+
+  // Delete a payment method
+  .delete("/payment-methods/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+
+      // Check if the payment method exists and belongs to this vendor
+      const paymentMethod = await db.query.shopPaymentMethodTable.findFirst({
+        where: and(
+          eq(shopPaymentMethodTable.id, id),
+          eq(shopPaymentMethodTable.shopId, orgId)
+        ),
+      });
+
+      if (!paymentMethod) {
+        return c.json(
+          {
+            success: false,
+            message:
+              "Payment method not found or you do not have permission to delete it",
+          },
+          404
+        );
+      }
+
+      // Delete the payment method
+      await db
+        .delete(shopPaymentMethodTable)
+        .where(
+          and(
+            eq(shopPaymentMethodTable.id, id),
+            eq(shopPaymentMethodTable.shopId, orgId)
+          )
+        );
+
+      return c.json({
+        success: true,
+        message: "Payment method deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting payment method:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to delete payment method",
+        },
+        500
+      );
+    }
+  })
+
+  // Get vendor wallet balance
+  .get("/wallet", async (c) => {
+    try {
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+      const user = c.get("user");
+
+      // Calculate total vendor earnings from completed order payouts
+      const completedOrdersResult = await db
+        .select({
+          total: sql`SUM(o.subtotal - (o.subtotal * 0.15))`.mapWith(Number), // Assuming 15% commission
+        })
+        .from(orderTable)
+        .where(
+          and(
+            eq(orderTable.shopId, orgId),
+            eq(orderTable.paymentStatus, "COMPLETED"),
+            eq(orderTable.status, "COMPLETED")
+          )
+        )
+        .get();
+
+      // Calculate pending amount - orders that are paid but not yet transferred to vendor
+      const pendingAmountResult = await db
+        .select({
+          total: sql`SUM(o.subtotal - (o.subtotal * 0.15))`.mapWith(Number), // Assuming 15% commission
+        })
+        .from(orderTable)
+        .where(
+          and(
+            eq(orderTable.shopId, orgId),
+            eq(orderTable.paymentStatus, "COMPLETED"),
+            eq(orderTable.status, "PAYMENT_CONFIRMED")
+          )
+        )
+        .get();
+
+      const totalEarnings = completedOrdersResult?.total || 0;
+      const pendingAmount = pendingAmountResult?.total || 0;
+
+      // In a real app, you would also track transfers to vendors and subtract them
+      const totalWithdrawals = 0; // Implement this based on your transfer records
+
+      // Calculate available balance
+      const balance = totalEarnings - totalWithdrawals;
+
+      return c.json({
+        success: true,
+        data: {
+          balance,
+          pendingAmount,
+          totalEarnings,
+          totalWithdrawals,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching wallet balance:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to fetch wallet balance",
+        },
+        500
+      );
+    }
+  })
+  // Check if vendor has accepted terms and conditions
+  .get("/terms-agreement/check", async (c) => {
+    try {
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+
+      // Check if there's an accepted agreement for this shop
+      const agreement = await db.query.shopAgreementsTable.findFirst({
+        where: and(
+          eq(shopAgreementsTable.shopId, orgId),
+          eq(shopAgreementsTable.agreementType, "VENDOR_TERMS")
+        ),
+      });
+
+      return c.json({
+        success: true,
+        hasAgreement: !!agreement,
+      });
+    } catch (error) {
+      console.error("Error checking terms agreement:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to check terms agreement status",
+        },
+        500
+      );
+    }
+  })
+
+  // Save vendor terms and conditions agreement
+  .post(
+    "/terms-agreement",
+    zValidator(
+      "json",
+      z.object({
+        agreementType: z.enum(["VENDOR_TERMS"]),
+        version: z.string(),
+        accepted: z.boolean(),
+      })
+    ),
+    async (c) => {
+      try {
+        const data = c.req.valid("json");
+        const db = c.get("db");
+        const orgId = c.get("orgId");
+        const user = c.get("user");
+        if (!user) {
+          return c.json(
+            {
+              success: false,
+              message: "User not found",
+            },
+            404
+          );
+        }
+        // Only save the agreement record if it was accepted
+        if (data.accepted) {
+          const agreement = await db
+            .insert(shopAgreementsTable)
+            .values({
+              shopId: orgId,
+              agreementType: data.agreementType,
+              version: data.version,
+              acceptedById: user.id,
+              ipAddress:
+                c.req.header("x-forwarded-for") ||
+                c.req.header("x-real-ip") ||
+                "unknown",
+              userAgent: c.req.header("user-agent") || "unknown",
+            })
+            .returning()
+            .get();
+
+          return c.json({
+            success: true,
+            message: "Terms accepted successfully",
+            data: agreement,
+          });
+        } else {
+          return c.json({
+            success: true,
+            message: "Terms declined",
+          });
+        }
+      } catch (error) {
+        console.error("Error saving terms agreement:", error);
+        return c.json(
+          {
+            success: false,
+            message: "Failed to save terms agreement",
+          },
+          500
+        );
+      }
+    }
+  )
+
+  // Update vendor todo items
+  .post(
+    "/update-todo",
+    zValidator(
+      "json",
+      z.object({
+        storeInformationComplete: z.boolean().optional(),
+        uploadAtLeastOneMenu: z.boolean().optional(),
+        setUpPaymentMethod: z.boolean().optional(),
+        reviewTermsAndConditions: z.boolean().optional(),
+        setUpOperatingHours: z.boolean().optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        const data = c.req.valid("json");
+        const db = c.get("db");
+        const orgId = c.get("orgId");
+
+        // Check if todo exists first
+        const todoExists = await db.query.shopTodoTable.findFirst({
+          where: eq(shopTodoTable.shopId, orgId),
+        });
+
+        let updatedTodo;
+
+        if (todoExists) {
+          // Update existing todo
+          updatedTodo = await db
+            .update(shopTodoTable)
+            .set(data)
+            .where(eq(shopTodoTable.shopId, orgId))
+            .returning()
+            .get();
+        } else {
+          // Create new todo entry
+          updatedTodo = await db
+            .insert(shopTodoTable)
+            .values({
+              shopId: orgId,
+              ...data,
+            })
+            .returning()
+            .get();
+        }
+
+        return c.json({
+          success: true,
+          message: "Todo updated successfully",
+          data: updatedTodo,
+        });
+      } catch (error) {
+        console.error("Error updating todo:", error);
+        return c.json(
+          {
+            success: false,
+            message: "Failed to update todo",
+          },
+          500
+        );
       }
     }
   );

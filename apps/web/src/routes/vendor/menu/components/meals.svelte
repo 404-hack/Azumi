@@ -19,6 +19,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Select from '$lib/components/ui/select';
 	import type { TMenuCategoryWithItems } from '@repo/server/types';
+	import { goto } from '$app/navigation';
 
 	// Enhanced meal type for food delivery platform
 	type Props = {
@@ -155,23 +156,25 @@
 															</Button>
 														{/snippet}
 														{#snippet children()}
-															<button class="dropdown-menu-item" on:click={() => {}}>
+															<button
+																class="dropdown-menu-item"
+																onclick={() => {
+																	goto(`/vendor/menu/${meal.id}/`);
+																}}
+															>
 																<Pencil class="mr-2 h-4 w-4" />
 																Edit Item
 															</button>
-															<button class="dropdown-menu-item" on:click={() => {}}>
+															<button class="dropdown-menu-item">
 																<Settings class="mr-2 h-4 w-4" />
 																Manage Options
 															</button>
-															<button class="dropdown-menu-item" on:click={() => {}}>
+															<button class="dropdown-menu-item">
 																<BarChart2 class="mr-2 h-4 w-4" />
 																View Analytics
 															</button>
 															<div class="dropdown-menu-separator" />
-															<button
-																class="dropdown-menu-item text-destructive"
-																on:click={() => {}}
-															>
+															<button class="dropdown-menu-item text-destructive">
 																<Trash class="mr-2 h-4 w-4" />
 																Delete Item
 															</button>

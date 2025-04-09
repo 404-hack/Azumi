@@ -52,7 +52,7 @@ export class ShopTodoService {
       db.query.shopAgreementsTable.findFirst({
         where: and(
           eq(shopAgreementsTable.shopId, shopId),
-          eq(shopAgreementsTable.agreementType, "TERMS_OF_SERVICE")
+          eq(shopAgreementsTable.agreementType, "VENDOR_TERMS")
         ),
         columns: { id: true },
       }),

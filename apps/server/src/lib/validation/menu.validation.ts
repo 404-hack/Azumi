@@ -17,7 +17,7 @@ export const createMenuSchema = z.object({
   priceDescription: z.string().optional(),
   inStock: z.boolean().default(true),
   categoryId: z.string({ message: "Category is required" }),
-  // packId: z.string().optional(),
+  packId: z.string().optional(),
   optionGroupId: z.array(z.string()).optional(),
   // prepTime: z.number().optional(),
   // rating: z.number().optional(),

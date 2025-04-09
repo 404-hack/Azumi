@@ -59,7 +59,7 @@
 	</div>
 
 	<div class="flex w-full justify-between gap-5 border-b pb-3">
-		<p class="text-base font-normal md:text-lg">Log out african market online</p>
+		<p class="text-base font-normal md:text-lg">Log out of Azumi</p>
 		<Button variant="link">Logout</Button>
 	</div>
 </div>

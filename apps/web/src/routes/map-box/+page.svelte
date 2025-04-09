@@ -22,7 +22,7 @@
 </script>
 
 <svelte:head>
-	<title>Location Autocomplete - African Market</title>
+	<title>Location Autocomplete - Azumi</title>
 </svelte:head>
 
 <div class="container">

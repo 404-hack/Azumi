@@ -199,12 +199,7 @@
 							{#snippet children({ props })}
 								<div class="space-y-2">
 									<Form.Label>Phone Number</Form.Label>
-									<Input
-										{...props}
-										type="number"
-										bind:value={$formData.phone}
-										placeholder="+234..."
-									/>
+									<Input {...props} type="tel" bind:value={$formData.phone} placeholder="+234..." />
 								</div>
 							{/snippet}
 						</Form.Control>
