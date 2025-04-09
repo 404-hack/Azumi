@@ -199,7 +199,6 @@ const shopRoute = factory
     const db = c.get("db");
     const session = c.get("session");
     const orgId = session?.activeOrganizationId;
-    console.log("🚀 ~ .get ~ orgId:", orgId);
     if (!orgId) {
       return c.json({ message: "unAuthorized" }, 401);
     }
