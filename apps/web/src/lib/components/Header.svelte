@@ -63,6 +63,9 @@
 				</button>
 			{/if}
 		</div>
+		<LoginModal />
+		<RegisterModal />
+		<AddDeliveryAddress />
 
 		<!-- Search -->
 		<!-- <div class="hidden max-w-xl flex-1 px-4 md:flex">
@@ -236,7 +239,3 @@
 		</div>
 	{/if}
 </header>
-
-<LoginModal />
-<RegisterModal />
-<AddDeliveryAddress />

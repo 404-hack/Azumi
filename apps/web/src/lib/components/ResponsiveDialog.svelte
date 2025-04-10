@@ -6,7 +6,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import type { Snippet } from 'svelte';
-import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	type Props = {
 		open?: boolean;
 		title: string;
@@ -18,11 +18,10 @@ import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 	let activeSnapPoint = $state(148);
 </script>
 
-
 {#if isDesktop.current}
-<Dialog.Root bind:open>
-	<Dialog.Content class="sm:max-w-[425px] m-4  ">
-		<!-- <ScrollArea class= "max-h-[90vh]  w-fit "> -->
+	<Dialog.Root bind:open>
+		<Dialog.Content class="m-4 sm:max-w-[425px]  ">
+			<!-- <ScrollArea class= "max-h-[90vh]  w-fit "> -->
 			<Dialog.Header>
 				<Dialog.Title>{title}</Dialog.Title>
 				<Dialog.Description>
@@ -30,24 +29,20 @@ import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 				</Dialog.Description>
 			</Dialog.Header>
 			{@render children()}
-		<!-- </ScrollArea> -->
+			<!-- </ScrollArea> -->
 		</Dialog.Content>
 	</Dialog.Root>
 {:else}
 	<Drawer.Root bind:open shouldScaleBackground>
-		<ScrollArea class= "max-h-[90vh] p-5  w-full ">
-		</ScrollArea>
+		<ScrollArea class="max-h-[90vh] w-full  p-5 "></ScrollArea>
 		<Drawer.Content class="w-full p-5 sm:p-7   ">
-
-				<Drawer.Header class="px-0 text-left">
-					<Drawer.Title>{title}</Drawer.Title>
-					<Drawer.Description>
+			<Drawer.Header class="px-0 text-left">
+				<Drawer.Title>{title}</Drawer.Title>
+				<Drawer.Description>
 					{description}
 				</Drawer.Description>
 			</Drawer.Header>
 			{@render children()}
-			
 		</Drawer.Content>
 	</Drawer.Root>
 {/if}
-
