@@ -106,7 +106,7 @@
 					class="whitespace-nowrap border-b-2 px-4 py-2 transition-all {filter.active
 						? 'border-primary font-medium text-primary'
 						: 'border-transparent hover:border-primary/30 hover:text-primary'}"
-					on:click={() => setFilter(filter.name)}
+					onclick={() => setFilter(filter.name)}
 				>
 					{filter.name}
 				</button>
@@ -118,9 +118,6 @@
 	<div class="mb-10" in:fade={{ duration: 300 }}>
 		<div class="mb-4 flex items-center justify-between">
 			<h3 class="text-xl font-medium">Featured Products</h3>
-			<a href="/explore/featured" class="flex items-center text-sm text-primary hover:underline">
-				View all <ChevronRight class="ml-1 h-4 w-4" />
-			</a>
 		</div>
 
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -151,10 +148,6 @@
 					<div class="p-4">
 						<div class="mb-2 flex items-center text-xs text-muted-foreground">
 							<span class="rounded-full bg-primary/10 px-2 py-1 text-primary">{item.category}</span>
-							<div class="ml-auto flex items-center">
-								<MapPin class="mr-1 h-3 w-3" />
-								{item.location}
-							</div>
 						</div>
 
 						<h3 class="mb-1 text-lg font-medium">{item.name}</h3>
@@ -164,12 +157,6 @@
 								<Star class="h-4 w-4 fill-current" />
 								<span class="ml-1 text-sm">{item.rating}</span>
 							</div>
-							<button
-								class="flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm text-primary transition-colors hover:bg-primary/20"
-							>
-								<ShoppingBag class="mr-1 h-3 w-3" />
-								View Details
-							</button>
 						</div>
 					</div>
 				</div>
@@ -181,9 +168,6 @@
 	<div class="mb-10">
 		<div class="mb-4 flex items-center justify-between">
 			<h3 class="text-xl font-medium">Popular Markets</h3>
-			<a href="/explore/markets" class="flex items-center text-sm text-primary hover:underline">
-				View all <ChevronRight class="ml-1 h-4 w-4" />
-			</a>
 		</div>
 
 		<div class="scrollbar-hide flex gap-4 overflow-x-auto pb-4">
@@ -212,9 +196,6 @@
 	<div>
 		<div class="mb-4 flex items-center justify-between">
 			<h3 class="text-xl font-medium">More to Explore</h3>
-			<a href="/explore/all" class="flex items-center text-sm text-primary hover:underline">
-				View all <ChevronRight class="ml-1 h-4 w-4" />
-			</a>
 		</div>
 
 		<div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">

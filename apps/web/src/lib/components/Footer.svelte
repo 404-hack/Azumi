@@ -60,7 +60,7 @@
 
 			<div class="space-y-3 sm:col-span-2 lg:col-span-1">
 				<h3 class="text-sm font-medium">Get the app</h3>
-				<div class="flex gap-4">
+				<!-- <div class="flex gap-4">
 					<Button variant="outline" class="h-10 w-full gap-2 text-xs sm:w-auto">
 						<span>App Store</span>
 						<ChevronRight class="h-4 w-4" />
@@ -69,7 +69,7 @@
 						<span>Play Store</span>
 						<ChevronRight class="h-4 w-4" />
 					</Button>
-				</div>
+				</div> -->
 				<div class="flex gap-4 pt-2">
 					<a
 						href="#"
