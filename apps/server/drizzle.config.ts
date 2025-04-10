@@ -1,5 +1,6 @@
 import { defineConfig } from "drizzle-kit";
 import dotenv from "dotenv";
+import { env } from "node:process";
 
 // Configure dotenv with options
 // dotenv.config();
@@ -7,9 +8,9 @@ import dotenv from "dotenv";
 export default defineConfig({
   schema: "./src/lib/db/schema",
   dbCredentials: {
-    accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-    token: process.env.CLOUDFLARE_API_TOKEN!,
-    databaseId: process.env.CLOUDFLARE_DATABASE_ID!,
+    accountId: env.CLOUDFLARE_ACCOUNT_ID!,
+    token: env.CLOUDFLARE_API_TOKEN!,
+    databaseId: env.CLOUDFLARE_DATABASE_ID!,
   },
   verbose: true,
   strict: true,

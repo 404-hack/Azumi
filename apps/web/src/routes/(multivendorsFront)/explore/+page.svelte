@@ -106,7 +106,7 @@
 					class="whitespace-nowrap border-b-2 px-4 py-2 transition-all {filter.active
 						? 'border-primary font-medium text-primary'
 						: 'border-transparent hover:border-primary/30 hover:text-primary'}"
-					on:click={() => setFilter(filter.name)}
+					onclick={() => setFilter(filter.name)}
 				>
 					{filter.name}
 				</button>
@@ -151,10 +151,6 @@
 					<div class="p-4">
 						<div class="mb-2 flex items-center text-xs text-muted-foreground">
 							<span class="rounded-full bg-primary/10 px-2 py-1 text-primary">{item.category}</span>
-							<div class="ml-auto flex items-center">
-								<MapPin class="mr-1 h-3 w-3" />
-								{item.location}
-							</div>
 						</div>
 
 						<h3 class="mb-1 text-lg font-medium">{item.name}</h3>
