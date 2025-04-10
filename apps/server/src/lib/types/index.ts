@@ -15,6 +15,11 @@ export type TMenuCategoryWithItems = Omit<
   TMenuCategory,
   "createdAt" | "updatedAt"
 > & { menus: Omit<TMenu, "createdAt" | "updatedAt">[] };
+export type TAddress = Omit<
+  typeof schema.addressTable.$inferSelect,
+  "createdAt" | "updatedAt"
+>;
+
 export type TOption = typeof schema.optionTable.$inferSelect;
 export type TOptionGroup = Omit<
   typeof schema.optionGroupTable.$inferSelect,

@@ -138,6 +138,7 @@ export const updateNameModalState = new ModalState(false);
 export const updatePasswordModalState = new ModalState(false);
 export const addAddressModalState = new ModalState(false);
 export const deliveryAddressModalState = new ModalState(false);
+export const addDeliveryAddressModalState = new ModalState(false);
 export const loginModalState = new ModalState(false);
 export const registerModalState = new ModalState(false);
 export const requestPasswordResetModalState = new ModalState(false);

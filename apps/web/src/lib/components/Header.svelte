@@ -4,7 +4,8 @@
 	import {
 		loginModalState,
 		cartsSheetStore,
-		registerModalState
+		registerModalState,
+		addDeliveryAddressModalState
 	} from '$lib/states/modalState.svelte';
 	import CartSheet from './modal/CartSheet.svelte';
 	import CartsSheet from './modal/CartsSheet.svelte';
@@ -25,6 +26,9 @@
 	import { authClient } from '$lib/auth-client';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Badge } from '$lib/components/ui/badge';
+	import type { Place } from '$lib/types/places';
+	import AddDeliveryAddress from './modal/AddDeliveryAddress.svelte';
+	import { activeLocation } from '$lib/states/locationState.svelte';
 
 	let location = 'Nairobi, Kenya';
 	let searchQuery = '';
@@ -43,15 +47,21 @@
 			<a href="/" class="flex items-center space-x-2">
 				<span class="text-xl font-bold text-primary">Azumi</span>
 			</a>
-
-			<button
-				class="group hidden items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary md:flex"
-				aria-label="Change location"
-			>
-				<MapPin class="h-4 w-4" />
-				<span>{location}</span>
-				<ChevronDown class="h-4 w-4 transition-transform group-hover:rotate-180" />
-			</button>
+			{#if activeLocation.current.lat != 0 && activeLocation.current.lng != 0}
+				<button
+					class="group hidden items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary md:flex"
+					aria-label="Change location"
+					onclick={() => {
+						addDeliveryAddressModalState.setTrue();
+					}}
+				>
+					<MapPin class="h-4 w-4" />
+					<span class="max-w-[200px] truncate border border-red-600"
+						>{activeLocation.current.name}</span
+					>
+					<ChevronDown class="h-4 w-4 transition-transform group-hover:rotate-180" />
+				</button>
+			{/if}
 		</div>
 
 		<!-- Search -->
@@ -229,3 +239,4 @@
 
 <LoginModal />
 <RegisterModal />
+<AddDeliveryAddress />

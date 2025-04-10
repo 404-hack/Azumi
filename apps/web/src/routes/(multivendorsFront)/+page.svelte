@@ -4,18 +4,7 @@
 	import { MapPin, ArrowRight } from 'lucide-svelte';
 	import RestaurantList from '$lib/components/RestaurantList.svelte';
 	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
-
-	const categories = [
-		{ name: 'All', icon: '🌟' },
-		{ name: 'Fast Food', icon: '🍔' },
-		{ name: 'Pizza', icon: '🍕' },
-		{ name: 'Sushi', icon: '🍱' },
-		{ name: 'Italian', icon: '🍝' },
-		{ name: 'Mexican', icon: '🌮' },
-		{ name: 'Vegetarian', icon: '🥗' }
-	];
-
-	let selectedCategory = $state('All');
+	import { activeLocation } from '$lib/states/locationState.svelte';
 </script>
 
 <div class="min-h-screen bg-background">
@@ -38,41 +27,33 @@
 						class="relative flex items-center gap-2 rounded-lg bg-white px-3 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2"
 					>
 						<MapPin class="h-5 w-5 text-muted-foreground" />
-						<input
+						<!-- <input
 							type="text"
 							placeholder="Enter your delivery address"
 							class="h-14 flex-1 border-none outline-none"
+						/> -->
+						<PlacesInput
+							class="h-14 flex-1 border-none outline-none"
+							placeholder="Enter your delivery address"
+							onPlaceSelect={(p) => {
+								activeLocation.current = {
+									name: p.name,
+									address: p.address,
+									lat: p.lat,
+									lng: p.lng
+								};
+							}}
 						/>
 						<Button size="icon" class="shadow-md">
 							<ArrowRight class="size-5" />
 						</Button>
 					</div>
+					<!-- <PlacesInput
+						class="h-14 flex-1 border-none outline-none"
+						placeholder="Enter your delivery address"
+					/> -->
 				</div>
-				<PlacesInput />
 			</div>
 		</div>
-	</div>
-
-	<!-- Main Content -->
-	<div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-		<!-- Categories -->
-		<div class="mb-12">
-			<h2 class="mb-6 text-2xl font-semibold tracking-tight">Popular Categories</h2>
-			<div class="flex flex-wrap gap-4">
-				{#each categories as { name, icon }}
-					<Button
-						variant={selectedCategory === name ? 'default' : 'outline'}
-						class="flex items-center gap-2 rounded-full px-6"
-						onclick={() => (selectedCategory = name)}
-					>
-						<span class="text-xl">{icon}</span>
-						<span>{name}</span>
-					</Button>
-				{/each}
-			</div>
-		</div>
-
-		<!-- Restaurant List -->
-		<!-- <RestaurantList {searchTerm} restaurants={data.restaurants} category={selectedCategory} /> -->
 	</div>
 </div>
