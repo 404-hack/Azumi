@@ -118,9 +118,6 @@
 	<div class="mb-10" in:fade={{ duration: 300 }}>
 		<div class="mb-4 flex items-center justify-between">
 			<h3 class="text-xl font-medium">Featured Products</h3>
-			<a href="/explore/featured" class="flex items-center text-sm text-primary hover:underline">
-				View all <ChevronRight class="ml-1 h-4 w-4" />
-			</a>
 		</div>
 
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -160,12 +157,6 @@
 								<Star class="h-4 w-4 fill-current" />
 								<span class="ml-1 text-sm">{item.rating}</span>
 							</div>
-							<button
-								class="flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm text-primary transition-colors hover:bg-primary/20"
-							>
-								<ShoppingBag class="mr-1 h-3 w-3" />
-								View Details
-							</button>
 						</div>
 					</div>
 				</div>
@@ -177,9 +168,6 @@
 	<div class="mb-10">
 		<div class="mb-4 flex items-center justify-between">
 			<h3 class="text-xl font-medium">Popular Markets</h3>
-			<a href="/explore/markets" class="flex items-center text-sm text-primary hover:underline">
-				View all <ChevronRight class="ml-1 h-4 w-4" />
-			</a>
 		</div>
 
 		<div class="scrollbar-hide flex gap-4 overflow-x-auto pb-4">
@@ -208,9 +196,6 @@
 	<div>
 		<div class="mb-4 flex items-center justify-between">
 			<h3 class="text-xl font-medium">More to Explore</h3>
-			<a href="/explore/all" class="flex items-center text-sm text-primary hover:underline">
-				View all <ChevronRight class="ml-1 h-4 w-4" />
-			</a>
 		</div>
 
 		<div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
