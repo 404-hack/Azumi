@@ -117,7 +117,7 @@
 	<!-- Featured section with larger cards -->
 	<div class="mb-10" in:fade={{ duration: 300 }}>
 		<div class="mb-4 flex items-center justify-between">
-			<h3 class="text-xl font-medium">Featured Products</h3>
+			<h3 class="text-xl font-medium">Featured Restaurants</h3>
 		</div>
 
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
