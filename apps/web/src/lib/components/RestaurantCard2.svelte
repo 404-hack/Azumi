@@ -3,8 +3,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { get } from 'svelte/store';
 
-	export let background_logo: string =
-		'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg';
+	export let background_logo: string = '/restaurantIcon.png'; // Default image for the restaurant
 	export let name: string = 'the bun shop';
 	export let description: string = 'this is the bun shop, where you would get all your bun needs';
 	export let slug: string;

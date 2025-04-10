@@ -74,8 +74,8 @@
 		bind:value
 		class={cn('flex h-10 w-full rounded-md border border-input px-3 py-2', className)}
 		placeholder="Enter a Nigerian address"
-		on:focus={handleInputFocus}
-		on:blur={handleInputBlur}
+		onfocus={handleInputFocus}
+		onblur={handleInputBlur}
 		{...restProps}
 	/>
 
@@ -83,13 +83,13 @@
 		<div class="absolute z-50 mt-1 w-full rounded-md border border-input bg-background shadow-md">
 			<ul class="max-h-[300px] overflow-auto py-1 text-sm">
 				{#each predictions as prediction}
-					<li
+					<button
 						class="flex cursor-pointer items-start gap-2 px-3 py-2 hover:bg-muted"
-						on:click={() => handlePredictionSelect(prediction)}
+						onclick={() => handlePredictionSelect(prediction)}
 					>
 						<MapPin class="mt-0.5 h-4 w-4 shrink-0" />
 						<span>{prediction.description}</span>
-					</li>
+					</button>
 				{/each}
 			</ul>
 		</div>

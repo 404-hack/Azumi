@@ -57,7 +57,7 @@ export function getCurrentPosition(): Promise<Position> {
 	});
 }
 
-export async function reverseGeocode(latitude: number, longitude: number): Promise<string> {
+export async function reverseGeocode(latitude: number, longitude: number) {
 	try {
 		const response = await fetch(
 			`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
@@ -68,8 +68,7 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
 		}
 
 		const data = await response.json();
-		console.log('🚀 ~ reverseGeocode ~ data:', data);
-		return data.display_name;
+		return { address: data.display_name, name: data.address.name };
 	} catch (error) {
 		console.error('Error in reverse geocoding:', error);
 		throw new Error('Could not convert location to address');

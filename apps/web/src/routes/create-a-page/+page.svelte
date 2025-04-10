@@ -93,13 +93,13 @@
 				lng: longitude
 			};
 
-			const address = await reverseGeocode(latitude, longitude);
+			const { address, name } = await reverseGeocode(latitude, longitude);
 			$formData.address = address;
 			$formData.coordinates = {
 				lat: latitude,
 				lng: longitude,
 				address,
-				name: address
+				name
 			};
 			toast.success('Location obtained successfully');
 		} catch (error: unknown) {
