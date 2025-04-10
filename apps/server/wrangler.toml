@@ -18,6 +18,10 @@ enabled = true
 [placement]
 mode = "smart"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "azumi-db"
+database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18"
 
 [env.staging]
    
