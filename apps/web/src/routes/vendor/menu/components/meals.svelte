@@ -2,6 +2,8 @@
 	import * as Table from '$lib/components/ui/table';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
+
 	import {
 		Plus,
 		Search,
@@ -37,9 +39,9 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<h2 class="text-2xl font-semibold tracking-tight">Menu Items</h2>
-		<Button href="/vendor/menu/add-menu">
-			<Plus class="mr-2 h-4 w-4" />
-			Add Menu Item
+		<Button href="/vendor/menu/add-menu" class="h-9 px-3 sm:px-4">
+			<Plus class="h-4 w-4 sm:mr-2" />
+			<span class="hidden sm:inline">Add Menu Item</span>
 		</Button>
 	</div>
 
@@ -53,7 +55,7 @@
 				<p class="mb-4 mt-2 text-sm text-muted-foreground">
 					You haven't added any menu items yet. Start by adding your first dish.
 				</p>
-				<Button>
+				<Button href="/vendor/menu/add-menu">
 					<Plus class="mr-2 h-4 w-4" />
 					Add Menu Item
 				</Button>

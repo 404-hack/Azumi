@@ -1,0 +1,68 @@
+-- Migration to drop all tables
+-- Drop tables in reverse order of creation to handle foreign key dependencies
+
+-- Drop review related tables
+DROP TABLE IF EXISTS "reviews";
+
+-- Drop order related tables
+DROP TABLE IF EXISTS "orderItemOption";
+DROP TABLE IF EXISTS "orderItem";
+DROP TABLE IF EXISTS "order";
+
+-- Drop cart related tables
+DROP TABLE IF EXISTS "cart_item_options";
+DROP TABLE IF EXISTS "cart_items";
+DROP TABLE IF EXISTS "carts";
+
+-- Drop menu related tables
+DROP TABLE IF EXISTS "option_group_options";
+DROP TABLE IF EXISTS "menu_item_options";
+DROP TABLE IF EXISTS "menu_item_allergens";
+DROP TABLE IF EXISTS "menu_item_tags";
+DROP TABLE IF EXISTS "menu_categories";
+DROP TABLE IF EXISTS "menu_items";
+DROP TABLE IF EXISTS "option_groups";
+DROP TABLE IF EXISTS "options";
+DROP TABLE IF EXISTS "allergens";
+DROP TABLE IF EXISTS "tags";
+
+-- Drop promotion related tables
+DROP TABLE IF EXISTS "promotions";
+DROP TABLE IF EXISTS "promotion_rules";
+DROP TABLE IF EXISTS "promotion_usages";
+
+-- Drop payment related tables
+DROP TABLE IF EXISTS "payment_methods";
+DROP TABLE IF EXISTS "transactions";
+DROP TABLE IF EXISTS "vendor_payouts";
+
+-- Drop loyalty related tables
+DROP TABLE IF EXISTS "loyalty_points";
+DROP TABLE IF EXISTS "loyalty_rewards";
+DROP TABLE IF EXISTS "loyalty_tiers";
+
+-- Drop notification related tables
+DROP TABLE IF EXISTS "notifications";
+
+-- Drop delivery related tables
+DROP TABLE IF EXISTS "delivery";
+DROP TABLE IF EXISTS "riders";
+
+-- Drop shop related tables
+DROP TABLE IF EXISTS "shop_hours";
+DROP TABLE IF EXISTS "shop_areas";
+DROP TABLE IF EXISTS "shops";
+
+-- Drop user related tables
+DROP TABLE IF EXISTS "addresses";
+DROP TABLE IF EXISTS "user_roles";
+DROP TABLE IF EXISTS "user_sessions";
+DROP TABLE IF EXISTS "user_key";
+DROP TABLE IF EXISTS "user";
+
+-- Drop any remaining utility tables
+DROP TABLE IF EXISTS "analytics";
+DROP TABLE IF EXISTS "packs";
+
+-- Drop migrations table last
+DROP TABLE IF EXISTS "_drizzle_migrations";
