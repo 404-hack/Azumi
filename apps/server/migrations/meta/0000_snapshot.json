@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d9970e83-e67e-4c33-a0d1-9d4badb98dd5",
+  "id": "4018eb45-44c8-4b77-9f4e-5e2ec1d0ef0f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "addresses": {
@@ -1199,8 +1199,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "organization_id": {
-          "name": "organization_id",
+        "organizationId": {
+          "name": "organizationId",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1244,12 +1244,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "invitation_organization_id_shop_table_id_fk": {
-          "name": "invitation_organization_id_shop_table_id_fk",
+        "invitation_organizationId_shop_table_id_fk": {
+          "name": "invitation_organizationId_shop_table_id_fk",
           "tableFrom": "invitation",
           "tableTo": "shop_table",
           "columnsFrom": [
-            "organization_id"
+            "organizationId"
           ],
           "columnsTo": [
             "id"
@@ -1708,7 +1708,7 @@
           "name": "address",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "commission": {
@@ -1757,13 +1757,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "location": {
-          "name": "location",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "average_rating": {
           "name": "average_rating",
           "type": "integer",
@@ -1807,8 +1800,22 @@
           "notNull": false,
           "autoincrement": false
         },
-        "coordinates": {
-          "name": "coordinates",
+        "latitude": {
+          "name": "latitude",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "addressName": {
+          "name": "addressName",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1844,6 +1851,21 @@
             "slug"
           ],
           "isUnique": true
+        },
+        "location_idx": {
+          "name": "location_idx",
+          "columns": [
+            "latitude",
+            "longitude"
+          ],
+          "isUnique": false
+        },
+        "shop_type_idx": {
+          "name": "shop_type_idx",
+          "columns": [
+            "shop_type"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -2396,8 +2418,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "user_id": {
-          "name": "user_id",
+        "userId": {
+          "name": "userId",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -2433,12 +2455,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "optionGroup_user_id_user_table_id_fk": {
-          "name": "optionGroup_user_id_user_table_id_fk",
+        "optionGroup_userId_user_table_id_fk": {
+          "name": "optionGroup_userId_user_table_id_fk",
           "tableFrom": "optionGroup",
           "tableTo": "user_table",
           "columnsFrom": [
-            "user_id"
+            "userId"
           ],
           "columnsTo": [
             "id"
@@ -2555,8 +2577,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "in_stock": {
-          "name": "in_stock",
+        "inStock": {
+          "name": "inStock",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -2570,8 +2592,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "user_id": {
-          "name": "user_id",
+        "userId": {
+          "name": "userId",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2607,12 +2629,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "option_user_id_user_table_id_fk": {
-          "name": "option_user_id_user_table_id_fk",
+        "option_userId_user_table_id_fk": {
+          "name": "option_userId_user_table_id_fk",
           "tableFrom": "option",
           "tableTo": "user_table",
           "columnsFrom": [
-            "user_id"
+            "userId"
           ],
           "columnsTo": [
             "id"
@@ -4021,8 +4043,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "shop_id": {
-          "name": "shop_id",
+        "shopId": {
+          "name": "shopId",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -4224,12 +4246,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "order_shop_id_shop_table_id_fk": {
-          "name": "order_shop_id_shop_table_id_fk",
+        "order_shopId_shop_table_id_fk": {
+          "name": "order_shopId_shop_table_id_fk",
           "tableFrom": "order",
           "tableTo": "shop_table",
           "columnsFrom": [
-            "shop_id"
+            "shopId"
           ],
           "columnsTo": [
             "id"
