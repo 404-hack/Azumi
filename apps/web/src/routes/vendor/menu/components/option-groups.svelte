@@ -89,23 +89,17 @@
 	<div
 		class="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
 	>
-		<div class="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
+		<div class="flex flex-row justify-between gap-4 p-4 md:items-center">
 			<div>
 				<h2 class="text-2xl font-semibold tracking-tight">Option Groups</h2>
-				<p class="text-sm text-muted-foreground">
+				<!-- <p class="text-sm text-muted-foreground">
 					Manage additional options and variations for your menu items.
-				</p>
+				</p> -->
 			</div>
-			<div class="flex gap-2">
-				<Button variant="outline" href="/vendor/menu/options/new" class="flex-1 md:flex-none">
-					<Plus class="mr-2 h-4 w-4" />
-					Add New Option
-				</Button>
-				<Button href="/vendor/menu/option-groups/new" class="flex-1 md:flex-none">
-					<Plus class="mr-2 h-4 w-4" />
-					Add Option Group
-				</Button>
-			</div>
+			<Button href="/vendor/menu/option-groups/new" class="md:flex-none">
+				<Plus class="mr-2 h-4 w-4" />
+				<span class="hidden sm:inline">Add Option Group</span>
+			</Button>
 		</div>
 	</div>
 
@@ -144,7 +138,9 @@
 							</p>
 						</div>
 						<div class="flex items-center gap-2">
-							<Button variant="outline" href={`/vendor/menu/option-groups/${group.id}`} size="sm">Edit Group</Button>
+							<Button variant="outline" href={`/vendor/menu/option-groups/${group.id}`} size="sm"
+								>Edit Group</Button
+							>
 							<Collapsible.Trigger>
 								{#snippet child({ props })}
 									<Button

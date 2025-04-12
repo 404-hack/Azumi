@@ -15,6 +15,7 @@
 	let tabValue = queryParam('tabValue', {
 		defaultValue: 'meals'
 	});
+	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 
 	function toggleSearch() {
 		showSearch = !showSearch;
@@ -50,12 +51,14 @@
 	}}
 	class="space-y-4"
 >
-	<Tabs.List class="w-full overflow-x-auto ">
+	<!-- <ScrollArea orientation="horizontal" class="w-full min-w-[300px] "> -->
+	<Tabs.List class="grid h-full w-full grid-cols-2 sm:grid-cols-4">
 		<Tabs.Trigger class="text-xs sm:text-sm" value="meals">Meals</Tabs.Trigger>
 		<Tabs.Trigger class="text-xs sm:text-sm" value="option-items">Option Items</Tabs.Trigger>
 		<Tabs.Trigger class="text-xs sm:text-sm" value="option-groups">Option Groups</Tabs.Trigger>
 		<Tabs.Trigger class="text-xs sm:text-sm" value="food-packs">Food Packs</Tabs.Trigger>
 	</Tabs.List>
+	<!-- </ScrollArea> -->
 
 	<Tabs.Content value="meals">
 		<Meals menuCategoryWithItems={menuData} />

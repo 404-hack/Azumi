@@ -34,8 +34,8 @@
 	const { form: formData, enhance } = form;
 </script>
 
-<div class="container mx-auto max-w-3xl py-6">
-	<div class="mb-6">
+<div class=" mx-auto max-w-3xl py-2 md:py-6">
+	<div class="mb-3 md:mb-6">
 		<Button variant="ghost" size="icon" href="/vendor/menu" class="mb-4">
 			<ArrowLeft class="h-5 w-5" />
 		</Button>
@@ -44,12 +44,12 @@
 	</div>
 
 	<form use:enhance class="space-y-8">
-		<Card.Root>
-			<Card.Header>
+		<Card.Root class="border-none sm:border">
+			<Card.Header class="px-0 sm:p-6">
 				<Card.Title>Option Details</Card.Title>
 				<Card.Description>Enter the details for your new option</Card.Description>
 			</Card.Header>
-			<Card.Content class="space-y-6">
+			<Card.Content class="space-y-6 px-0 md:p-6">
 				<Form.Field {form} name="name">
 					<Form.Control>
 						{#snippet children({ props })}

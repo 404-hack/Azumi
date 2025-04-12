@@ -88,7 +88,7 @@
 		$formData.categoryId = category.id;
 	}}
 />
-<!-- <AddPackModal
+<AddPackModal
 	afterSubmit={(pack) => {
 		$formData.packId = pack.id;
 	}}
@@ -98,7 +98,7 @@
 	afterSubmit={(newGroup) => {
 		$formData.optionGroupId = [...($formData.optionGroupId || []), newGroup.id];
 	}}
-/> -->
+/>
 
 <div class="min-h-screen">
 	<div class="sticky top-0 z-10 border-b bg-white shadow-sm">
@@ -296,12 +296,12 @@
 			</Card.Root> -->
 
 			<!-- Additional Options -->
-			<Card.Root>
-				<Card.Header>
+			<Card.Root class="border-none sm:border">
+				<Card.Header class="px-0 sm:p-6">
 					<Card.Title>Additional Options</Card.Title>
 					<Card.Description>Configure additional settings for this menu item</Card.Description>
 				</Card.Header>
-				<Card.Content class="space-y-6">
+				<Card.Content class="space-y-6 px-0 sm:p-6">
 					<Form.Field {form} name="inStock" class="mb-1">
 						<Form.Control>
 							{#snippet children({ props })}
