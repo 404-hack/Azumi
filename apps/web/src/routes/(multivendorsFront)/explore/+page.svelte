@@ -1,6 +1,15 @@
 <script lang="ts">
 	import { fade, fly } from 'svelte/transition';
-	import { Star, MapPin, TrendingUp, ThumbsUp, ShoppingBag, ChevronRight } from 'lucide-svelte';
+	import {
+		Star,
+		MapPin,
+		TrendingUp,
+		ThumbsUp,
+		ShoppingBag,
+		ChevronRight,
+		Bike,
+		CircleDollarSign
+	} from 'lucide-svelte';
 
 	// Sample data for demonstration - in a real app would come from an API or store
 	type ExploreItem = {
@@ -10,6 +19,9 @@
 		category: string;
 		rating: number;
 		location: string;
+		deliveryTime: string; // e.g., '20-30 min'
+		deliveryRange: string; // e.g., '5 km'
+		deliveryPrice: number; // e.g., 3.50
 		isPopular?: boolean;
 		isTrending?: boolean;
 	};
@@ -23,6 +35,9 @@
 			category: 'Groceries',
 			rating: 4.8,
 			location: 'Lagos',
+			deliveryTime: '25-35 min',
+			deliveryRange: '3 km',
+			deliveryPrice: 2.5,
 			isPopular: true
 		},
 		{
@@ -32,6 +47,9 @@
 			category: 'Accessories',
 			rating: 4.6,
 			location: 'Accra',
+			deliveryTime: '40-50 min',
+			deliveryRange: '8 km',
+			deliveryPrice: 5.0,
 			isTrending: true
 		},
 		{
@@ -41,6 +59,9 @@
 			category: 'Fashion',
 			rating: 4.9,
 			location: 'Nairobi',
+			deliveryTime: '30-40 min',
+			deliveryRange: '5 km',
+			deliveryPrice: 4.0,
 			isPopular: true,
 			isTrending: true
 		},
@@ -51,6 +72,9 @@
 			category: 'Groceries',
 			rating: 4.7,
 			location: 'Dakar',
+			deliveryTime: '20-30 min',
+			deliveryRange: '4 km',
+			deliveryPrice: 3.0,
 			isPopular: true
 		},
 		{
@@ -60,6 +84,9 @@
 			category: 'Home Decor',
 			rating: 4.5,
 			location: 'Cape Town',
+			deliveryTime: '45-60 min',
+			deliveryRange: '10 km',
+			deliveryPrice: 6.5,
 			isTrending: true
 		},
 		{
@@ -69,6 +96,9 @@
 			category: 'Art',
 			rating: 4.9,
 			location: 'Marrakech',
+			deliveryTime: '35-45 min',
+			deliveryRange: '6 km',
+			deliveryPrice: 4.5,
 			isTrending: true
 		}
 	]);
@@ -151,6 +181,23 @@
 						</div>
 
 						<h3 class="mb-1 text-lg font-medium">{item.name}</h3>
+
+						<!-- Add Delivery Info -->
+						<div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+							<span class="flex items-center">
+								<Bike class="mr-1 h-3 w-3" />
+								{item.deliveryTime}
+							</span>
+							<span class="text-gray-400">•</span>
+							<span class="flex items-center">
+								<MapPin class="mr-1 h-3 w-3" />
+								{item.deliveryRange}
+							</span>
+							<span class="text-gray-400">•</span>
+							<span class="flex items-center">
+								<CircleDollarSign class="mr-1 h-3 w-3" />${item.deliveryPrice.toFixed(2)} Delivery
+							</span>
+						</div>
 
 						<div class="mt-3 flex items-center justify-between">
 							<div class="flex items-center text-amber-500">

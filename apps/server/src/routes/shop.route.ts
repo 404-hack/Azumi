@@ -178,16 +178,43 @@ const shopRoute = factory
         return `${lowerBound}-${upperBound} min`;
       };
 
+      // Function to calculate delivery fee based on distance in Nigerian Naira (NGN)
+      // Using a base fee + per km model for more granular pricing.
+      const calculateDeliveryFee = (distanceKm: number): number => {
+        const baseFee = 350; // Base fee in NGN (covers first ~1km)
+        const perKmFee = 150; // Fee per km after the first km in NGN
+        const minimumDistanceForPerKm = 1; // Distance (km) included in the base fee
+
+        let deliveryFee = baseFee;
+
+        if (distanceKm > minimumDistanceForPerKm) {
+          deliveryFee += (distanceKm - minimumDistanceForPerKm) * perKmFee;
+        }
+
+        // Ensure the fee is at least the base fee and round to nearest 50 Naira for cleaner pricing
+        const finalFee = Math.max(baseFee, deliveryFee);
+        return Math.round(finalFee / 50) * 50;
+
+        // Example calculations:
+        // 1 km: Math.round(Math.max(350, 350 + (1-1)*150) / 50) * 50 = 350
+        // 3 km: Math.round(Math.max(350, 350 + (3-1)*150) / 50) * 50 = Math.round(650 / 50) * 50 = 650
+        // 5 km: Math.round(Math.max(350, 350 + (5-1)*150) / 50) * 50 = Math.round(950 / 50) * 50 = 950
+        // 7 km: Math.round(Math.max(350, 350 + (7-1)*150) / 50) * 50 = Math.round(1250 / 50) * 50 = 1250
+        // Note: This model provides smoother scaling than fixed tiers. Adjust baseFee/perKmFee as needed.
+      };
+
       return c.json({
         data: {
           userLocation: { latitude: lat, longitude: lng },
           shops: nearbyShops.map((shop) => {
             const distanceKm = parseFloat((shop as any).distance.toFixed(2)); // Distance is in kilometers
             const estimatedTime = estimateTravelTime(distanceKm); // Uses the updated function
+            const deliveryFee = calculateDeliveryFee(distanceKm); // Calculate the delivery fee
             return {
               ...shop,
               distance: distanceKm, // Keep the precise distance in km
-              estimatedTime: estimatedTime, // Add the updated estimated time string (e.g., "25-35 min")
+              estimatedTime: estimatedTime, // Add the updated estimated time string (e.g., "20-30 min")
+              deliveryFee: deliveryFee, // Add the calculated delivery fee
             };
           }),
         },
