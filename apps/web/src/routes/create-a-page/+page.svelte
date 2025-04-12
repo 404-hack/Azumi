@@ -31,7 +31,7 @@
 		onUpdate: async ({ form }) => {
 			console.log('🚀 ~ onUpdate: ~ form:', form);
 			// check if coordinates are selected
-			if (form.data.address && form.errors.coordinates) {
+			if (form.data.address && form.errors.latitude) {
 				toast.error('Please select a location from the suggestions.');
 				return;
 			}
@@ -41,9 +41,11 @@
 						name: form.data.name,
 						type: form.data.type,
 						email: form.data.email,
-						phone: form.data.phone,
-						address: form.data.coordinates.address,
-						coordinates: form.data.coordinates
+						phoneNumber: form.data.phoneNumber, // Updated to use phoneNumber instead of phone
+						address: form.data.address,
+						longitude: form.data.longitude,
+						latitude: form.data.latitude,
+						addressName: form.data.addressName // Updated to use form.data.addressName instead of form.data.coordinates.name
 					}
 				});
 				if (res.ok) {
@@ -70,12 +72,12 @@
 	// Function to handle place selection
 	function handlePlaceSelect(place: Place) {
 		if (place) {
-			$formData.coordinates = {
-				lat: place.lat,
-				lng: place.lng,
-				address: place.address,
-				name: place.name
-			};
+			
+			$formData.address = place.address;
+			$formData.latitude = place.lat;
+			$formData.longitude = place.lng;
+			$formData.addressName = place.name;
+
 			selectedLocation = { lat: place.lat, lng: place.lng };
 		}
 	}
@@ -95,12 +97,9 @@
 
 			const { address, name } = await reverseGeocode(latitude, longitude);
 			$formData.address = address;
-			$formData.coordinates = {
-				lat: latitude,
-				lng: longitude,
-				address,
-				name
-			};
+			$formData.latitude = latitude;
+			$formData.longitude = longitude;
+			$formData.addressName = name;
 			toast.success('Location obtained successfully');
 		} catch (error: unknown) {
 			const errorMessage = error instanceof Error ? error.message : 'Failed to get location';
@@ -112,17 +111,14 @@
 </script>
 
 <svelte:head>
-	<title>Create Your Store - African Market</title>
+	<title>Create Your Store - Azumi</title>
 	<meta
 		name="description"
-		content="Create your store on African Market and start selling to customers across Africa."
+		content="Create your store on Azumi and start selling to customers across Africa."
 	/>
 </svelte:head>
 
-<RegisterModal title="You need to be registered in first before you can create a shop" />
-<LoginModal title="You need to be logged in first before you can create a shop" />
-
-<div class="container mx-auto max-w-3xl px-4 py-12">
+<div class=" mx-auto max-w-3xl pt-12 md:px-4">
 	<div class="mb-10 text-center">
 		<Store class="mx-auto mb-6 size-16 text-primary" />
 		<h1 class="font-display text-4xl font-bold tracking-tight md:text-5xl">Create Your Store</h1>
@@ -139,6 +135,7 @@
 			</Card.Header>
 
 			<Card.Content class="space-y-6">
+
 				<Form.Field {form} name="name">
 					<Form.Control>
 						{#snippet children({ props })}
@@ -194,12 +191,12 @@
 						<Form.FieldErrors />
 					</Form.Field>
 
-					<Form.Field {form} name="phone">
+					<Form.Field {form} name="phoneNumber">
 						<Form.Control>
 							{#snippet children({ props })}
 								<div class="space-y-2">
 									<Form.Label>Phone Number</Form.Label>
-									<Input {...props} type="tel" bind:value={$formData.phone} placeholder="+234..." />
+									<Input {...props} type="tel" bind:value={$formData.phoneNumber} placeholder="+234..." />
 								</div>
 							{/snippet}
 						</Form.Control>
@@ -260,6 +257,8 @@
 		</Card.Root>
 	</form>
 </div>
+<RegisterModal title="You need to be registered in first before you can create a shop" />
+<LoginModal title="You need to be logged in first before you can create a shop" />
 
 <style>
 	/* Address suggestions dropdown styling */

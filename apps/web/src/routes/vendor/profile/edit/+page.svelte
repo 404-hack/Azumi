@@ -22,7 +22,7 @@
 
 	// Create the form using superForm
 	const form = superForm(
-		defaults({ ...data.profile, phone: data.profile.phoneNumber }, zod(updateShopSchema)),
+		defaults({ ...data.profile, phoneNumber: data.profile.phoneNumber }, zod(updateShopSchema)),
 		{
 			validators: zod(updateShopSchema),
 			SPA: true, // Enable client-side form handling (SPA mode)
@@ -59,14 +59,11 @@
 			const position = await getCurrentPosition();
 			const { latitude, longitude } = position.coords;
 
-			const address = await reverseGeocode(latitude, longitude);
+			const {address,name} = await reverseGeocode(latitude, longitude);
 			$formData.address = address;
-			$formData.coordinates = {
-				lat: latitude,
-				lng: longitude,
-				address,
-				name: address
-			};
+			$formData.latitude = latitude;
+			$formData.longitude = longitude;
+			$formData.addressName = name; // Update the addressName field with the address
 			toast.success('Location obtained successfully');
 		} catch (error: unknown) {
 			const errorMessage = error instanceof Error ? error.message : 'Failed to get location';
@@ -78,12 +75,10 @@
 
 	function handlePlaceSelect(place: Place) {
 		if (place) {
-			$formData.coordinates = {
-				lat: place.lat,
-				lng: place.lng,
-				address: place.address,
-				name: place.name
-			};
+			$formData.address = place.address;
+			$formData.latitude = place.lat;
+			$formData.longitude = place.lng;
+			$formData.addressName = place.name; // Update the addressName field with the address
 		}
 	}
 </script>
@@ -156,14 +151,14 @@
 				</Card.Header>
 				<Card.Content>
 					<div class="space-y-4">
-						<Form.Field {form} name="phone">
+						<Form.Field {form} name="phoneNumber">
 							<Form.Control>
 								{#snippet children({ props })}
 									<Form.Label>Phone Number</Form.Label>
 									<Input
 										{...props}
 										type="tel"
-										bind:value={$formData.phone}
+										bind:value={$formData.phoneNumber}
 										placeholder="Enter phone number"
 									/>
 								{/snippet}

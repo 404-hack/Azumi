@@ -5,6 +5,7 @@ import {
   createShopSchema,
   updateShopSchema,
 } from "../lib/validation/shop.validation";
+import { nearbyShopsQuerySchema } from "../lib/validation/shop.nearby.validation";
 import {
   shopOperatingHoursTable,
   shopTable,
@@ -17,24 +18,22 @@ import { factory } from "../lib/factory";
 
 const shopRoute = factory
   .createApp()
-  .get("/nearBy", async (c) => {
+  // Backward compatibility route that redirects to the new endpoint
+
+  .get("/nearby", zValidator("query", nearbyShopsQuerySchema), async (c) => {
     try {
       const db = c.get("db");
 
-      const userLat = c.req.raw.cf?.latitude as number;
-      const userLon = c.req.raw.cf?.longitude as number;
-
-      // For testing purposes, use default coordinates if not available
-      const lat = userLat || 6.5244; // Default to somewhere in Africa
-      const lng = userLon || 3.3792;
+      // Get validated and typed query parameters
+      const {
+        latitude: lat,
+        longitude: lng,
+        distance: searchRadius,
+        maxDistance: maxDeliveryDistance,
+        shopType,
+      } = c.req.valid("query");
 
       console.log("User coordinates:", { lat, lng });
-
-      // Distance in kilometers to search within
-      const searchRadius = Number(c.req.query("distance")) || 10;
-
-      // Maximum acceptable delivery distance in km
-      const maxDeliveryDistance = Number(c.req.query("maxDistance")) || 10;
 
       // Calculate boundary box (rough approximation)
       const latDelta = searchRadius / 111; // 1 degree of latitude is approximately 111 km
@@ -45,11 +44,152 @@ const shopRoute = factory
       const minLon = lng - lonDelta;
       const maxLon = lng + lonDelta;
 
-      // Get all shops - we'll filter them by coordinates
+      // Query for shops within the bounding box
+      let query = db.query.shopTable.findMany({
+        where: (shops, { and, eq, gte, lte, sql }) => {
+          // Start with base query conditions
+          let conditions = [
+            gte(shops.latitude, minLat),
+            lte(shops.latitude, maxLat),
+            gte(shops.longitude, minLon),
+            lte(shops.longitude, maxLon),
+          ];
+
+          // Add shop type filter if provided
+          if (shopType) {
+            conditions.push(eq(shops.shopType, shopType));
+          }
+
+          // Return combined conditions
+          return and(...conditions);
+        },
+        // Include necessary shop information
+        columns: {
+          id: true,
+          name: true,
+          slug: true,
+          address: true,
+          phoneNumber: true,
+          logo: true,
+          coverImage: true,
+          averageRating: true,
+          totalRatings: true,
+          shopType: true,
+          minimumOrderAmount: true,
+          active: true,
+          longitude: true,
+          latitude: true,
+        },
+        with: {
+          operatingHours: true,
+        },
+      });
+
+      const shops = await query;
+      console.log(shops);
+
+      // Filter shops by actual distance using Haversine (still needed for accuracy)
+      const nearbyShops = shops
+        .filter((shop) => {
+          try {
+            // Use direct latitude and longitude from the shop record
+            const shopLat = shop.latitude;
+            const shopLng = shop.longitude;
+
+            // Skip shops without coordinates (already filtered by DB if non-null constraint exists, but good safety check)
+            if (
+              shopLat === null ||
+              shopLng === null ||
+              shopLat === undefined ||
+              shopLng === undefined
+            ) {
+              console.warn(
+                `Shop ${shop.id} skipped due to missing coordinates.`
+              );
+              return false;
+            }
+
+            // Bounding box check is now done in the DB query, technically redundant here but harmless
+            // if (
+            //   shopLat < minLat ||
+            //   shopLat > maxLat ||
+            //   shopLng < minLon ||
+            //   shopLng > maxLon
+            // ) {
+            //   return false;
+            // }
+
+            // Calculate actual distance using Haversine formula
+            const R = 6371; // Earth's radius in km
+            const dLat = ((shopLat - lat) * Math.PI) / 180;
+            const dLon = ((shopLng - lng) * Math.PI) / 180;
+            const a =
+              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos((lat * Math.PI) / 180) *
+                Math.cos((shopLat * Math.PI) / 180) *
+                Math.sin(dLon / 2) *
+                Math.sin(dLon / 2);
+            const c_dist = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distance = R * c_dist;
+
+            // Store distance for later use in sorting
+            (shop as any).distance = distance;
+
+            // Check if shop is within the specified radius
+            return distance <= searchRadius;
+          } catch (e) {
+            console.error(`Error processing shop ${shop.id}:`, e);
+            return false;
+          }
+        })
+        // Sort by distance (closest first)
+        .sort((a, b) => (a as any).distance - (b as any).distance);
+
+      // Function to estimate total delivery time (including buffer for prep/rider travel to shop)
+      // Updated with a slightly reduced average buffer and tight 10-min range.
+      const estimateTravelTime = (distanceKm: number): string => {
+        // --- Configuration ---
+        const averageSpeedKmh = 17.5; // Avg. cycling speed (km/h) - Adjust if needed based on vehicle/area
+        // Buffer includes avg. prep time, rider assignment, and rider travel TO shop.
+        // Reduced slightly to 6 mins, acknowledging riders might often be nearby,
+        // but retaining buffer for necessary prep and assignment variability.
+        const averageBufferMinutes = 6;
+        const rangeHalfWidth = 5; // Creates a 10-minute total range (center +/- 5)
+        const minimumEstimateCenter = 15; // Min. center time (e.g., avoids "5-15 min")
+
+        // --- Calculation ---
+        // Calculate base travel time from shop to customer
+        const baseTimeMinutes = (distanceKm / averageSpeedKmh) * 60;
+
+        // Calculate total estimated time including average buffer
+        const totalEstimatedTime = baseTimeMinutes + averageBufferMinutes;
+
+        // Round the total estimate to the nearest 5 minutes to get the center of our range
+        const centerRounded = Math.round(totalEstimatedTime / 5) * 5;
+
+        // Ensure the center point isn't below our defined minimum
+        const finalCenter = Math.max(minimumEstimateCenter, centerRounded);
+
+        // Calculate the lower and upper bounds based on the final center
+        const lowerBound = finalCenter - rangeHalfWidth;
+        const upperBound = finalCenter + rangeHalfWidth;
+
+        // Return the formatted string (e.g., "20-30 min")
+        return `${lowerBound}-${upperBound} min`;
+      };
 
       return c.json({
         data: {
           userLocation: { latitude: lat, longitude: lng },
+          shops: nearbyShops.map((shop) => {
+            const distanceKm = parseFloat((shop as any).distance.toFixed(2)); // Distance is in kilometers
+            const estimatedTime = estimateTravelTime(distanceKm); // Uses the updated function
+            return {
+              ...shop,
+              distance: distanceKm, // Keep the precise distance in km
+              estimatedTime: estimatedTime, // Add the updated estimated time string (e.g., "25-35 min")
+            };
+          }),
         },
       });
     } catch (error) {
@@ -93,10 +233,12 @@ const shopRoute = factory
         .set({
           name: data.name,
           address: data.address,
-          phoneNumber: data.phone,
+          phoneNumber: data.phoneNumber, // Ensure this matches the schema
           email: data.email,
           shopType: data.type,
-          coordinates: data.coordinates,
+          longitude: data.longitude,
+          latitude: data.latitude,
+          addressName: data.addressName,
         })
         .where(eq(shopTable.id, organization.id))
         .returning()
@@ -205,17 +347,13 @@ const shopRoute = factory
 
     const shopWithData = await db.query.shopTable.findFirst({
       where: eq(shopTable.id, orgId),
-      with: {
-        // Only include sensitive data if user has admin role
-        revenue: true,
-        employees: true,
-
-        // Basic data for all roles
-        menus: true,
-        menuCategories: true,
-        menuPacks: true,
-        menuOptionGroups: true,
-      },
+      // Temporarily remove 'with' clause to isolate the error
+      // with: {
+      //   menus: true,
+      //   menuCategories: true,
+      //   menuPacks: true,
+      //   menuOptionGroups: true,
+      // },
     });
     console.log("🚀 ~ .get ~ shopWithData:", shopWithData);
     return c.json({
