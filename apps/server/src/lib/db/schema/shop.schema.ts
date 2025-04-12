@@ -44,7 +44,7 @@ export const shopTable = sqliteTable(
     description: text("description"),
     metadata: text("metadata", { mode: "json" }),
     phoneNumber: text("phone_number"),
-    address: text("address").notNull(),
+    address: text("address"),
     commission: integer("commission").default(10),
     minimumOrderAmount: integer("minimum_order_amount").default(0),
     active: integer("active", { mode: "boolean" }).default(false),
@@ -57,9 +57,9 @@ export const shopTable = sqliteTable(
     tags: array<string>(),
     bankInfo: text("bank_info", { mode: "json" }),
     deliveryType: text("delivery_type", { enum: DELIVERY_TYPE }),
-    latitude: real("latitude").notNull(), // Add latitude column
-    longitude: real("longitude").notNull(), // Add longitude column
-    addressName: text(), // Add address name column
+    latitude: real("latitude"), // Add latitude column
+    longitude: real("longitude"), // Add longitude column
+    addressName: text("address_name"), // Add address name column
     isVerified: integer("is_verified", { mode: "boolean" }).default(false),
 
     ...timestamps,
@@ -85,7 +85,7 @@ export const member = sqliteTable("member", {
 
 export const invitation = sqliteTable("invitation", {
   id: text("id").primaryKey(),
-  organizationId: text()
+  organizationId: text("")
     .notNull()
     .references(() => shopTable.id, { onDelete: "cascade" }),
   email: text("email").notNull(),

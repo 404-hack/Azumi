@@ -96,10 +96,11 @@
 			};
 
 			const { address, name } = await reverseGeocode(latitude, longitude);
+			console.log("🚀 ~ useCurrentLocation ~ name:", name)
 			$formData.address = address;
 			$formData.latitude = latitude;
 			$formData.longitude = longitude;
-			$formData.addressName = name;
+			$formData.addressName = name || address;
 			toast.success('Location obtained successfully');
 		} catch (error: unknown) {
 			const errorMessage = error instanceof Error ? error.message : 'Failed to get location';

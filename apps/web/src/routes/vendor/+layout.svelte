@@ -31,7 +31,7 @@
 	<VendorSidebar />
 	<Sidebar.Inset>
 		<Sidebar.Trigger />
-		<main class="w-full max-w-6xl md:px-5">
+		<main class="container w-full max-w-6xl md:px-5">
 			{@render children()}
 		</main>
 	</Sidebar.Inset>

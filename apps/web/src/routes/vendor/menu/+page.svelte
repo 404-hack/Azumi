@@ -50,11 +50,11 @@
 	}}
 	class="space-y-4"
 >
-	<Tabs.List class="w-full overflow-x-auto">
-		<Tabs.Trigger value="meals">Meals</Tabs.Trigger>
-		<Tabs.Trigger value="option-items">Option Items</Tabs.Trigger>
-		<Tabs.Trigger value="option-groups">Option Groups</Tabs.Trigger>
-		<Tabs.Trigger value="food-packs">Food Packs</Tabs.Trigger>
+	<Tabs.List class="w-full overflow-x-auto ">
+		<Tabs.Trigger class="text-xs sm:text-sm" value="meals">Meals</Tabs.Trigger>
+		<Tabs.Trigger class="text-xs sm:text-sm" value="option-items">Option Items</Tabs.Trigger>
+		<Tabs.Trigger class="text-xs sm:text-sm" value="option-groups">Option Groups</Tabs.Trigger>
+		<Tabs.Trigger class="text-xs sm:text-sm" value="food-packs">Food Packs</Tabs.Trigger>
 	</Tabs.List>
 
 	<Tabs.Content value="meals">
