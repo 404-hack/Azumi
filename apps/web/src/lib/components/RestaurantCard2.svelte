@@ -1,27 +1,88 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { Badge } from '$lib/components/ui/badge';
-	import { get } from 'svelte/store';
+	import { fly } from 'svelte/transition';
+	import { ThumbsUp, TrendingUp, Bike, MapPin, CircleDollarSign, Star } from 'lucide-svelte';
 
-	export let background_logo: string = '/restaurantIcon.png'; // Default image for the restaurant
-	export let name: string = 'the bun shop';
-	export let description: string = 'this is the bun shop, where you would get all your bun needs';
-	export let slug: string;
-	export let store_type: string = 'store';
+	// Define the type for the props, including the index 'i' for the transition
+	type ExploreItem = {
+		image: string | null;
+		name: string;
+		isPopular?: boolean;
+		isTrending?: boolean;
+		description: string | null;
+		deliveryTime: string;
+		deliveryRange: number;
+		deliveryPrice: number;
+		rating: number | null;
+		i: number; // Index for transition delay
+	};
+
+	// Define and destructure props using Svelte 5 $props rune
+	let {
+		image,
+		name,
+		isPopular,
+		isTrending,
+		description,
+		deliveryTime,
+		deliveryRange,
+		deliveryPrice,
+		rating,
+		i
+	}: ExploreItem = $props();
 </script>
 
-<a href="/store/{slug}" class="relative overflow-hidden rounded-lg">
-	<img
-		src={background_logo}
-		loading="lazy"
-		class="h-52 w-full rounded-md bg-gray-100 object-cover"
-		alt=""
-	/>
-	<div class="bg-background p-2">
-		<h1 class="truncate py-1 text-base font-medium capitalize md:text-lg">{name}</h1>
-		<p class="truncate text-xs capitalize text-muted-foreground md:text-sm">
-			{description}
-		</p>
+<div
+	class="overflow-hidden rounded-xl bg-card shadow-md transition-all duration-300 hover:shadow-lg"
+	in:fly|global={{ y: 20, delay: i * 75, duration: 250 }}
+>
+	<div class="relative h-48">
+		{#if image}
+			<img src={image} alt={name} class="h-full w-full object-cover" />
+		{:else}
+			<div class="flex h-full w-full items-center justify-center bg-gray-200 text-gray-500">
+				<span class="text-4xl font-bold">{name.charAt(0)}</span>
+			</div>
+		{/if}
+		{#if isPopular}
+			<div
+				class="absolute left-3 top-3 flex items-center rounded-md bg-yellow-500/90 px-2 py-1 text-xs text-white"
+			>
+				<ThumbsUp class="mr-1 h-3 w-3" />
+				Popular
+			</div>
+		{/if}
+		{#if isTrending}
+			<div
+				class="absolute right-3 top-3 flex items-center rounded-md bg-blue-500/90 px-2 py-1 text-xs text-white"
+			>
+				<TrendingUp class="mr-1 h-3 w-3" />
+				Trending
+			</div>
+		{/if}
 	</div>
-	<!-- <Badge variant="secondary" class="absolute top-[180px] capitalize right-2  ">free delivery</Badge> -->
-</a>
+	<div class="p-4">
+		<h3 class="mb-1 text-lg font-medium">{name}</h3>
+		<p class="mb-2 line-clamp-1 text-sm text-muted-foreground">{description}</p>
+
+		<div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+			<span class="flex items-center">
+				<Bike class="mr-1 h-3 w-3" />
+				{deliveryTime}
+			</span>
+			<span class="text-gray-400">•</span>
+			<span class="flex items-center">
+				<MapPin class="mr-1 h-3 w-3" />
+				{deliveryRange}KM
+			</span>
+			<span class="text-gray-400">•</span>
+			<span class="flex items-center">
+				<CircleDollarSign class="mr-1 h-3 w-3" />${deliveryPrice.toFixed(2)} Delivery
+			</span>
+		</div>
+
+		<div class="flex items-center text-amber-500">
+			<Star class="h-4 w-4 fill-current" />
+			<span class="ml-1 text-sm">{rating}</span>
+		</div>
+	</div>
+</div>

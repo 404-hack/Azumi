@@ -28,7 +28,7 @@
 	<div class="hidden md:grid md:grid-cols-2 md:gap-6 lg:grid-cols-3 xl:grid-cols-4">
 		{#each data.shopTypes as { name }, i}
 			<a
-				href={`/explore/${name.toLowerCase()}`}
+				href={`/explore/${name.toLowerCase()}s`}
 				class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-background to-muted/50 shadow-md transition-all duration-300 hover:shadow-lg"
 				in:fly|global={{ y: 20, delay: i * 100, duration: 300 }}
 			>

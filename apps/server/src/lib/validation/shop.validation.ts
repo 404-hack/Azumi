@@ -11,7 +11,7 @@ export const coordinatesSchema = z.object({
 export const createShopSchema = z.object({
   name: z.string().min(1, { message: "Shop name is required" }),
   address: z.string().min(1, { message: "Address is required" }),
-  phone: z
+  phoneNumber: z
     .string()
     .min(1, { message: "Phone number is required" })
     .regex(/^(?:\+?234|0)[789][01]\d{8}$/, {
@@ -33,7 +33,9 @@ export const createShopSchema = z.object({
   description: z.string().optional(),
   website: z.string().optional(),
   deliveryType: z.enum(DELIVERY_TYPE).nullable().optional(),
-  coordinates: coordinatesSchema.required(),
+  latitude: z.number({ message: "Latitude must be a number" }),
+  longitude: z.number({ message: "Longitude must be a number" }),
+  addressName: z.string().min(1, { message: "Location name is required" }),
 });
 
 export const timeSchema = z

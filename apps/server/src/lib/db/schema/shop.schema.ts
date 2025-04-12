@@ -3,6 +3,8 @@ import {
   text,
   integer,
   primaryKey,
+  real, // Import real for floating-point numbers
+  index, // Import index for creating indexes
 } from "drizzle-orm/sqlite-core";
 import { array, timestamps } from "./utils.schema";
 import { nanoid } from "nanoid";
@@ -28,37 +30,46 @@ export const shopTypeTable = sqliteTable("shopType", {
 
 // Define the coordinates type
 
-export const shopTable = sqliteTable("shop_table", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => nanoid()),
-  slug: text("slug").unique(),
-  name: text("name").notNull(),
-  email: text("email"),
-  shopType: text("shop_type").references(() => shopTypeTable.id),
-  website: text("website"),
-  description: text("description"),
-  metadata: text("metadata", { mode: "json" }),
-  phoneNumber: text("phone_number"),
-  address: text("address"),
-  commission: integer("commission").default(10),
-  minimumOrderAmount: integer("minimum_order_amount").default(0),
-  active: integer("active", { mode: "boolean" }).default(false),
-  status: text("status", { enum: SHOP_STATUS }).default("PENDING"),
-  logo: text("logo"),
-  coverImage: text("cover_image"),
-  location: text("location", { mode: "json" }),
-  averageRating: integer("average_rating"),
-  totalRatings: integer("total_ratings").default(0),
-  featuredPosition: integer("featured_position"),
-  tags: array<string>(),
-  bankInfo: text("bank_info", { mode: "json" }),
-  deliveryType: text("delivery_type", { enum: DELIVERY_TYPE }),
-  coordinates: text("coordinates", { mode: "json" }).$type<TCoordinates>(), // Fixed typo and added type
-  isVerified: integer("is_verified", { mode: "boolean" }).default(false),
+export const shopTable = sqliteTable(
+  "shop_table",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    slug: text("slug").unique(),
+    name: text("name").notNull(),
+    email: text("email"),
+    shopType: text("shop_type").references(() => shopTypeTable.id),
+    website: text("website"),
+    description: text("description"),
+    metadata: text("metadata", { mode: "json" }),
+    phoneNumber: text("phone_number"),
+    address: text("address").notNull(),
+    commission: integer("commission").default(10),
+    minimumOrderAmount: integer("minimum_order_amount").default(0),
+    active: integer("active", { mode: "boolean" }).default(false),
+    status: text("status", { enum: SHOP_STATUS }).default("PENDING"),
+    logo: text("logo"),
+    coverImage: text("cover_image"),
+    averageRating: integer("average_rating"),
+    totalRatings: integer("total_ratings").default(0),
+    featuredPosition: integer("featured_position"),
+    tags: array<string>(),
+    bankInfo: text("bank_info", { mode: "json" }),
+    deliveryType: text("delivery_type", { enum: DELIVERY_TYPE }),
+    latitude: real("latitude").notNull(), // Add latitude column
+    longitude: real("longitude").notNull(), // Add longitude column
+    addressName: text(), // Add address name column
+    isVerified: integer("is_verified", { mode: "boolean" }).default(false),
 
-  ...timestamps,
-});
+    ...timestamps,
+  },
+  // Add indexes for location columns
+  (table) => [
+    index("location_idx").on(table.latitude, table.longitude),
+    index("shop_type_idx").on(table.shopType), // Index shopType if frequently filtered
+  ]
+);
 
 export const member = sqliteTable("member", {
   id: text("id").primaryKey(),

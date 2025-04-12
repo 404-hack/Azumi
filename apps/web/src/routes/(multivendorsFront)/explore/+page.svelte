@@ -1,15 +1,27 @@
 <script lang="ts">
 	import { fade, fly } from 'svelte/transition';
-	import { Star, MapPin, TrendingUp, ThumbsUp, ShoppingBag, ChevronRight } from 'lucide-svelte';
+	import {
+		Star,
+		MapPin,
+		TrendingUp,
+		ThumbsUp,
+		ShoppingBag,
+		ChevronRight,
+		Bike,
+		CircleDollarSign
+	} from 'lucide-svelte';
 
 	// Sample data for demonstration - in a real app would come from an API or store
 	type ExploreItem = {
 		id: string;
 		name: string;
 		image: string;
-		category: string;
 		rating: number;
 		location: string;
+		deliveryTime: string; // e.g., '20-30 min'
+		deliveryRange: string; // e.g., '5 km'
+		deliveryPrice: number; // e.g., 3.50
+		description: string; // Added description field
 		isPopular?: boolean;
 		isTrending?: boolean;
 	};
@@ -20,27 +32,36 @@
 			id: '1',
 			name: 'Fresh Local Fruits',
 			image: './shop.avif',
-			category: 'Groceries',
 			rating: 4.8,
 			location: 'Lagos',
+			deliveryTime: '25-35 min',
+			deliveryRange: '3 km',
+			deliveryPrice: 2.5,
+			description: 'Get the freshest fruits delivered to your doorstep.',
 			isPopular: true
 		},
 		{
 			id: '2',
 			name: 'Handcrafted Jewelry',
 			image: './restaurantIcon.png',
-			category: 'Accessories',
 			rating: 4.6,
 			location: 'Accra',
+			deliveryTime: '40-50 min',
+			deliveryRange: '8 km',
+			deliveryPrice: 5.0,
+			description: 'Unique, handmade jewelry pieces from local artisans.',
 			isTrending: true
 		},
 		{
 			id: '3',
 			name: 'Traditional Clothing',
 			image: './storeIcon.png',
-			category: 'Fashion',
 			rating: 4.9,
 			location: 'Nairobi',
+			deliveryTime: '30-40 min',
+			deliveryRange: '5 km',
+			deliveryPrice: 4.0,
+			description: 'Authentic African clothing for all occasions.',
 			isPopular: true,
 			isTrending: true
 		},
@@ -48,27 +69,36 @@
 			id: '4',
 			name: 'Organic Spices',
 			image: './localMarketIcon.png',
-			category: 'Groceries',
 			rating: 4.7,
 			location: 'Dakar',
+			deliveryTime: '20-30 min',
+			deliveryRange: '4 km',
+			deliveryPrice: 3.0,
+			description: 'Flavorful organic spices sourced locally.',
 			isPopular: true
 		},
 		{
 			id: '5',
 			name: 'Handmade Baskets',
 			image: './shop.avif',
-			category: 'Home Decor',
 			rating: 4.5,
 			location: 'Cape Town',
+			deliveryTime: '45-60 min',
+			deliveryRange: '10 km',
+			deliveryPrice: 6.5,
+			description: 'Beautifully crafted baskets for your home.',
 			isTrending: true
 		},
 		{
 			id: '6',
 			name: 'African Art',
 			image: './restaurantIcon.png',
-			category: 'Art',
 			rating: 4.9,
 			location: 'Marrakech',
+			deliveryTime: '35-45 min',
+			deliveryRange: '6 km',
+			deliveryPrice: 4.5,
+			description: 'Stunning pieces of contemporary and traditional African art.',
 			isTrending: true
 		}
 	]);
@@ -146,17 +176,28 @@
 						{/if}
 					</div>
 					<div class="p-4">
-						<div class="mb-2 flex items-center text-xs text-muted-foreground">
-							<span class="rounded-full bg-primary/10 px-2 py-1 text-primary">{item.category}</span>
+						<h3 class="mb-1 text-lg font-medium">{item.name}</h3>
+						<p class="mb-2 line-clamp-2 text-sm text-muted-foreground">{item.description}</p>
+
+						<div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+							<span class="flex items-center">
+								<Bike class="mr-1 h-3 w-3" />
+								{item.deliveryTime}
+							</span>
+							<span class="text-gray-400">•</span>
+							<span class="flex items-center">
+								<MapPin class="mr-1 h-3 w-3" />
+								{item.deliveryRange}
+							</span>
+							<span class="text-gray-400">•</span>
+							<span class="flex items-center">
+								<CircleDollarSign class="mr-1 h-3 w-3" />${item.deliveryPrice.toFixed(2)} Delivery
+							</span>
 						</div>
 
-						<h3 class="mb-1 text-lg font-medium">{item.name}</h3>
-
-						<div class="mt-3 flex items-center justify-between">
-							<div class="flex items-center text-amber-500">
-								<Star class="h-4 w-4 fill-current" />
-								<span class="ml-1 text-sm">{item.rating}</span>
-							</div>
+						<div class="flex items-center text-amber-500">
+							<Star class="h-4 w-4 fill-current" />
+							<span class="ml-1 text-sm">{item.rating}</span>
 						</div>
 					</div>
 				</div>
@@ -179,8 +220,7 @@
 					<img src={item.image} alt={item.name} class="h-24 w-full object-cover" />
 					<div class="p-3">
 						<h4 class="line-clamp-1 text-sm font-medium">{item.name}</h4>
-						<div class="mt-2 flex items-center justify-between text-xs">
-							<span class="text-muted-foreground">{item.category}</span>
+						<div class="mt-2 flex items-center justify-end text-xs">
 							<div class="flex items-center text-amber-500">
 								<Star class="h-3 w-3 fill-current" />
 								<span class="ml-1">{item.rating}</span>
@@ -208,7 +248,7 @@
 					<div class="p-3">
 						<h4 class="line-clamp-1 text-sm font-medium">{item.name}</h4>
 						<div class="mt-1 flex items-center justify-between text-xs">
-							<span class="text-muted-foreground">{item.category}</span>
+<span class="text-muted-foreground">{item.category}</span>
 							<div class="flex items-center text-amber-500">
 								<Star class="h-3 w-3 fill-current" />
 								<span class="ml-1">{item.rating}</span>
