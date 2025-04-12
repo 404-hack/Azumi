@@ -21,6 +21,7 @@ export const load = async () => {
 	const { data } = await response.json();
 
 	return {
-		userLocation: data.userLocation
+		userLocation: data.userLocation,
+		shops: data.shops
 	};
 };
