@@ -53,7 +53,7 @@
 				<p class="mb-4 mt-2 text-sm text-muted-foreground">
 					You haven't added any menu items yet. Start by adding your first dish.
 				</p>
-				<Button>
+				<Button href="/vendor/menu/add-menu">
 					<Plus class="mr-2 h-4 w-4" />
 					Add Menu Item
 				</Button>

@@ -84,23 +84,26 @@
 </script>
 
 <AddCategoryModal
-afterSubmit={(category) => {
+	afterSubmit={(category) => {
 		$formData.categoryId = category.id;
 	}}
-
-
 />
-<AddPackModal afterSubmit={(pack) => {
-	$formData.packId = pack.id;
-}} />
-<AddOptionGroupModal options={data.options} afterSubmit={(newGroup)=>{
-	$formData.optionGroupId = [...($formData.optionGroupId || []), newGroup.id];
-}} />
+<!-- <AddPackModal
+	afterSubmit={(pack) => {
+		$formData.packId = pack.id;
+	}}
+/>
+<AddOptionGroupModal
+	options={data.options}
+	afterSubmit={(newGroup) => {
+		$formData.optionGroupId = [...($formData.optionGroupId || []), newGroup.id];
+	}}
+/> -->
 
-<div class="min-h-screen ">
+<div class="min-h-screen">
 	<div class="sticky top-0 z-10 border-b bg-white shadow-sm">
-		<div class="container mx-auto">
-			<div class="flex h-16 items-center gap-4 px-4">
+		<div class=" mx-auto">
+			<div class="flex h-16 items-center gap-4">
 				<Button variant="ghost" size="icon" class="shrink-0">
 					<ArrowLeft class="h-5 w-5" />
 				</Button>
@@ -109,15 +112,15 @@ afterSubmit={(category) => {
 		</div>
 	</div>
 
-	<form use:enhance enctype="multipart/form-data" class="container mx-auto max-w-4xl py-8">
-		<div class="grid gap-8 px-4">
+	<form use:enhance enctype="multipart/form-data" class=" mx-auto max-w-4xl py-8">
+		<div class="grid gap-8">
 			<!-- Basic Details -->
-			<Card.Root>
-				<Card.Header>
+			<Card.Root class="border-none  sm:border">
+				<Card.Header class="px-0 sm:p-6">
 					<Card.Title>Basic Details</Card.Title>
 					<Card.Description>Enter the basic information about your menu item</Card.Description>
 				</Card.Header>
-				<Card.Content class="space-y-6">
+				<Card.Content class="space-y-6 px-0 sm:p-6">
 					<Form.Field {form} name="name">
 						<Form.Control>
 							{#snippet children({ props })}
@@ -311,8 +314,6 @@ afterSubmit={(category) => {
 					</Form.Field>
 
 					<div class="grid gap-6 sm:grid-cols-2">
-					
-
 						<Form.Field {form} name="optionGroupId">
 							<Form.Control>
 								{#snippet children({ props })}
@@ -340,7 +341,6 @@ afterSubmit={(category) => {
 											</Select.Content>
 										</Select.Root>
 										<div class="flex gap-2">
-											
 											<Button
 												variant="link"
 												onclick={() => {
@@ -352,7 +352,7 @@ afterSubmit={(category) => {
 									</div>
 								{/snippet}
 							</Form.Control>
-							
+
 							<Form.FieldErrors />
 						</Form.Field>
 						<Form.Field {form} name="packId">
@@ -361,20 +361,19 @@ afterSubmit={(category) => {
 									<Form.Label>Pack Options <Badge variant="outline">Optional</Badge></Form.Label>
 									<div class="space-y-2">
 										<Select.Root type="single" bind:value={$formData.packId}>
-											<Select.Trigger class='capitalize' >
+											<Select.Trigger class="capitalize">
 												{$formData.packId
 													? data.packs.find((pack) => pack.id === $formData.packId)?.name ||
-													  'Unknown'
+														'Unknown'
 													: 'Select pack'}
 											</Select.Trigger>
 											<Select.Content>
 												{#each data.packs as { name, id }}
 													<Select.Item value={id}>{name}</Select.Item>
 												{/each}
-												
 											</Select.Content>
 										</Select.Root>
-										
+
 										<Button
 											variant="link"
 											class="h-auto p-0"

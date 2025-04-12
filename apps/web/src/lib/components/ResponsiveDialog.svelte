@@ -34,7 +34,7 @@
 	</Dialog.Root>
 {:else}
 	<Drawer.Root bind:open shouldScaleBackground>
-		<ScrollArea class="max-h-[90vh] w-full  p-5 "></ScrollArea>
+		<!-- <ScrollArea class="max-h-[90vh] w-full  p-5 "></ScrollArea> -->
 		<Drawer.Content class="w-full p-5 sm:p-7   ">
 			<Drawer.Header class="px-0 text-left">
 				<Drawer.Title>{title}</Drawer.Title>
