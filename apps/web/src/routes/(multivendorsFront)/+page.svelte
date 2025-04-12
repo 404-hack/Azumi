@@ -5,7 +5,6 @@
 	import RestaurantList from '$lib/components/RestaurantList.svelte';
 	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
 	import { activeLocation } from '$lib/states/locationState.svelte';
-	import Simulation from '$lib/components/Simulation.svelte';
 </script>
 
 <div class="min-h-screen bg-background">
@@ -58,4 +57,3 @@
 		</div>
 	</div>
 </div>
-<Simulation />
