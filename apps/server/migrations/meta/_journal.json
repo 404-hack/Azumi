@@ -22,6 +22,41 @@
       "when": 1744480933497,
       "tag": "0002_faithful_talos",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1744512924746,
+      "tag": "0003_concerned_squirrel_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1744512938888,
+      "tag": "0004_vengeful_venus",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1744513706131,
+      "tag": "0005_thick_inertia",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1744513781891,
+      "tag": "0006_fresh_lucky_pierre",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1744513842745,
+      "tag": "0007_dusty_red_shift",
+      "breakpoints": true
     }
   ]
 }

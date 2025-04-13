@@ -85,7 +85,7 @@ export const member = sqliteTable("member", {
 
 export const invitation = sqliteTable("invitation", {
   id: text("id").primaryKey(),
-  organizationId: text("")
+  organizationId: text("organization_id_love")
     .notNull()
     .references(() => shopTable.id, { onDelete: "cascade" }),
   email: text("email").notNull(),
@@ -187,6 +187,15 @@ export const shopRelations = relations(shopTable, ({ one, many }) => ({
   paymentMethods: many(shopPaymentMethodTable),
   operatingHours: many(shopOperatingHoursTable),
 }));
+export const shopAgreementRelations = relations(
+  shopAgreementsTable,
+  ({ one }) => ({
+    shop: one(shopTable, {
+      fields: [shopAgreementsTable.shopId],
+      references: [shopTable.id],
+    }),
+  })
+);
 
 export const shopTodoRelations = relations(shopTodoTable, ({ one }) => ({
   shop: one(shopTable, {

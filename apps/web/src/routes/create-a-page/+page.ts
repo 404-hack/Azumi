@@ -1,3 +1,5 @@
+export let prerender = true;
+
 import { client } from '$lib/hc.js';
 
 export const load = async () => {
