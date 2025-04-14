@@ -33,7 +33,7 @@
 	let path = $derived(page.url.pathname.split('/').slice(2, 3).toString());
 </script>
 
-<div class="mx-auto mt-10 w-full max-w-4xl px-3">
+<div class="mx-auto mt-10 container w-full max-w-4xl ">
 	<div class="flex items-center justify-between">
 		<h1 class="font-display text-4xl font-bold capitalize">Profile</h1>
 		<Button class=" capitalize ">contact support</Button>
@@ -54,6 +54,6 @@
 		{/each}
 	</div>
 </div>
-<div class="mx-auto my-10 w-full max-w-4xl px-3 md:px-0">
+<div class="mx-auto my-10 w-full max-w-4xl container md:px-0">
 	{@render children()}
 </div>

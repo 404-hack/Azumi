@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fc086ef9-d2fe-45d0-a92f-720ae1272c21",
-  "prevId": "4018eb45-44c8-4b77-9f4e-5e2ec1d0ef0f",
+  "id": "6c2fd9a7-197f-47b2-be17-6ab854ec0f4b",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "addresses": {
       "name": "addresses",
@@ -1199,8 +1199,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "organization_id": {
-          "name": "organization_id",
+        "organization_id_love": {
+          "name": "organization_id_love",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1244,12 +1244,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "invitation_organization_id_shop_table_id_fk": {
-          "name": "invitation_organization_id_shop_table_id_fk",
+        "invitation_organization_id_love_shop_table_id_fk": {
+          "name": "invitation_organization_id_love_shop_table_id_fk",
           "tableFrom": "invitation",
           "tableTo": "shop_table",
           "columnsFrom": [
-            "organization_id"
+            "organization_id_love"
           ],
           "columnsTo": [
             "id"
@@ -1708,7 +1708,7 @@
           "name": "address",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "commission": {
@@ -1804,14 +1804,14 @@
           "name": "latitude",
           "type": "real",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "longitude": {
           "name": "longitude",
           "type": "real",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "address_name": {
@@ -4567,14 +4567,7 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {
-      "\"invitation\".\"organizationId\"": "\"invitation\".\"organization_id\"",
-      "\"shop_table\".\"addressName\"": "\"shop_table\".\"address_name\"",
-      "\"optionGroup\".\"userId\"": "\"optionGroup\".\"user_id\"",
-      "\"option\".\"inStock\"": "\"option\".\"in_stock\"",
-      "\"option\".\"userId\"": "\"option\".\"user_id\"",
-      "\"order\".\"shopId\"": "\"order\".\"shop_id\""
-    }
+    "columns": {}
   },
   "internal": {
     "indexes": {}
