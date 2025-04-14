@@ -18,7 +18,11 @@
 		ChevronDown,
 		Menu,
 		ShoppingCart,
-		Store
+		Store,
+		User,
+		Heart,
+		Settings,
+		Package
 	} from 'lucide-svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Avatar, AvatarFallback, AvatarImage } from '$lib/components/ui/avatar';
@@ -202,14 +206,12 @@
 						{#snippet children()}
 						<Label>My Account</Label>
 						<Separator />
-							<a class="dropdown-menu-item" href="/me/personal-info" >Profile</a>
-							<a href="/me/orders" class="dropdown-menu-item">Orders</a>
-							<a href="/me/favorites" class="dropdown-menu-item">Favorites</a>
-							<a href="/me/settings" class="dropdown-menu-item">Settings</a>
+							<a class="dropdown-menu-item" href="/me/personal-info" ><User class="mr-2 h-4 w-4" />Profile</a>
+							<a href="/me/orders" class="dropdown-menu-item"><Package class="mr-2 h-4 w-4" />Orders</a>
+							<a href="/me/favorites" class="dropdown-menu-item"><Heart class="mr-2 h-4 w-4" />Favorites</a>
+							<a href="/me/settings" class="dropdown-menu-item"><Settings class="mr-2 h-4 w-4" />Settings</a>
 						<Separator />
-						<input type="text">
-						<input type="text">
-						<input type="text">
+						
 						{#if $organizations.isPending}
 							<p>Loading...</p>
 						{:else if $organizations.data === null}
@@ -226,7 +228,7 @@
 										goto('/vendor/menu');
 									}}
 								>
-									<Store />
+									<Store class="mr-2 h-4 w-4" />
 									{organization.name}
 								</button>
 							{/each}
@@ -234,7 +236,7 @@
 
 						<Separator />
 							<button
-							class="dropdown-menu-item"
+							class="dropdown-menu-item text-red-500"
 								onclick={async () => {
 									authClient.signOut();
 									await invalidateAll();
