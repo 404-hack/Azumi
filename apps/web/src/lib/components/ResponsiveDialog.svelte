@@ -33,7 +33,7 @@
 		</Dialog.Content>
 	</Dialog.Root>
 {:else}
-	<Drawer.Root bind:open shouldScaleBackground>
+	<Drawer.Root bind:open >
 		<!-- <ScrollArea class="max-h-[90vh] w-full  p-5 "></ScrollArea> -->
 		<Drawer.Content class="w-full p-5 sm:p-7   ">
 			<Drawer.Header class="px-0 text-left">
@@ -42,7 +42,10 @@
 					{description}
 				</Drawer.Description>
 			</Drawer.Header>
-			{@render children()}
+			<div>
+
+				{@render children()}
+			</div>
 		</Drawer.Content>
 	</Drawer.Root>
 {/if}
