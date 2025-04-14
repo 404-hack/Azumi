@@ -85,7 +85,7 @@ export const member = sqliteTable("member", {
 
 export const invitation = sqliteTable("invitation", {
   id: text("id").primaryKey(),
-  organizationId: text("organization_id_love")
+  organizationId: text("organization_id")
     .notNull()
     .references(() => shopTable.id, { onDelete: "cascade" }),
   email: text("email").notNull(),
