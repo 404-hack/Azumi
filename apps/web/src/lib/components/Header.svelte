@@ -8,6 +8,8 @@
 		addDeliveryAddressModalState
 	} from '$lib/states/modalState.svelte';
 	import CartSheet from './modal/CartSheet.svelte';
+	import ResponsiveDropdown from '$lib/components/ResponsiveDropdown.svelte';
+
 	import CartsSheet from './modal/CartsSheet.svelte';
 	import {
 		MapPin,
@@ -29,6 +31,8 @@
 	import type { Place } from '$lib/types/places';
 	import AddDeliveryAddress from './modal/AddDeliveryAddress.svelte';
 	import { activeLocation } from '$lib/states/locationState.svelte';
+	import Label from './ui/label/label.svelte';
+	import Separator from './ui/separator/separator.svelte';
 
 	let location = 'Nairobi, Kenya';
 	let searchQuery = '';
@@ -176,6 +180,71 @@
 							</DropdownMenu.Item>
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
+					<ResponsiveDropdown>
+						{#snippet trigger()}
+						<Button
+						variant="ghost"
+						class="relative h-9 w-9 rounded-full p-0 hover:bg-muted/80"
+						aria-label="User menu"
+					>
+						<Avatar class="h-9 w-9">
+							<AvatarImage src={user.image} alt={user.name || 'User'} />
+							<AvatarFallback>
+								{user?.name
+									?.split(' ')
+									.map((n) => n.charAt(0))
+									.join('')
+									.toUpperCase() ?? ''}
+							</AvatarFallback>
+						</Avatar>
+					</Button>
+						{/snippet}
+						{#snippet children()}
+						<Label>My Account</Label>
+						<Separator />
+							<a class="dropdown-menu-item" href="/me/personal-info" >Profile</a>
+							<a href="/me/orders" class="dropdown-menu-item">Orders</a>
+							<a href="/me/favorites" class="dropdown-menu-item">Favorites</a>
+							<a href="/me/settings" class="dropdown-menu-item">Settings</a>
+						<Separator />
+						<input type="text">
+						<input type="text">
+						<input type="text">
+						{#if $organizations.isPending}
+							<p>Loading...</p>
+						{:else if $organizations.data === null}
+							<span class="sr-only">no organizations</span>
+						{:else}
+							{#each $organizations.data as organization}
+								<button
+								type='button'
+								class="dropdown-menu-item"
+									onclick={() => {
+										authClient.organization.setActive({
+											organizationSlug: organization.slug
+										});
+										goto('/vendor/menu');
+									}}
+								>
+									<Store />
+									{organization.name}
+								</button>
+							{/each}
+						{/if}
+
+						<Separator />
+							<button
+							class="dropdown-menu-item"
+								onclick={async () => {
+									authClient.signOut();
+									await invalidateAll();
+								}}
+								type="button"
+							>
+								Sign out
+							</button>
+						{/snippet}
+					</ResponsiveDropdown>
 				</nav>
 			{:else}
 				<div class="hidden items-center gap-2 md:flex">
