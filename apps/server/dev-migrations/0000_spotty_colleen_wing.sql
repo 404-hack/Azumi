@@ -172,13 +172,13 @@ CREATE TABLE `deliveryZones` (
 --> statement-breakpoint
 CREATE TABLE `invitation` (
 	`id` text PRIMARY KEY NOT NULL,
-	`organizationId` text NOT NULL,
+	`organization_id_love` text NOT NULL,
 	`email` text NOT NULL,
 	`role` text,
 	`status` text NOT NULL,
 	`expires_at` integer NOT NULL,
 	`inviter_id` text NOT NULL,
-	FOREIGN KEY (`organizationId`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`organization_id_love`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`inviter_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -244,7 +244,7 @@ CREATE TABLE `shop_table` (
 	`description` text,
 	`metadata` text,
 	`phone_number` text,
-	`address` text NOT NULL,
+	`address` text,
 	`commission` integer DEFAULT 10,
 	`minimum_order_amount` integer DEFAULT 0,
 	`active` integer DEFAULT false,
@@ -257,9 +257,9 @@ CREATE TABLE `shop_table` (
 	`tags` text,
 	`bank_info` text,
 	`delivery_type` text,
-	`latitude` real NOT NULL,
-	`longitude` real NOT NULL,
-	`addressName` text,
+	`latitude` real,
+	`longitude` real,
+	`address_name` text,
 	`is_verified` integer DEFAULT false,
 	`created_at` integer,
 	`updated_at` integer,
@@ -345,11 +345,11 @@ CREATE TABLE `optionGroup` (
 	`min_selections` integer DEFAULT 0 NOT NULL,
 	`max_selections` integer,
 	`shop_id` text NOT NULL,
-	`userId` text NOT NULL,
+	`user_id` text NOT NULL,
 	`created_at` integer,
 	`updated_at` integer,
 	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`userId`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `optionSelection` (
@@ -367,13 +367,13 @@ CREATE TABLE `option` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`price` integer NOT NULL,
-	`inStock` integer DEFAULT true NOT NULL,
+	`in_stock` integer DEFAULT true NOT NULL,
 	`shop_id` text NOT NULL,
-	`userId` text,
+	`user_id` text,
 	`created_at` integer,
 	`updated_at` integer,
 	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`userId`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `optionToOptionGroup` (
@@ -574,7 +574,7 @@ CREATE TABLE `order` (
 	`id` text PRIMARY KEY NOT NULL,
 	`code` text NOT NULL,
 	`customer_id` text,
-	`shopId` text NOT NULL,
+	`shop_id` text NOT NULL,
 	`rider_id` text,
 	`status` text NOT NULL,
 	`cart_id` text NOT NULL,
@@ -601,7 +601,7 @@ CREATE TABLE `order` (
 	`created_at` integer,
 	`updated_at` integer,
 	FOREIGN KEY (`customer_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`shopId`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`rider_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`cart_id`) REFERENCES `carts`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`delivery_address_id`) REFERENCES `addresses`(`id`) ON UPDATE no action ON DELETE no action

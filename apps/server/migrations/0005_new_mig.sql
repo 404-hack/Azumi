@@ -1,1 +1,0 @@
-ALTER TABLE `invitation` RENAME COLUMN `organizationId` TO `organization_id`;

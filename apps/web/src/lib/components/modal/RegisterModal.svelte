@@ -22,20 +22,25 @@
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
 				const { confirmPassword, email, firstName, lastName, password } = form.data;
-				// try {
 				
-				await authClient.signUp.email({
+				
+				const  response = await authClient.signUp.email({
 					email,
 					password,
-					name: `${firstName} ${lastName}`
+					name: `${firstName} ${lastName}`,
+					tokens: 0, // Required property
+					credits: 0  // Required property
+				},{
+					onSuccess: () => {
+						registerModalState.setFalse();
+						loginModalState.setTrue(); // Un-commented line to open the login modal
+					},
+					onError: (error) => {
+						console.error('Error during registration:', error);
+						// Handle error (e.g., show a toast notification)
+					}
 				});
-				// } catch {}
-				// await fetch(`${PUBLIC_API_BASE_URL}/user/login`, {
-				// 	method: 'POST',
-				// 	headers: {
-				// 		'Content-Type': 'application/json'
-				// 	}
-				// });
+				
 			}
 		}
 	});
@@ -98,15 +103,15 @@
 			<Form.FieldErrors />
 		</Form.Field>
 
-		<p class="text-sm text-muted-foreground">
+		<!-- <p class="text-sm text-muted-foreground">
 			Already have an account? <button
 				class="inline-block cursor-pointer text-primary hover:text-primary/80"
 				onclick={() => {
 					registerModalState.setFalse();
-					loginModalState.setTrue(); // Un-commented line to open the login modal
+					loginModalState.setTrue();
 				}}>Log in below</button
 			> .
-		</p>
+		</p> -->
 		<!-- Added line for clarity -->
 		<Form.Button disabled={$delayed} class="mt-2 w-full">
 			{#if $delayed}
