@@ -17,5 +17,4 @@ export default defineConfig({
   dialect: "sqlite",
   out: "./migrations",
   driver: "d1-http",
-  casing: "snake_case",
 });

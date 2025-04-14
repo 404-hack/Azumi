@@ -25,12 +25,23 @@
 		validators: zod(loginSchema),
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
-				await authClient.signIn.email({
-					email: form.data.email,
-					password: form.data.password
-				});
-				toast.success('Login successful');
-				loginModalState.setFalse();
+				await authClient.signIn.email(
+					{
+						email: form.data.email,
+						password: form.data.password
+					},
+					{
+						onSuccess: async (data) => {
+							console.log('Login successful:', data);
+							loginModalState.setFalse();
+							toast.success('Login successful');
+						},
+						onError: (error) => {
+							console.error('Login error:', error);
+							toast.error('Login failed. Please check your credentials.');
+						}
+					}
+				);
 			}
 		},
 		resetForm: false
@@ -61,7 +72,7 @@
 			<Form.Description>Input your password here</Form.Description>
 			<Form.FieldErrors />
 		</Form.Field>
-		<button
+		<!-- <button
 			onclick={() => {
 				loginModalState.setFalse();
 				registerModalState.setTrue(); // Line added to open the registration modal
@@ -69,11 +80,12 @@
 			class="block text-sm text-primary"
 		>
 			or create an account
-		</button>
+		</button> -->
 		<button
 			onclick={() => {
 				loginModalState.setFalse();
 				requestPasswordResetModalState.setTrue();
+				console.log('i was triggered');
 			}}
 			class="text-sm text-primary"
 			type="button">Forgot Your password?</button
