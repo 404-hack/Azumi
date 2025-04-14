@@ -18,7 +18,7 @@
 	let activeSnapPoint = $state(148);
 </script>
 
-{#if isDesktop}
+{#if isDesktop.current}
 	<Dialog.Root bind:open>
 		<Dialog.Content class="m-4 sm:max-w-[425px]  ">
 			<!-- <ScrollArea class= "max-h-[90vh]  w-fit "> -->

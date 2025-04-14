@@ -15,7 +15,7 @@
 	let searchTerm = $state('');
 </script>
 
-<div class="container mx-auto px-4 py-8">
+<div class="container mx-auto  py-8">
 	<div class="mb-6 flex items-center justify-between">
 		<h2 class="text-2xl font-semibold">Explore Categories</h2>
 		<a href="/explore/all" class="flex items-center text-primary hover:underline">
