@@ -47,7 +47,7 @@
 </script>
 
 <header
-	class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur transition-all duration-200 supports-[backdrop-filter]:bg-background/60"
+	class=" top-0 z-50 w-full border-b bg-background/95 backdrop-blur transition-all duration-200 supports-[backdrop-filter]:bg-background/60"
 >
 	<div class="container flex h-16 w-full items-center justify-between gap-4">
 		<!-- Logo and Locatio`n -->
