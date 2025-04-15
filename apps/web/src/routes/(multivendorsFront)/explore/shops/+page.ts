@@ -6,7 +6,7 @@ console.log('🚀 ~ activeLocation:', activeLocation.current);
 // 	redirect(308, '/');
 // }
 export const load = async () => {
-	const response = await client.shop.nearby.$get({
+	const response = await client.shop['near-me'].$get({
 		query: {
 			latitude: activeLocation.current.lat,
 			longitude: activeLocation.current.lng,

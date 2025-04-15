@@ -120,7 +120,7 @@
 
 <svelte:window on:scroll={handleScroll} />
 
-<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+<div class="mx-auto max-w-7xl container py-8 sm:px-6 lg:px-8">
 	<div class="mb-8">
 		<div class="relative mb-4 overflow-hidden">
 			<!-- Cover Image with smaller aspect ratio -->
@@ -299,10 +299,9 @@
 				<div class="space-y-2">
 					<p class="font-medium">{data.restaurant.address}</p>
 					<p class="text-gray-600">Phone: {data.restaurant.phoneNumber}</p>
-					{#if data.restaurant.coordinates}
+					{#if data.restaurant.longitude}
 						<a
-							href="https://maps.google.com/?q={data.restaurant.coordinates.lat},{data.restaurant
-								.coordinates.lng}"
+							href="https://maps.google.com/?q={data.restaurant.latitude},{data.restaurant.longitude}"
 							target="_blank"
 							rel="noopener noreferrer"
 							class="mt-2 inline-flex items-center text-sm text-primary hover:text-primary/80"
@@ -403,7 +402,7 @@
 						<h3 class="font-medium">Delivery Information</h3>
 						<ul class="mt-1 space-y-1 text-sm text-gray-600">
 							<li>• Delivery Type: {data.restaurant.deliveryType}</li>
-							{#if data.restaurant?.minimumOrderAmount > 0}
+							{#if data.restaurant?.minimumOrderAmount }
 								<li>• Minimum Order: ${data.restaurant.minimumOrderAmount}</li>
 							{/if}
 						</ul>

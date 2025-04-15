@@ -14,6 +14,8 @@
 		deliveryPrice: number;
 		rating: number | null;
 		i: number; // Index for transition delay
+		slug: string; // Add slug for restaurant link
+		
 	};
 
 	// Define and destructure props using Svelte 5 $props rune
@@ -27,11 +29,13 @@
 		deliveryRange,
 		deliveryPrice,
 		rating,
-		i
+		i,
+		slug
 	}: ExploreItem = $props();
 </script>
 
-<div
+<a
+href="/restaurant/{slug}"
 	class="overflow-hidden rounded-xl bg-card shadow-md transition-all duration-300 hover:shadow-lg"
 	in:fly|global={{ y: 20, delay: i * 75, duration: 250 }}
 >
@@ -85,4 +89,4 @@
 			<span class="ml-1 text-sm">{rating}</span>
 		</div>
 	</div>
-</div>
+</a>
