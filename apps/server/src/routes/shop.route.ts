@@ -18,9 +18,8 @@ import { factory } from "../lib/factory";
 
 const shopRoute = factory
   .createApp()
-  // Backward compatibility route that redirects to the new endpoint
 
-  .get("/nearby", zValidator("query", nearbyShopsQuerySchema), async (c) => {
+  .get("/near-me", zValidator("query", nearbyShopsQuerySchema), async (c) => {
     try {
       const db = c.get("db");
 

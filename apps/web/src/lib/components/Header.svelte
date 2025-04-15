@@ -204,9 +204,10 @@
 					</Button>
 						{/snippet}
 						{#snippet children()}
-						<Label>My Account</Label>
+						<div  >
+						<div class='dropdown-menu-label'>My Account</div>
 						<Separator />
-							<a class="dropdown-menu-item" href="/me/personal-info" ><User class="mr-2 h-4 w-4" />Profile</a>
+							<a class="dropdown-menu-item " href="/me/personal-info" ><User class="mr-2 h-4 w-4" />Profile</a>
 							<a href="/me/orders" class="dropdown-menu-item"><Package class="mr-2 h-4 w-4" />Orders</a>
 							<a href="/me/favorites" class="dropdown-menu-item"><Heart class="mr-2 h-4 w-4" />Favorites</a>
 							<a href="/me/settings" class="dropdown-menu-item"><Settings class="mr-2 h-4 w-4" />Settings</a>
@@ -245,6 +246,7 @@
 							>
 								Sign out
 							</button>
+						</div>
 						{/snippet}
 					</ResponsiveDropdown>
 				</nav>

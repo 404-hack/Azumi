@@ -33,9 +33,10 @@
 
 	<!-- Restaurant grid - clean and simple -->
 	<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 ">
-		{#each data.shops as {name, description, coverImage, averageRating,deliveryFee,estimatedTime,distance	}, i}
+		{#each data.shops as {name, description, coverImage, averageRating,deliveryFee,estimatedTime,distance,slug	}, i}
 			<RestaurantCard2 name={name} description={description} image={coverImage} rating={averageRating} i={i}
-			deliveryTime={estimatedTime} deliveryRange={distance} deliveryPrice={deliveryFee} 
+			deliveryTime={estimatedTime} deliveryRange={distance} deliveryPrice={deliveryFee} {slug}
+
 			/>
 			
 		
