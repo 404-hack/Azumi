@@ -1,9 +1,10 @@
 <script lang="ts">
+	import { client } from '$lib/hc';
 	import MenuItemCard from '$lib/components/MenuItemCard.svelte';
 	import ProductModal from '$lib/components/modal/ProductModal.svelte';
 	import ProductCard from '$lib/components/ProductCard.svelte';
 	import Ticket from '$lib/components/Ticket.svelte';
-	import { Bike, Search, MapPin, Clock, Info } from 'lucide-svelte';
+	import { Bike, Search, MapPin, Clock, Info, ShoppingCart } from 'lucide-svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { page } from '$app/state';
 	let activeCategory = $state('');
@@ -11,6 +12,19 @@
 	let isMoreInfoOpen = $state(false);
 
 	let { data } = $props();
+
+	// Reactive check for cart items
+	const hasCartItems = $derived(data.shopCart && data.shopCart.items.length > 0);
+
+	// Function to handle cart button click
+	function handleCartClick() {
+		console.log('Cart Items:', data.shopCart);
+		// TODO: Implement navigation or modal display for the cart
+	}
+
+	// Effect to check for cart items for this restaurant on load
+	
+
 	// Extract menu categories and their items from API data
 	const categories = $derived(
 		data.restaurant.menuCategories?.map((category) => category.name) || []
@@ -121,7 +135,7 @@
 <svelte:window on:scroll={handleScroll} />
 
 <!-- Modern Mobile-First Redesign -->
-<div class="mx-auto max-w-4xl container px-2 sm:px-4 py-4 md:py-8">
+<div class="mx-auto max-w-4xl container px-2 sm:px-4 py-4 md:py-8 pb-24"> <!-- Added padding-bottom -->
 	<!-- Restaurant Header -->
 	<div class="relative mb-6 md:mb-10">
 		<div class="relative aspect-[16/10] w-full overflow-hidden rounded-2xl shadow-md md:aspect-[4/1]">
@@ -339,5 +353,17 @@
 			{/if}
 		</div>
 	</div>
+
+	<!-- Floating Cart Button -->
+	{#if hasCartItems}
+		<button
+			onclick={handleCartClick}
+			class="fixed bottom-20 right-4 z-40 flex items-center justify-center rounded-lg bg-primary p-3 text-white shadow-lg transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 md:bottom-6 md:right-6"
+			aria-label="View Cart"
+		>
+			<ShoppingCart class="size-6" />
+			<span class="ml-2 text-sm font-medium">View Cart ({data.shopCart.items.length})</span>
+		</button>
+	{/if}
 </div>
 <ProductModal title="Product Modal" />
