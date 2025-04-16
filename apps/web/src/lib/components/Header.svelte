@@ -7,7 +7,6 @@
 		registerModalState,
 		addDeliveryAddressModalState
 	} from '$lib/states/modalState.svelte';
-	import CartSheet from './modal/CartSheet.svelte';
 	import ResponsiveDropdown from '$lib/components/ResponsiveDropdown.svelte';
 
 	import CartsSheet from './modal/CartsSheet.svelte';
@@ -113,7 +112,7 @@
 
 			{#if user}
 				<nav class="flex items-center gap-3">
-					<CartSheet />
+					
 
 					<DropdownMenu.Root>
 						<DropdownMenu.Trigger>

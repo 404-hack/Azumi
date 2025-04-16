@@ -1,28 +1,60 @@
 <script lang="ts">
+	import type { Cart } from '$lib/types/cart';
 	import { Button } from '$lib/components/ui/button';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { ShoppingBag, ShoppingCart } from 'lucide-svelte';
 	import { cart } from '$lib/store/cartStore.svelte';
 	import CartItem from '../CartItem.svelte';
 	import { formatCurrency } from '$lib/utils';
+	import { cartSheetState } from '$lib/states/modalState.svelte';
+
+	let { shopCart } = $props<{ shopCart: Cart }>();
+
+	// Derive cart item count from shopCart
+	const cartItemCount = $derived(shopCart?.totalItems || 0);
+
+	// Optimistic updates tracking
+	let optimisticTotals = $state({
+		items: shopCart?.totalItems || 0,
+		subtotal: shopCart?.subtotal || 0
+	});
+
+	// Use optimisticTotals.items instead of cartItemCount for real-time updates
+	const displayItemCount = $derived(optimisticTotals.items);
+
+	function handleQuantityChange(itemId: string, newQuantity: number, price: number) {
+		const item = shopCart?.items.find((i) => i.id === itemId);
+		if (!item) return;
+
+		const diff = newQuantity - item.quantity;
+		optimisticTotals.items += diff;
+		optimisticTotals.subtotal += diff * price;
+	}
+
+	function handleItemRemove(itemId: string) {
+		const item = shopCart?.items.find((i) => i.id === itemId);
+		if (!item) return;
+
+		optimisticTotals.items -= item.quantity;
+		optimisticTotals.subtotal -= item.totalPrice;
+	}
 </script>
 
-<!-- Cart Trigger Button -->
-
-<!-- Cart Sheet -->
-<Sheet.Root bind:open={cart.isOpen}>
+<Sheet.Root bind:open={cartSheetState.value}>
 	<Sheet.Trigger>
 		<Button variant="outline" size="icon" onclick={cart.toggleCart} class="relative">
 			<ShoppingBag class="h-4 w-4" />
-			<span
-				class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground"
-			>
-				3
-			</span>
+			{#if displayItemCount > 0}
+				<span
+					class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground"
+				>
+					{displayItemCount}
+				</span>
+			{/if}
 		</Button>
 	</Sheet.Trigger>
-	
-	<Sheet.Content class="w-full sm:max-w-lg overflow-y-auto rounded-s-lg p-4 pt-10">
+
+	<Sheet.Content class="w-full overflow-y-auto rounded-s-lg p-4 pt-10 sm:max-w-lg">
 		<Sheet.Header>
 			<Sheet.Title class="flex items-center gap-2">
 				<ShoppingBag class="h-5 w-5" />
@@ -32,20 +64,42 @@
 		</Sheet.Header>
 
 		<div class="mt-8 flex-1 overflow-y-auto">
-			<CartItem image='/shop.avif' id="1" name="Spicy Tuna Roll" price={12.99} quantity={2} />
-			<CartItem image='/shop.avif' id="2" name="California Roll" price={9.99} quantity={1} />
-			<CartItem image='/shop.avif' id="3" name="Dragon Roll" price={14.99} quantity={1} />
-		</div>
+			{#if shopCart?.items?.length > 0}
+				<div class="space-y-4">
+					{#each shopCart.items as item (item.id)}
+						<CartItem
+							id={item.id}
+							cartId={shopCart.id}
+							name={item.menuItem.name}
+							price={item.menuItem.price}
+							quantity={item.quantity}
+							image={item.menuItem.image}
+							specialInstructions={item.specialInstructions}
+							onQuantityChange={(newQty) =>
+								handleQuantityChange(item.id, newQty, item.menuItem.price)}
+							onRemove={() => handleItemRemove(item.id)}
+						/>
+					{/each}
+				</div>
 
-		<div class="border-t pt-4">
-			<div class="flex items-center justify-between py-4">
-				<span class="text-lg font-medium">Total</span>
-				<span class="text-lg font-bold">{formatCurrency(50.96)}</span>
-			</div>
+				<div class="mt-6 border-t pt-4">
+					<div class="flex items-center justify-between py-4">
+						<span class="text-lg font-medium">Total</span>
+						<span class="text-lg font-bold">
+							{formatCurrency(optimisticTotals.subtotal)}
+						</span>
+					</div>
 
-			<Sheet.Close>
-				<Button class="w-full" href="/checkout">Proceed to Checkout</Button>
-			</Sheet.Close>
+					<Sheet.Close>
+						<Button class="w-full" href="/checkout">Proceed to Checkout</Button>
+					</Sheet.Close>
+				</div>
+			{:else}
+				<div class="py-8 text-center text-gray-500">
+					<ShoppingCart class="mx-auto mb-4 h-12 w-12 opacity-50" />
+					<p>Your cart is empty</p>
+				</div>
+			{/if}
 		</div>
 	</Sheet.Content>
 </Sheet.Root>

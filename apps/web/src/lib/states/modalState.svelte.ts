@@ -132,6 +132,7 @@ export const addOptionGroupModalState = new ModalState(false);
 export const addOptionModalState = new ModalState(false);
 export const productModalState = new ProductModalState(false);
 export const cartsSheetStore = new ModalState(false);
+export const cartSheetState = new ModalState(false);
 export const updateEmailModalState = new ModalState(false);
 export const updateNumberModalState = new ModalState(false);
 export const updateNameModalState = new ModalState(false);

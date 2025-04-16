@@ -7,6 +7,8 @@
 	import { Bike, Search, MapPin, Clock, Info, ShoppingCart } from 'lucide-svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { page } from '$app/state';
+	import CartSheet from '$lib/components/modal/CartSheet.svelte';
+	import { cartSheetState } from '$lib/states/modalState.svelte.js';
 	let activeCategory = $state('');
 	let searchQuery = $state('');
 	let isMoreInfoOpen = $state(false);
@@ -18,12 +20,12 @@
 
 	// Function to handle cart button click
 	function handleCartClick() {
+		cartSheetState.setTrue(); // Open the cart sheet
 		console.log('Cart Items:', data.shopCart);
 		// TODO: Implement navigation or modal display for the cart
 	}
 
 	// Effect to check for cart items for this restaurant on load
-	
 
 	// Extract menu categories and their items from API data
 	const categories = $derived(
@@ -133,37 +135,49 @@
 </script>
 
 <svelte:window on:scroll={handleScroll} />
+<CartSheet shopCart={data.shopCart} />
 
 <!-- Modern Mobile-First Redesign -->
-<div class="mx-auto max-w-4xl container px-2 sm:px-4 py-4 md:py-8 pb-24"> <!-- Added padding-bottom -->
+<div class="container mx-auto max-w-4xl px-2 py-4 pb-24 sm:px-4 md:py-8">
+	<!-- Added padding-bottom -->
 	<!-- Restaurant Header -->
 	<div class="relative mb-6 md:mb-10">
-		<div class="relative aspect-[16/10] w-full overflow-hidden rounded-2xl shadow-md md:aspect-[4/1]">
+		<div
+			class="relative aspect-[16/10] w-full overflow-hidden rounded-2xl shadow-md md:aspect-[4/1]"
+		>
 			<img
 				src={data.restaurant.coverImage || '/shop.avif'}
 				alt={data.restaurant.name}
 				class="h-full w-full object-cover object-center transition-transform duration-300 hover:scale-105"
 				loading="eager"
 			/>
-			<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
+			<div
+				class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"
+			></div>
 		</div>
 		<!-- Floating Logo -->
-		<div class="absolute left-4 -bottom-10 z-20 size-20 md:size-28 rounded-2xl border-4 border-white bg-white shadow-lg flex items-center justify-center">
+		<div
+			class="absolute -bottom-10 left-4 z-20 flex size-20 items-center justify-center rounded-2xl border-4 border-white bg-white shadow-lg md:size-28"
+		>
 			<img
 				src={data.restaurant.logo || '/shop.avif'}
 				alt={`${data.restaurant.name} logo`}
-				class="h-16 w-16 md:h-24 md:w-24 object-cover rounded-xl"
+				class="h-16 w-16 rounded-xl object-cover md:h-24 md:w-24"
 			/>
 		</div>
 	</div>
 	<!-- Restaurant Info Card -->
-	<div class="bg-white rounded-2xl shadow p-4 pt-12 -mt-10 mb-4 md:mb-8 relative">
-		<h1 class="text-2xl md:text-3xl font-bold text-gray-900 mb-1">{data.restaurant.name}</h1>
-		<p class="text-gray-600 text-sm mb-2 line-clamp-2">{data.restaurant.description}</p>
-		<div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 mb-2">
-			<span class="flex items-center gap-1"><span class="text-yellow-500">★</span>{data.restaurant.totalRatings || 0}</span>
+	<div class="relative -mt-10 mb-4 rounded-2xl bg-white p-4 pt-12 shadow md:mb-8">
+		<h1 class="mb-1 text-2xl font-bold text-gray-900 md:text-3xl">{data.restaurant.name}</h1>
+		<p class="mb-2 line-clamp-2 text-sm text-gray-600">{data.restaurant.description}</p>
+		<div class="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+			<span class="flex items-center gap-1"
+				><span class="text-yellow-500">★</span>{data.restaurant.totalRatings || 0}</span
+			>
 			<span>•</span>
-			<span class="flex items-center gap-1"><Bike class="size-4" />{data.restaurant.deliveryType}</span>
+			<span class="flex items-center gap-1"
+				><Bike class="size-4" />{data.restaurant.deliveryType}</span
+			>
 			<span>•</span>
 			<span>Open until {getCurrentDayHours()}</span>
 		</div>
@@ -173,18 +187,25 @@
 					<Badge>{tag}</Badge>
 				{/each}
 			{:else}
-				<span class="rounded-full bg-gray-200 px-2 py-1 text-xs text-gray-700">{data.restaurant.shopType}</span>
+				<span class="rounded-full bg-gray-200 px-2 py-1 text-xs text-gray-700"
+					>{data.restaurant.shopType}</span
+				>
 			{/if}
 		</div>
 	</div>
 
 	<!-- Sticky Category Nav (bottom on mobile, top on desktop) -->
-	<nav class="fixed bottom-0 left-0 right-0 z-30 bg-white border-t shadow-md flex md:static md:shadow-none md:border-none md:bg-transparent md:mb-4 overflow-x-auto px-2 py-2 md:py-0 gap-2 md:gap-4 md:justify-start md:rounded-xl md:max-w-4xl md:mx-auto">
+	<nav
+		class="fixed bottom-0 left-0 right-0 z-30 flex gap-2 overflow-x-auto border-t bg-white px-2 py-2 shadow-md md:static md:mx-auto md:mb-4 md:max-w-4xl md:justify-start md:gap-4 md:rounded-xl md:border-none md:bg-transparent md:py-0 md:shadow-none"
+	>
 		{#each categories as category}
 			{#if !searchQuery || hasItemsInCategory(category)}
 				<button
 					onclick={() => scrollToCategory(category)}
-					class="whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold transition-colors duration-200 {activeCategory === category ? 'bg-primary text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
+					class="whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold transition-colors duration-200 {activeCategory ===
+					category
+						? 'bg-primary text-white shadow'
+						: 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
 				>
 					{category}
 				</button>
@@ -193,7 +214,7 @@
 	</nav>
 
 	<!-- Floating Search Bar -->
-	<div class="sticky top-2 z-20 flex justify-center mb-4">
+	<div class="sticky top-2 z-20 mb-4 flex justify-center">
 		<div class="relative w-full max-w-md">
 			<input
 				type="search"
@@ -242,7 +263,9 @@
 			{:else}
 				<div class="py-12 text-center">
 					<p class="text-lg text-gray-600">No menu items found matching "{searchQuery}"</p>
-					<button onclick={clearSearch} class="mt-4 text-sm text-primary hover:text-primary/80">Clear search</button>
+					<button onclick={clearSearch} class="mt-4 text-sm text-primary hover:text-primary/80"
+						>Clear search</button
+					>
 				</div>
 			{/if}
 		</div>
@@ -274,13 +297,28 @@
 					<p class="text-gray-600">Phone: {data.restaurant.phoneNumber}</p>
 					{#if data.restaurant.longitude}
 						<a
-							href="https://maps.google.com/?q={data.restaurant.latitude},{data.restaurant.longitude}"
+							href="https://maps.google.com/?q={data.restaurant.latitude},{data.restaurant
+								.longitude}"
 							target="_blank"
 							rel="noopener noreferrer"
 							class="mt-1 inline-flex items-center text-sm text-primary hover:text-primary/80"
 						>
 							See on map
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								class="ml-1"
+								><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline
+									points="15 3 21 3 21 9"
+								/><line x1="10" y1="14" x2="21" y2="3" /></svg
+							>
 						</a>
 					{/if}
 				</div>
@@ -298,7 +336,14 @@
 							return days.indexOf(a.day) - days.indexOf(b.day);
 						}) as hour}
 							<div class="font-medium">{hour.day}</div>
-							<div class="text-gray-600">{!hour.isOpen || hour.openTime === hour.closeTime || !hour.openTime || !hour.closeTime ? 'Closed' : `${formatTime(hour.openTime)}–${formatTime(hour.closeTime)}`}</div>
+							<div class="text-gray-600">
+								{!hour.isOpen ||
+								hour.openTime === hour.closeTime ||
+								!hour.openTime ||
+								!hour.closeTime
+									? 'Closed'
+									: `${formatTime(hour.openTime)}–${formatTime(hour.closeTime)}`}
+							</div>
 						{/each}
 						{#each ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as day}
 							{#if !data.restaurant.operatingHours.some((h) => h.day === day)}
@@ -316,16 +361,30 @@
 		<div class="mt-8">
 			<button
 				onclick={() => (isMoreInfoOpen = !isMoreInfoOpen)}
-				class="flex w-full items-center justify-between rounded-xl border border-gray-200 p-4 text-left hover:bg-gray-50 transition-colors"
+				class="flex w-full items-center justify-between rounded-xl border border-gray-200 p-4 text-left transition-colors hover:bg-gray-50"
 			>
 				<span class="flex items-center gap-2 text-base font-medium">
 					<Info class="size-5" />
 					More information
 				</span>
-				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transform transition-transform duration-200" class:rotate-180={isMoreInfoOpen}><polyline points="6 9 12 15 18 9" /></svg>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="20"
+					height="20"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="transform transition-transform duration-200"
+					class:rotate-180={isMoreInfoOpen}><polyline points="6 9 12 15 18 9" /></svg
+				>
 			</button>
 			{#if isMoreInfoOpen}
-				<div class="mt-4 space-y-4 rounded-xl border border-gray-100 p-4 bg-white shadow-sm transition-all duration-300">
+				<div
+					class="mt-4 space-y-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-300"
+				>
 					<div>
 						<h3 class="font-medium">About Us</h3>
 						<p class="mt-1 text-sm text-gray-600">{data.restaurant?.description}</p>
@@ -345,7 +404,14 @@
 							<li>• Phone: {data.restaurant?.phoneNumber}</li>
 							<li>• Email: {data.restaurant?.email}</li>
 							{#if data.restaurant?.website}
-								<li>• Website: <a href={data.restaurant.website} target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">{data.restaurant.website}</a></li>
+								<li>
+									• Website: <a
+										href={data.restaurant.website}
+										target="_blank"
+										rel="noopener noreferrer"
+										class="text-primary hover:underline">{data.restaurant.website}</a
+									>
+								</li>
 							{/if}
 						</ul>
 					</div>
