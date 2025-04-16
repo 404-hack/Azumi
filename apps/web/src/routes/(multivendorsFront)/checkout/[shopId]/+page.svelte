@@ -39,7 +39,7 @@
 	let shippingMethodId = 'standard-shipping';
 	let couponCode = '';
 	let { data } = $props();
-	let deliveryAddressId = $state(data.defaultAddress.id);
+	let deliveryAddressId = $state(1);
 	let deliveryNotes = $state('');
 	let vendorNotes = $state('');
 	console.log('🚀 ~ data:', data.cart);
@@ -140,9 +140,7 @@
 			/>
 		</div>
 		<h1 class="mt-4 text-3xl font-bold">Check out of {data.cart.shop.name}</h1>
-		<p class="mt-2 text-gray-600">
-			{data.cart.shop.description}
-		</p>
+
 		<div class="mt-4 flex items-center text-xs">
 			<span class="text-yellow-500">★</span>
 			<span class="ml-1">4.8</span>
@@ -181,7 +179,7 @@
 							<div class="flex items-center gap-2">
 								<MapPin class="size-5" />
 								<span>Other</span>
-								<span class="text-sm text-muted-foreground">{data.defaultAddress.address}</span>
+								<span class="text-sm text-muted-foreground">{'data.defaultAddress.address'}</span>
 							</div>
 							<ChevronRight class="size-5" />
 						</button>
@@ -223,10 +221,11 @@
 				<div>
 					{#each data.cart.items as item}
 						<CartItem
-							image="/shop.avif"
-							id={item.menuItemId}
-							name={item?.menuItem.name}
-							price={item?.menuItem.price}
+							image={item.menuItem.image}
+							id={item.id}
+							cartId={data.cart.id}
+							name={item.menuItem.name}
+							price={item.menuItem.price}
 							quantity={item.quantity}
 						/>
 					{/each}
