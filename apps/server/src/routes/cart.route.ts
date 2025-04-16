@@ -1,21 +1,41 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { Context } from "../lib/types";
+// Assuming Context is defined in ../lib/types and includes db/user properties
+// import { Context } from "../lib/types";
 import { z } from "zod";
 import {
   cartTable,
   cartItems,
   cartItemOptions,
 } from "../lib/db/schema/cart.schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+// Import necessary schemas for types if needed elsewhere
+// import { shopTable } from "../lib/db/schema/shop.schema"; // Assuming shopTable is imported if needed
+// import { optionGroupTable } from "../lib/db/schema/option.schema"; // Assuming this exists and is imported if needed
+import { eq, and, desc, inArray } from "drizzle-orm";
+// import { BatchItem } from "drizzle-orm/sqlite-core"; // Correct import path for BatchItem
 import { menuItemTable } from "../lib/db/schema/menu.schema";
 import { optionTable } from "../lib/db/schema/option.schema";
 import { nanoid } from "nanoid";
-import { factory } from "../lib/factory";
+import { factory } from "../lib/factory"; // Assuming factory provides typed context 'c'
 import {
   addCartItemSchema,
   updateCartItemSchema,
 } from "../lib/validation/cart.validation";
+
+// Helper function to calculate totals - Rely on inferred types
+const calculateCartTotals = (cart: any | null) => {
+  // Use 'any' or let TS infer; null check remains
+  let totalItems = 0;
+  let subtotal = 0;
+  (cart?.items || []).forEach((item: any) => {
+    // Use 'any' or let TS infer
+    totalItems += item.quantity;
+    // Use nullish coalescing for safety if totalPrice might be missing/null
+    const itemSubtotal = item.totalPrice ?? 0;
+    subtotal += itemSubtotal;
+  });
+  return { totalItems, subtotal };
+};
 
 const cartRoute = factory
   .createApp()
@@ -26,10 +46,14 @@ const cartRoute = factory
       const user = c.get("user");
 
       if (!user) {
-        return c.json({ error: "Unauthorized" }, 401);
+        // Use c.json for error response
+        return c.json(
+          { error: "Unauthorized", message: "User not authenticated" },
+          401
+        );
       }
 
-      // Find active carts for the user
+      // Removed type assertion
       const carts = await db.query.cartTable.findMany({
         where: and(
           eq(cartTable.customerId, user.id),
@@ -38,9 +62,18 @@ const cartRoute = factory
         with: {
           items: {
             with: {
-              options: true,
-              menuItem: true,
+              options: {
+                with: {
+                  option: { columns: { id: true, name: true, price: true } },
+                  // Assuming optionGroupTable is imported and correct
+                  optionGroup: { columns: { id: true, name: true } },
+                },
+              },
+              menuItem: {
+                columns: { id: true, name: true, price: true, image: true },
+              },
             },
+            orderBy: (items, { desc }) => [desc(items.createdAt)],
           },
           shop: {
             columns: {
@@ -51,38 +84,35 @@ const cartRoute = factory
             },
           },
         },
+        orderBy: (carts, { desc }) => [desc(carts.createdAt)],
       });
 
-      if (!carts || carts.length === 0) {
-        // Return empty cart if none exists
-        return c.json({
-          data: [],
-        });
+      if (carts.length === 0) {
+        return c.json({ data: [] });
       }
 
-      // Process carts with calculated totals
       const processedCarts = carts.map((cart) => {
-        let totalItems = 0;
-        let subtotal = 0;
-
-        (cart.items || []).forEach((item) => {
-          totalItems += item.quantity;
-          subtotal += item.totalPrice;
-        });
-
+        const totals = calculateCartTotals(cart);
         return {
           ...cart,
-          totalItems,
-          subtotal,
+          totalItems: totals.totalItems,
+          subtotal: totals.subtotal,
         };
       });
 
       return c.json({
         data: processedCarts,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching cart:", error);
-      return c.json({ error: "Internal server error" }, 500);
+      // Use c.json for error response
+      return c.json(
+        {
+          error: "Internal server error",
+          message: error?.message || "Failed to fetch cart",
+        },
+        500
+      );
     }
   })
   // get cart by shopId
@@ -93,10 +123,21 @@ const cartRoute = factory
       const { shopId } = c.req.param();
 
       if (!user) {
-        return c.json({ error: "Unauthorized" }, 401);
+        // Use c.json for error response
+        return c.json(
+          { error: "Unauthorized", message: "User not authenticated" },
+          401
+        );
+      }
+      if (!shopId) {
+        // Use c.json for error response
+        return c.json(
+          { error: "Bad Request", message: "Shop ID is required" },
+          400
+        );
       }
 
-      // Find active cart for the user and shop
+      // Removed type assertion
       const cart = await db.query.cartTable.findFirst({
         where: and(
           eq(cartTable.customerId, user.id),
@@ -106,9 +147,244 @@ const cartRoute = factory
         with: {
           items: {
             with: {
-              options: true,
+              options: {
+                with: {
+                  option: { columns: { id: true, name: true, price: true } },
+                  optionGroup: { columns: { id: true, name: true } },
+                },
+              },
+              menuItem: {
+                columns: { id: true, name: true, price: true, image: true },
+              },
+            },
+            orderBy: (items, { desc }) => [desc(items.createdAt)],
+          },
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              logo: true,
+              slug: true,
+              coverImage: true, // Assuming coverImage exists in shopTable schema
+            },
+          },
+        },
+      });
+
+      if (!cart) {
+        return c.json(
+          { data: null, message: "No active cart found for this shop." },
+          404
+        ); // Use 404 for not found
+      }
+
+      const { totalItems, subtotal } = calculateCartTotals(cart);
+
+      return c.json({
+        data: {
+          ...cart,
+          totalItems,
+          subtotal,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error fetching cart by shop:", error);
+      // Use c.json for error response
+      return c.json(
+        {
+          error: "Internal server error",
+          message: error?.message || "Failed to fetch cart for shop",
+        },
+        500
+      );
+    }
+  })
+
+  // Add item to cart - Refactored to avoid db.batch()
+  .post("/", zValidator("json", addCartItemSchema), async (c) => {
+    const db = c.get("db");
+    const user = c.get("user");
+
+    if (!user) {
+      // Use c.json for error response
+      return c.json(
+        { error: "Unauthorized", message: "User not authenticated" },
+        401
+      );
+    }
+
+    try {
+      const data = c.req.valid("json");
+
+      // --- Pre-computation and Checks ---
+      const menuItem = await db.query.menuItemTable.findFirst({
+        where: eq(menuItemTable.id, data.menuItemId),
+        columns: { id: true, shopId: true, price: true, name: true },
+      });
+
+      if (!menuItem || !menuItem.shopId) {
+        // Use c.json for error response
+        return c.json(
+          { error: "Not Found", message: "Menu item not found or is invalid" },
+          404
+        );
+      }
+
+      // Find or create cart
+      let cart = await db.query.cartTable.findFirst({
+        where: and(
+          eq(cartTable.customerId, user.id),
+          eq(cartTable.shopId, menuItem.shopId),
+          eq(cartTable.status, "ACTIVE")
+        ),
+        columns: { id: true },
+      });
+
+      let cartId: string;
+      if (!cart) {
+        const newCartResult = await db
+          .insert(cartTable)
+          .values({
+            customerId: user.id,
+            shopId: menuItem.shopId,
+            status: "ACTIVE",
+          })
+          .returning({ id: cartTable.id });
+
+        if (!newCartResult || newCartResult.length === 0) {
+          console.error("Failed to create cart record");
+          return c.json(
+            {
+              error: "Internal Server Error",
+              message: "Failed to initialize cart",
+            },
+            500
+          );
+        }
+        cartId = newCartResult[0].id;
+      } else {
+        cartId = cart.id;
+      }
+
+      // Check for existing item
+      const existingCartItem = await db.query.cartItems.findFirst({
+        where: and(
+          eq(cartItems.cartId, cartId),
+          eq(cartItems.menuItemId, data.menuItemId)
+          // Add other conditions for uniqueness if needed (e.g., options hash)
+        ),
+        columns: { id: true, quantity: true, totalPrice: true },
+      });
+
+      // Calculate prices
+      const menuItemPrice = Number(menuItem.price) || 0;
+      let baseItemPriceComponent = menuItemPrice * data.quantity;
+      let optionsPriceComponent = 0;
+      let selectedOptionDetails: Array<{
+        optionId: string;
+        optionGroupId: string | null;
+        quantity: number;
+        price: number;
+      }> = [];
+
+      if (data.options && data.options.length > 0) {
+        const optionIds = data.options.map((opt) => opt.optionId);
+        if (optionIds.length > 0) {
+          const dbOptions = await db.query.optionTable.findMany({
+            where: inArray(optionTable.id, optionIds),
+            columns: { id: true, price: true },
+          });
+          const dbOptionsMap = new Map(dbOptions.map((opt) => [opt.id, opt]));
+
+          for (const reqOption of data.options) {
+            const dbOption = dbOptionsMap.get(reqOption.optionId);
+            if (!dbOption) {
+              return c.json(
+                {
+                  error: "Bad Request",
+                  message: `Invalid option ID: ${reqOption.optionId}`,
+                },
+                400
+              );
+            }
+            const optionPrice = Number(dbOption.price) || 0;
+            const optionQuantity = reqOption.quantity || 1;
+            optionsPriceComponent += optionPrice * optionQuantity;
+            selectedOptionDetails.push({
+              optionId: dbOption.id,
+              optionGroupId: reqOption.optionGroupId, // From request
+              quantity: optionQuantity,
+              price: optionPrice, // Price at time of adding
+            });
+          }
+        }
+      }
+
+      // --- Perform Database Operations Sequentially ---
+      let finalCartItemId: string;
+
+      if (existingCartItem) {
+        finalCartItemId = existingCartItem.id;
+        const finalQuantity = existingCartItem.quantity + data.quantity;
+        const currentTotalPrice = Number(existingCartItem.totalPrice) || 0;
+        const updatedTotalPrice =
+          currentTotalPrice + baseItemPriceComponent + optionsPriceComponent;
+
+        // Update existing item
+        await db
+          .update(cartItems)
+          .set({
+            quantity: finalQuantity,
+            totalPrice: updatedTotalPrice,
+          })
+          .where(eq(cartItems.id, existingCartItem.id));
+
+        // Insert new options for the updated item
+        if (selectedOptionDetails.length > 0) {
+          await db.insert(cartItemOptions).values(
+            selectedOptionDetails.map((opt) => ({
+              ...opt,
+              cartItemId: finalCartItemId,
+              id: nanoid(),
+            }))
+          );
+        }
+      } else {
+        finalCartItemId = nanoid();
+        const totalItemPrice = baseItemPriceComponent + optionsPriceComponent;
+
+        // Insert new cart item
+        await db.insert(cartItems).values({
+          id: finalCartItemId,
+          cartId: cartId,
+          menuItemId: data.menuItemId,
+          quantity: data.quantity,
+          specialInstructions: data.specialInstructions,
+          totalPrice: totalItemPrice,
+        });
+
+        // Insert options for the new item
+        if (selectedOptionDetails.length > 0) {
+          await db.insert(cartItemOptions).values(
+            selectedOptionDetails.map((opt) => ({
+              ...opt,
+              cartItemId: finalCartItemId,
+              id: nanoid(),
+            }))
+          );
+        }
+      }
+
+      // --- Fetch Final State ---
+      const finalCartState = await db.query.cartTable.findFirst({
+        where: eq(cartTable.id, cartId),
+        with: {
+          items: {
+            with: {
+              options: { with: { option: true, optionGroup: true } },
               menuItem: true,
             },
+            orderBy: (items, { desc }) => [desc(items.createdAt)],
           },
           shop: {
             columns: {
@@ -122,360 +398,158 @@ const cartRoute = factory
         },
       });
 
-      if (!cart) {
-        // return 404, no cart found
-        return c.json({ message: "Cart not found" }, 404);
+      if (!finalCartState) {
+        console.error(
+          "Failed to fetch final cart state after update for cart:",
+          cartId
+        );
+        return c.json(
+          {
+            error: "Internal Server Error",
+            message: "Failed to retrieve updated cart state",
+          },
+          500
+        );
       }
 
-      // Calculate totals
-      let totalItems = 0;
-      let subtotal = 0;
-
-      (cart.items || []).forEach((item) => {
-        totalItems += item.quantity;
-        subtotal += item.totalPrice;
-      });
+      const { totalItems, subtotal } = calculateCartTotals(finalCartState);
 
       return c.json({
         data: {
-          ...cart,
+          ...finalCartState,
           totalItems,
           subtotal,
         },
       });
-    } catch (error) {
-      console.error("Error fetching cart by restaurant:", error);
-      return c.json({ error: "Internal server error" }, 500);
-    }
-  })
-
-  // Add item to cart
-  .post("/", zValidator("json", addCartItemSchema), async (c) => {
-    try {
-      const data = c.req.valid("json");
-      const db = c.get("db");
-      const user = c.get("user");
-
-      if (!user) {
-        return c.json({ error: "Unauthorized" }, 401);
-      }
-
-      // Get the menu item to validate it exists and get restaurant ID
-      const menuItem = await db.query.menuItemTable.findFirst({
-        where: eq(menuItemTable.id, data.menuItemId),
-      });
-
-      if (!menuItem) {
-        return c.json({ error: "Menu item not found" }, 404);
-      }
-
-      // Check if user has an active cart for THIS restaurant
-      let cart = await db.query.cartTable.findFirst({
-        where: and(
-          eq(cartTable.customerId, user.id),
-          eq(cartTable.shopId, menuItem.shopId),
-          eq(cartTable.status, "active")
-        ),
-      });
-
-      // Initialize base price from menu item
-      let totalPrice = menuItem.price * data.quantity;
-      const cartItemId = nanoid();
-
-      // Create a new cart for this restaurant if needed
-      if (!cart) {
-        const newCart = await db
-          .insert(cartTable)
-          .values({
-            shopId: menuItem.shopId,
-            customerId: user.id,
-            status: "ACTIVE",
-          })
-          .returning()
-          .get();
-
-        if (!newCart) {
-          return c.json({ error: "Failed to create cart" }, 500);
-        }
-
-        cart = newCart;
-      }
-
-      // Create the cart item first
-      await db.insert(cartItems).values({
-        id: cartItemId,
-        cartId: cart.id,
-        menuItemId: data.menuItemId,
-        quantity: data.quantity,
-        specialInstructions: data.specialInstructions || null,
-        totalPrice: totalPrice,
-      });
-
-      // Process options if provided
-      if (data.options && data.options.length > 0) {
-        // Get all option data in a single query
-        const optionIds = data.options.map((opt) => opt.optionId);
-        const optionsData = await db.query.optionTable.findMany({
-          where: inArray(optionTable.id, optionIds),
-        });
-
-        // Prepare option entries for batch insert
-        const optionEntries = [];
-        let optionsPrice = 0;
-
-        for (const option of data.options) {
-          const optionData = optionsData.find(
-            (opt) => opt.id === option.optionId
-          );
-
-          if (optionData) {
-            const optionPrice = optionData.price * option.quantity;
-            optionsPrice += optionPrice;
-
-            optionEntries.push({
-              id: nanoid(),
-              cartItemId: cartItemId,
-              optionId: option.optionId,
-              optionGroupId: option.optionGroupId,
-              quantity: option.quantity,
-              price: optionData.price,
-            });
-          }
-        }
-
-        // Update total price with options
-        totalPrice += optionsPrice;
-
-        // Batch insert all options
-        if (optionEntries.length > 0) {
-          await db.insert(cartItemOptions).values(optionEntries);
-        }
-
-        // Update cart item with final price
-        await db
-          .update(cartItems)
-          .set({ totalPrice })
-          .where(eq(cartItems.id, cartItemId));
-      }
-
-      // Return the updated cart with full information
-      const updatedCart = await db.query.cartTable.findFirst({
-        where: eq(cartTable.id, cart.id),
-        with: {
-          items: {
-            with: {
-              options: true,
-              menuItem: true,
-            },
-          },
-          shop: {
-            columns: {
-              id: true,
-              name: true,
-              logo: true,
-            },
-          },
-        },
-      });
-
-      if (!updatedCart) {
-        return c.json({ error: "Cart not found" }, 404);
-      }
-
-      // Calculate totals
-      let totalItems = 0;
-      let subtotal = 0;
-
-      (updatedCart.items || []).forEach((item) => {
-        totalItems += item.quantity;
-        subtotal += item.totalPrice;
-      });
-
-      return c.json({
-        data: {
-          ...updatedCart,
-          totalItems,
-          subtotal,
-        },
-      });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding item to cart:", error);
-      return c.json({ error: "Internal server error" }, 500);
+      // Use c.json for error response
+      return c.json(
+        {
+          error: "Internal server error",
+          message: error?.message || "Failed to add item to cart",
+        },
+        500
+      );
     }
   })
 
-  // Update cart item quantity
+  // Update cart item quantity - Refactored to avoid db.batch()
   .patch(
     "/items/:itemId",
     zValidator("json", updateCartItemSchema),
     async (c) => {
+      const db = c.get("db");
+      const user = c.get("user");
+      const { itemId } = c.req.param();
+
+      if (!user) {
+        // Use c.json for error response
+        return c.json(
+          { error: "Unauthorized", message: "User not authenticated" },
+          401
+        );
+      }
+
       try {
-        const { itemId } = c.req.param();
         const { quantity } = c.req.valid("json");
-        const db = c.get("db");
-        const user = c.get("user");
 
-        if (!user) {
-          return c.json({ error: "Unauthorized" }, 401);
-        }
-
-        // Get cart item and verify ownership
-        const cartItem = await db.query.cartItems.findFirst({
-          where: eq(cartItems.id, itemId),
-          with: {
-            cart: true,
-            menuItem: true,
-            options: true,
-          },
-        });
-
-        if (
-          !cartItem ||
-          !cartItem.cart ||
-          cartItem.cart.customerId !== user.id
-        ) {
-          return c.json({ error: "Cart item not found" }, 404);
-        }
-
-        if (!cartItem.menuItem) {
+        if (quantity <= 0) {
+          // Use c.json for error response
           return c.json(
-            { error: "Menu item not found for this cart item" },
-            404
+            {
+              error: "Bad Request",
+              message: "Quantity must be positive. Use DELETE to remove items.",
+            },
+            400
           );
         }
 
-        // Calculate new total price
-        let basePrice = cartItem.menuItem.price;
-        let optionsPrice = 0;
-
-        // Safely handle options array which might be undefined
-        (cartItem.options || []).forEach((option) => {
-          optionsPrice += option.price * option.quantity;
+        // --- Pre-computation and Checks ---
+        const cartItem = await db.query.cartItems.findFirst({
+          where: eq(cartItems.id, itemId),
+          with: {
+            cart: { columns: { customerId: true, id: true } },
+            menuItem: { columns: { price: true } },
+            options: { columns: { quantity: true, price: true } },
+          },
         });
 
-        const newTotalPrice = (basePrice + optionsPrice) * quantity;
+        if (!cartItem || !cartItem.cart) {
+          // Use c.json for error response
+          return c.json(
+            {
+              error: "Not Found",
+              message: "Cart item or associated cart not found",
+            },
+            404
+          );
+        }
+        if (cartItem.cart.customerId !== user.id) {
+          // Use c.json for error response
+          return c.json(
+            { error: "Forbidden", message: "You do not own this cart item" },
+            403
+          );
+        }
+        if (!cartItem.menuItem) {
+          console.error(
+            "Internal Error: Menu item data missing for cart item:",
+            itemId
+          );
+          return c.json(
+            {
+              error: "Internal Server Error",
+              message: "Internal Error: Menu item data missing",
+            },
+            500
+          );
+        }
+        if (!cartItem.cart.id) {
+          console.error(
+            "Cart ID missing from cart item relation for item:",
+            itemId
+          );
+          return c.json(
+            {
+              error: "Internal Server Error",
+              message: "Cart ID missing from cart item relation",
+            },
+            500
+          );
+        }
 
-        // Update the cart item
+        const parentCartId = cartItem.cart.id;
+        const basePrice = Number(cartItem.menuItem.price) || 0;
+        let optionsPricePerUnit = 0;
+        (cartItem.options || []).forEach((optInstance) => {
+          const price = Number(optInstance.price) || 0;
+          const qty = Number(optInstance.quantity) || 0;
+          optionsPricePerUnit += price * qty;
+        });
+
+        const pricePerUnit = basePrice + optionsPricePerUnit;
+        const newTotalPrice = pricePerUnit * quantity;
+
+        // --- Perform Update Operation ---
         await db
           .update(cartItems)
           .set({
-            quantity,
+            quantity: quantity,
             totalPrice: newTotalPrice,
           })
           .where(eq(cartItems.id, itemId));
 
-        // Return the updated cart
-        const updatedCart = await db.query.cartTable.findFirst({
-          where: eq(cartTable.id, cartItem.cartId),
+        // --- Fetch Final State ---
+        const finalCartState = await db.query.cartTable.findFirst({
+          where: eq(cartTable.id, parentCartId),
           with: {
             items: {
               with: {
-                options: true,
+                options: { with: { option: true, optionGroup: true } },
                 menuItem: true,
               },
-            },
-            shop: {
-              columns: {
-                id: true,
-                name: true,
-                logo: true,
-              },
-            },
-          },
-        });
-
-        // Handle potentially null updatedCart
-        if (!updatedCart) {
-          return c.json({ error: "Cart not found after update" }, 404);
-        }
-
-        // Calculate totals
-        let totalItems = 0;
-        let subtotal = 0;
-
-        // Safely handle items array which might be undefined
-        (updatedCart.items || []).forEach((item) => {
-          totalItems += item.quantity;
-          subtotal += item.totalPrice;
-        });
-
-        return c.json({
-          data: {
-            ...updatedCart,
-            totalItems,
-            subtotal,
-          },
-        });
-      } catch (error) {
-        console.error("Error updating cart item:", error);
-        return c.json({ error: "Internal server error" }, 500);
-      }
-    }
-  )
-
-  // Remove item from cart
-  .delete("/items/:itemId", async (c) => {
-    try {
-      const { itemId } = c.req.param();
-      const db = c.get("db");
-      const user = c.get("user");
-
-      if (!user) {
-        return c.json({ error: "Unauthorized" }, 401);
-      }
-
-      // Get cart item and verify ownership
-      const cartItem = await db.query.cartItems.findFirst({
-        where: eq(cartItems.id, itemId),
-        with: {
-          cart: true,
-        },
-      });
-
-      if (!cartItem || !cartItem.cart || cartItem.cart.customerId !== user.id) {
-        return c.json({ error: "Cart item not found" }, 404);
-      }
-
-      // Save the cartId for later check
-      const cartId = cartItem.cartId;
-
-      // Delete the cart item options first
-      await db
-        .delete(cartItemOptions)
-        .where(eq(cartItemOptions.cartItemId, itemId));
-
-      // Delete the cart item
-      await db.delete(cartItems).where(eq(cartItems.id, itemId));
-
-      // Check if cart is now empty
-      const remainingItems = await db.query.cartItems.findMany({
-        where: eq(cartItems.cartId, cartId),
-      });
-
-      // If no items remain, completely delete the cart instead of marking it abandoned
-      if (remainingItems.length === 0) {
-        await db.delete(cartTable).where(eq(cartTable.id, cartId));
-
-        // Return empty cart response when cart is deleted
-        return c.json({
-          data: {
-            items: [],
-            restaurantId: null,
-            restaurant: null,
-            totalItems: 0,
-            subtotal: 0,
-          },
-        });
-      } else {
-        // Return the updated cart with remaining items
-        const updatedCart = await db.query.cartTable.findFirst({
-          where: eq(cartTable.id, cartId),
-          with: {
-            items: {
-              with: {
-                options: true,
-                menuItem: true,
-              },
+              orderBy: (items, { desc }) => [desc(items.createdAt)],
             },
             shop: {
               columns: {
@@ -483,132 +557,288 @@ const cartRoute = factory
                 name: true,
                 logo: true,
                 slug: true,
+                coverImage: true,
               },
             },
           },
         });
 
-        // Handle potentially null updatedCart
-        if (!updatedCart) {
-          return c.json({ error: "Cart not found after item removal" }, 404);
+        if (!finalCartState) {
+          console.error(
+            "Failed to fetch updated parent cart after item update for cart:",
+            parentCartId
+          );
+          return c.json(
+            {
+              error: "Internal Server Error",
+              message: "Failed to retrieve updated cart state",
+            },
+            500
+          );
         }
 
-        // Calculate totals
-        let totalItems = 0;
-        let subtotal = 0;
-
-        // Safely handle items array which might be undefined
-        (updatedCart.items || []).forEach((item) => {
-          totalItems += item.quantity;
-          subtotal += item.totalPrice;
-        });
+        const finalTotals = calculateCartTotals(finalCartState);
 
         return c.json({
           data: {
-            ...updatedCart,
-            totalItems,
-            subtotal,
+            ...finalCartState,
+            totalItems: finalTotals.totalItems,
+            subtotal: finalTotals.subtotal,
           },
         });
+      } catch (error: any) {
+        console.error("Error updating cart item:", error);
+        // Use c.json for error response
+        return c.json(
+          {
+            error: "Internal server error",
+            message: error?.message || "Failed to update cart item",
+          },
+          500
+        );
       }
-    } catch (error) {
-      console.error("Error removing cart item:", error);
-      return c.json({ error: "Internal server error" }, 500);
     }
-  })
+  )
 
-  // Clear cart - Modified to completely delete cart instead of marking as abandoned
-  .delete("/:cartId", async (c) => {
+  // Remove item from cart - Refactored to avoid db.batch()
+  .delete("/items/:itemId", async (c) => {
+    const db = c.get("db");
+    const user = c.get("user");
+    const { itemId } = c.req.param();
+
+    if (!user) {
+      // Use c.json for error response
+      return c.json(
+        { error: "Unauthorized", message: "User not authenticated" },
+        401
+      );
+    }
+
     try {
-      const db = c.get("db");
-      const user = c.get("user");
-      const { cartId } = c.req.param();
+      // --- Pre-computation and Checks ---
+      const cartItem = await db.query.cartItems.findFirst({
+        where: eq(cartItems.id, itemId),
+        columns: { id: true, cartId: true },
+        with: {
+          cart: { columns: { customerId: true } },
+        },
+      });
 
-      if (!user) {
-        return c.json({ error: "Unauthorized" }, 401);
+      if (!cartItem || !cartItem.cart) {
+        // Use c.json for error response
+        return c.json(
+          {
+            error: "Not Found",
+            message: "Cart item or associated cart not found",
+          },
+          404
+        );
+      }
+      if (cartItem.cart.customerId !== user.id) {
+        // Use c.json for error response
+        return c.json(
+          { error: "Forbidden", message: "You do not own this cart item" },
+          403
+        );
+      }
+      if (!cartItem.cartId) {
+        console.error("Cart ID missing from cart item:", itemId);
+        return c.json(
+          {
+            error: "Internal Server Error",
+            message: "Cart ID missing from cart item",
+          },
+          500
+        );
+      }
+      const parentCartId = cartItem.cartId;
+
+      // --- Perform Deletion Operations Sequentially ---
+      // Delete associated options first
+      await db
+        .delete(cartItemOptions)
+        .where(eq(cartItemOptions.cartItemId, itemId));
+      // Then delete the item itself
+      await db.delete(cartItems).where(eq(cartItems.id, itemId));
+
+      // --- Post-Deletion Check and Potential Cart Deletion ---
+      const remainingItems = await db.query.cartItems.findMany({
+        where: eq(cartItems.cartId, parentCartId),
+        columns: { id: true },
+        limit: 1,
+      });
+
+      let finalCartState: any | null = null; // Use any or let TS infer
+
+      if (remainingItems.length === 0) {
+        // Cart is empty, delete the cart itself
+        await db.delete(cartTable).where(eq(cartTable.id, parentCartId));
+        finalCartState = null; // Indicate cart was deleted
+      } else {
+        // Cart still has items, fetch its updated state
+        const fetchedCart = await db.query.cartTable.findFirst({
+          where: eq(cartTable.id, parentCartId),
+          with: {
+            items: {
+              with: {
+                options: { with: { option: true, optionGroup: true } },
+                menuItem: true,
+              },
+              orderBy: (items, { desc }) => [desc(items.createdAt)],
+            },
+            shop: {
+              columns: {
+                id: true,
+                name: true,
+                logo: true,
+                slug: true,
+                coverImage: true,
+              },
+            },
+          },
+        });
+        if (!fetchedCart) {
+          console.error(
+            `Failed to fetch cart ${parentCartId} after item removal, but items should remain.`
+          );
+          return c.json(
+            {
+              error: "Internal Server Error",
+              message: "Failed to fetch updated cart state after item removal",
+            },
+            500
+          );
+        }
+        finalCartState = fetchedCart;
       }
 
-      // If cartId is provided, clear only that specific cart
-      if (cartId) {
-        const cart = await db.query.cartTable.findFirst({
-          where: and(
-            eq(cartTable.id, cartId),
-            eq(cartTable.customerId, user.id),
-            eq(cartTable.status, "active")
-          ),
-        });
-
-        if (cart) {
-          // Get cart items to delete options first
-          const cartItemsList = await db.query.cartItems.findMany({
-            where: eq(cartItems.cartId, cart.id),
-          });
-
-          // Delete all cart item options
-          for (const item of cartItemsList) {
-            await db
-              .delete(cartItemOptions)
-              .where(eq(cartItemOptions.cartItemId, item.id));
-          }
-
-          // Delete all cart items
-          await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
-
-          // Completely delete cart instead of marking as abandoned
-          await db.delete(cartTable).where(eq(cartTable.id, cart.id));
-        }
-
+      // --- Return Response ---
+      if (finalCartState) {
+        const finalTotals = calculateCartTotals(finalCartState);
         return c.json({
           data: {
-            items: [],
-            restaurantId: null,
-            restaurant: null,
-            totalItems: 0,
-            subtotal: 0,
+            ...finalCartState,
+            totalItems: finalTotals.totalItems,
+            subtotal: finalTotals.subtotal,
           },
         });
       } else {
-        // If no cartId provided, clear all active carts for this user
-        const carts = await db.query.cartTable.findMany({
+        return c.json({
+          data: null,
+          message: "Item removed and cart is now empty.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error removing item from cart:", error);
+      // Use c.json for error response
+      return c.json(
+        {
+          error: "Internal server error",
+          message: error?.message || "Failed to remove item from cart",
+        },
+        500
+      );
+    }
+  })
+
+  // Clear cart (specific or all active) - Refactored to avoid db.batch()
+  .delete("/:cartId?", async (c) => {
+    const db = c.get("db");
+    const user = c.get("user");
+    const { cartId } = c.req.param();
+
+    if (!user) {
+      // Use c.json for error response
+      return c.json(
+        { error: "Unauthorized", message: "User not authenticated" },
+        401
+      );
+    }
+
+    try {
+      if (cartId) {
+        // --- Clear Specific Cart ---
+        const cart = await db.query.cartTable.findFirst({
           where: and(
-            eq(cartTable.customerId, user.id),
-            eq(cartTable.status, "active")
+            eq(cartTable.id, cartId),
+            eq(cartTable.customerId, user.id)
           ),
+          columns: { id: true },
+          with: {
+            items: { columns: { id: true } },
+          },
         });
 
-        for (const cart of carts) {
-          // Get cart items to delete options first
-          const cartItemsList = await db.query.cartItems.findMany({
-            where: eq(cartItems.cartId, cart.id),
-          });
+        if (!cart) {
+          // Use c.json for error response
+          return c.json(
+            { error: "Not Found", message: "Cart not found or access denied" },
+            404
+          );
+        }
 
-          // Delete all cart item options
-          for (const item of cartItemsList) {
+        const itemIds = cart.items.map((item) => item.id);
+
+        // Perform Deletions Sequentially
+        if (itemIds.length > 0) {
+          // Delete options first
+          await db
+            .delete(cartItemOptions)
+            .where(inArray(cartItemOptions.cartItemId, itemIds));
+          // Then delete items
+          await db.delete(cartItems).where(eq(cartItems.cartId, cartId));
+        }
+        // Finally, delete the cart
+        await db.delete(cartTable).where(eq(cartTable.id, cartId));
+
+        return c.json({ data: null, message: "Cart cleared successfully." });
+      } else {
+        // --- Clear ALL User Carts ---
+        const userCarts = await db.query.cartTable.findMany({
+          where: eq(cartTable.customerId, user.id),
+          columns: { id: true },
+          with: {
+            items: { columns: { id: true } },
+          },
+        });
+
+        if (userCarts.length === 0) {
+          return c.json({
+            data: null,
+            message: "No carts found for this user.",
+          });
+        }
+
+        // Perform Deletions Sequentially for each cart
+        for (const cart of userCarts) {
+          const itemIds = cart.items.map((item) => item.id);
+          if (itemIds.length > 0) {
+            // Delete options first
             await db
               .delete(cartItemOptions)
-              .where(eq(cartItemOptions.cartItemId, item.id));
+              .where(inArray(cartItemOptions.cartItemId, itemIds));
+            // Then delete items
+            await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
           }
-
-          // Delete all cart items
-          await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
-
-          // Completely delete cart instead of marking as abandoned
+          // Finally, delete the cart
           await db.delete(cartTable).where(eq(cartTable.id, cart.id));
         }
 
         return c.json({
-          data: {
-            items: [],
-            restaurantId: null,
-            restaurant: null,
-            totalItems: 0,
-            subtotal: 0,
-          },
+          data: null,
+          message: "All user carts cleared successfully.",
         });
       }
-    } catch (error) {
-      console.error("Error clearing cart:", error);
-      return c.json({ error: "Internal server error" }, 500);
+    } catch (error: any) {
+      console.error(`Error clearing cart(s) ${cartId || "(all user)"}:`, error);
+      // Use c.json for error response
+      return c.json(
+        {
+          error: "Internal server error",
+          message: error?.message || "Failed to clear cart(s)",
+        },
+        500
+      );
     }
   });
 
