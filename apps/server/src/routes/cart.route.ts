@@ -742,7 +742,7 @@ const cartRoute = factory
   })
 
   // Clear cart (specific or all active) - Refactored to avoid db.batch()
-  .delete("/:cartId?", async (c) => {
+  .delete("/:cartId", async (c) => {
     const db = c.get("db");
     const user = c.get("user");
     const { cartId } = c.req.param();

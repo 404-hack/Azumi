@@ -26,32 +26,32 @@
 		name,
 		price,
 		quantity: initialQuantity,
-		image = '',
+		image = 'https://placehold.co/400x300?text=No+Image',
 		specialInstructions = '',
 		onQuantityChange,
 		onRemove
-	} = $props<CartItemProps>();
+	}: CartItemProps = $props();
 
-	// Local state for optimistic updates
+	// Simplified state using a single status variable
 	let optimisticQuantity = $state(initialQuantity);
-	let isUpdating = $state(false);
-	let isRemoving = $state(false);
+	let status = $state<'idle' | 'updating' | 'removing'>('idle'); // 'idle', 'updating', 'removing'
 	let updateTimeout: NodeJS.Timeout;
 
 	// Debounced update function
 	async function debouncedUpdate(newQuantity: number) {
 		clearTimeout(updateTimeout);
 
+		// Prevent updates if not idle or quantity is invalid
+		if (status !== 'idle' || newQuantity < 1) {
+			return; // Don't proceed if busy or quantity is zero/negative
+		}
+
 		const originalQuantity = optimisticQuantity;
-		optimisticQuantity = newQuantity;
+		optimisticQuantity = newQuantity; // Optimistic UI update
 
 		updateTimeout = setTimeout(async () => {
-			if (newQuantity === 0) {
-				await handleRemove();
-				return;
-			}
-
-			isUpdating = true;
+			// Set status to prevent concurrent operations during the actual network request
+			status = 'updating';
 			try {
 				const response = await client.cart.items[':itemId'].$patch({
 					param: { itemId: id },
@@ -61,21 +61,24 @@
 				if (!response.ok) throw new Error('Failed to update quantity');
 
 				onQuantityChange?.(newQuantity);
-				await invalidateAll();
+				await invalidateAll(); // Refresh data
+				// Successful update, status reset in finally
 			} catch (error) {
 				console.error('Error updating quantity:', error);
-				optimisticQuantity = originalQuantity; // Revert on failure
+				optimisticQuantity = originalQuantity; // Revert optimistic update on failure
 				toast.error('Failed to update quantity');
+				// Status reset in finally
 			} finally {
-				isUpdating = false;
+				status = 'idle'; // Reset status after operation completes or fails
 			}
 		}, 500); // 500ms debounce
 	}
 
 	async function handleRemove() {
-		if (isRemoving) return;
+		if (status !== 'idle') return; // Don't remove if already busy
 
-		isRemoving = true;
+		// Set status to prevent concurrent operations
+		status = 'removing';
 		try {
 			const response = await client.cart.items[':itemId'].$delete({
 				param: { itemId: id }
@@ -83,15 +86,20 @@
 
 			if (!response.ok) throw new Error('Failed to remove item');
 
-			onRemove?.();
-			await invalidateAll();
-
+			onRemove?.(); // Notify parent
+			await invalidateAll(); // Refresh data (might cause this component to unmount)
 			toast.success('Item removed from cart');
+			// If invalidateAll causes unmount, status reset might not run, which is okay.
 		} catch (error) {
 			console.error('Error removing item:', error);
 			toast.error('Failed to remove item');
+			status = 'idle'; // Reset status on error
 		} finally {
-			isRemoving = false;
+			// Ensure status resets ONLY if it's still 'removing'
+			// (covers cases where invalidateAll didn't unmount)
+			if (status === 'removing') {
+				status = 'idle';
+			}
 		}
 	}
 
@@ -110,18 +118,11 @@
 >
 	<div class="relative">
 		<img
-			src={image || ''}
+			src={image || 'https://placehold.co/400x300?text=No+Image'}
 			alt={name}
-			class="h-16 w-16 rounded-lg object-cover"
 			transition:fade={{ duration: 200 }}
+			class="h-16 w-16 rounded-lg object-cover object-center"
 		/>
-		{#if isUpdating}
-			<div class="absolute inset-0 flex items-center justify-center rounded-lg bg-black/5">
-				<div
-					class="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
-				/>
-			</div>
-		{/if}
 	</div>
 
 	<div class="min-w-0 flex-1">
@@ -133,15 +134,12 @@
 	</div>
 
 	<div class="flex items-center gap-2">
-		<div
-			class="flex items-center rounded-md border bg-background shadow-sm"
-			class:opacity-50={isUpdating}
-		>
+		<div class="flex items-center rounded-md border bg-background shadow-sm">
 			<Button
 				variant="ghost"
 				size="icon"
 				class="h-8 w-8 rounded-r-none"
-				disabled={isUpdating || optimisticQuantity <= 1}
+				disabled={status !== 'idle' || optimisticQuantity <= 1}
 				onclick={() => debouncedUpdate(optimisticQuantity - 1)}
 			>
 				<Minus class="h-3.5 w-3.5" />
@@ -157,7 +155,7 @@
 				variant="ghost"
 				size="icon"
 				class="h-8 w-8 rounded-l-none"
-				disabled={isUpdating}
+				disabled={status !== 'idle'}
 				onclick={() => debouncedUpdate(optimisticQuantity + 1)}
 			>
 				<Plus class="h-3.5 w-3.5" />
@@ -168,16 +166,10 @@
 			variant="destructive"
 			size="icon"
 			class="h-8 w-8"
-			disabled={isRemoving}
+			disabled={status !== 'idle'}
 			onclick={handleRemove}
 		>
-			{#if isRemoving}
-				<div
-					class="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
-				/>
-			{:else}
-				<Trash2 class="h-3.5 w-3.5" />
-			{/if}
+			<Trash2 class="h-3.5 w-3.5" />
 		</Button>
 	</div>
 </div>
