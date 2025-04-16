@@ -61,7 +61,7 @@
 	</div>
 	<div class="min-w-0 flex-1">
 		<h3 class="text-sm font-medium capitalize">{name}</h3>
-		<p class="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+		<p class="mt-0.5 line-clamp-3 text-xs text-muted-foreground">
 			{description}
 		</p>
 		<p class="mt-1 text-xs text-primary">
