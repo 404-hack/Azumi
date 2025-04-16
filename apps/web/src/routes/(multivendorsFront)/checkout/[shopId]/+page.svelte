@@ -202,18 +202,6 @@
 		class="m-auto my-0 flex h-full w-full max-w-6xl flex-col gap-5 px-2 py-5 sm:px-4 md:px-10 md:py-20 lg:flex-row lg:justify-between xl:px-0"
 	>
 		<div class="flex w-full flex-col gap-10 md:gap-10 lg:gap-20">
-			<RadioGroup.Root bind:value={shippingMethodId} class="gap-5 md:gap-10">
-				{#each shippingMethods as method}
-					<div class="flex items-center space-x-2">
-						<RadioGroup.Item value={method.id} id={method.id} />
-						<Label for={method.id}>
-							{method.name}
-							<span class="text-muted-foreground">{formatCurrency(method.price)}</span>
-						</Label>
-					</div>
-				{/each}
-			</RadioGroup.Root>
-
 			<div class="flex h-[auto] w-full flex-col gap-4 py-4 lg:max-w-[600px]">
 				<h4 class="font-display text-lg font-semibold tracking-wide md:text-2xl lg:text-3xl">
 					Selected items
