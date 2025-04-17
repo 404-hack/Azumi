@@ -28,6 +28,7 @@
 	let inputElement: HTMLInputElement;
 	let predictions: PlacePrediction[] = $state([]);
 	let isFocused = $state(false);
+	let isLoading = $state(false);
 	let placesAction: ReturnType<typeof usePlacesAutocomplete> | null = null;
 	let open = $derived.by(() => isFocused && predictions.length > 0);
 	let highlightedIndex = $state(-1);
@@ -74,6 +75,10 @@
 		}
 	}
 
+	function handleInput(event: Event) {
+		isLoading = true;
+	}
+
 	$effect(() => {
 		if (!isFocused) highlightedIndex = -1;
 	});
@@ -83,13 +88,15 @@
 			placesAction = usePlacesAutocomplete(inputElement, {
 				apiKey: PUBLIC_GOOGLE_MAP_API_KEY,
 				onPlaceSelect: (place) => {
+					isLoading = false;
 					if (place && onPlaceSelect) {
 						value = place.address;
-						predictions = []; // Clear predictions after selection
+						predictions = [];
 						onPlaceSelect(place);
 					}
 				},
 				onPredictionsChanged: (newPredictions) => {
+					isLoading = false;
 					predictions = newPredictions;
 				},
 				componentRestrictions: { country: 'ng' },
@@ -105,11 +112,12 @@
 	<input
 		bind:this={inputElement}
 		bind:value
-		class={cn('flex h-10 w-full rounded-md border border-input px-3 py-2', className)}
+		class={cn('flex h-10 w-full rounded-md border border-input px-3 py-2 pr-10', className)}
 		placeholder="Enter a Nigerian address"
 		onfocus={handleInputFocus}
 		onblur={handleInputBlur}
 		onkeydown={handleKeyDown}
+		oninput={handleInput}
 		role="combobox"
 		aria-autocomplete="list"
 		aria-expanded={predictions.length > 0 && isFocused}
@@ -117,6 +125,20 @@
 		aria-activedescendant={highlightedIndex >= 0 ? `places-option-${highlightedIndex}` : undefined}
 		{...restProps}
 	/>
+	{#if isLoading}
+		<span class="absolute right-3 top-1/2 -translate-y-1/2">
+			<svg
+				class="h-5 w-5 animate-spin text-gray-400"
+				xmlns="http://www.w3.org/2000/svg"
+				fill="none"
+				viewBox="0 0 24 24"
+			>
+				<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
+				></circle>
+				<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+			</svg>
+		</span>
+	{/if}
 </div>
 {#if predictions.length > 0 && isFocused}
 	<div

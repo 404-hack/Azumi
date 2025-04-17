@@ -5,12 +5,17 @@ console.log('🚀 ~ activeLocation:', activeLocation.current);
 // if (activeLocation.current.lat === 0 && activeLocation.current.lng === 0) {
 // 	redirect(308, '/');
 // }
-export const load = async () => {
+export const load = async ({ url }) => {
+	// get the category from the query params
+	const category = url.searchParams.get('category') || 'all';
+	if (activeLocation.current.lat === 0 && activeLocation.current.lng === 0) {
+		redirect(308, '/');
+	}
 	const response = await client.shop['near-me'].$get({
 		query: {
 			latitude: activeLocation.current.lat,
 			longitude: activeLocation.current.lng,
-			shopType: 'restaurant',
+			shopType: category,
 			distance: 1000
 		}
 	});
