@@ -56,7 +56,7 @@
 			</a>
 			{#if activeLocation.current.lat != 0 && activeLocation.current.lng != 0}
 				<button
-					class="group items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary md:flex"
+					class="group flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
 					aria-label="Change location"
 					onclick={() => {
 						addDeliveryAddressModalState.setTrue();

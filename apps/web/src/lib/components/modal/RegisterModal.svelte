@@ -22,25 +22,26 @@
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
 				const { confirmPassword, email, firstName, lastName, password } = form.data;
-				
-				
-				const  response = await authClient.signUp.email({
-					email,
-					password,
-					name: `${firstName} ${lastName}`,
-					tokens: 0, // Required property
-					credits: 0  // Required property
-				},{
-					onSuccess: () => {
-						registerModalState.setFalse();
-						loginModalState.setTrue(); // Un-commented line to open the login modal
+
+				const response = await authClient.signUp.email(
+					{
+						email,
+						password,
+						name: `${firstName} ${lastName}`,
+						tokens: 0, // Required property
+						credits: 0 // Required property
 					},
-					onError: (error) => {
-						console.error('Error during registration:', error);
-						// Handle error (e.g., show a toast notification)
+					{
+						onSuccess: () => {
+							registerModalState.setFalse();
+							loginModalState.setTrue(); // Un-commented line to open the login modal
+						},
+						onError: (error) => {
+							console.error('Error during registration:', error);
+							// Handle error (e.g., show a toast notification)
+						}
 					}
-				});
-				
+				);
 			}
 		}
 	});
@@ -53,7 +54,7 @@
 	title={title || 'Create an account'}
 	description="Please fill in the form below to create an account."
 >
-	<form method="POST" use:enhance>
+	<form method="POST" class="" use:enhance>
 		<div class="grid grid-cols-2 items-center gap-4">
 			<Form.Field {form} name="firstName">
 				<Form.Control>

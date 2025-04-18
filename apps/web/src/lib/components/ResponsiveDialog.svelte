@@ -18,9 +18,9 @@
 	let activeSnapPoint = $state(148);
 </script>
 
-{#if isDesktop.current}
+{#if true}
 	<Dialog.Root bind:open>
-		<Dialog.Content class="m-4 sm:max-w-[425px]  ">
+		<Dialog.Content class=" pt-7 sm:max-w-[425px]  ">
 			<!-- <ScrollArea class= "max-h-[90vh]  w-fit "> -->
 			<Dialog.Header>
 				<Dialog.Title>{title}</Dialog.Title>
@@ -28,12 +28,14 @@
 					{description}
 				</Dialog.Description>
 			</Dialog.Header>
-			{@render children()}
+			<div class="p-1">
+				{@render children()}
+			</div>
 			<!-- </ScrollArea> -->
 		</Dialog.Content>
 	</Dialog.Root>
 {:else}
-	<Drawer.Root bind:open >
+	<Drawer.Root bind:open>
 		<!-- <ScrollArea class="max-h-[90vh] w-full  p-5 "></ScrollArea> -->
 		<Drawer.Content class="w-full p-5 sm:p-7   ">
 			<Drawer.Header class="px-0 text-left">
@@ -43,7 +45,6 @@
 				</Drawer.Description>
 			</Drawer.Header>
 			<div>
-
 				{@render children()}
 			</div>
 		</Drawer.Content>

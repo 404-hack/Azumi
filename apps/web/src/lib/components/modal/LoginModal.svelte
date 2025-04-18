@@ -51,7 +51,7 @@
 </script>
 
 <ResponsiveDialog title={title || 'Login to your account'} bind:open={loginModalState.value}>
-	<form method="post" use:enhance>
+	<form method="post" class="p-1" use:enhance>
 		<Form.Field {form} name="email">
 			<Form.Control>
 				{#snippet children({ props })}

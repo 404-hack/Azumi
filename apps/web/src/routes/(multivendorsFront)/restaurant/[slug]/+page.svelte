@@ -23,6 +23,7 @@
 	import { cartSheetState } from '$lib/states/modalState.svelte.js';
 	import { fly, fade, slide } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
+	import { formatCurrency } from '$lib/utils.js';
 
 	let activeCategory = $state('');
 	let searchQuery = $state('');
@@ -34,6 +35,7 @@
 
 	// Reactive check for cart items
 	const hasCartItems = $derived(data.shopCart && data.shopCart.items.length > 0);
+	console.log('🚀 ~ data.shopCart:', data.shopCart);
 
 	// Calculate total cart amount
 	const cartTotal = $derived(
@@ -366,14 +368,14 @@
 		<!-- Action Buttons -->
 		<div class="absolute right-4 top-4 z-20 flex gap-2">
 			<button
-				on:click={toggleFavorite}
+				onclick={toggleFavorite}
 				class="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md transition-all hover:bg-black/50"
 				aria-label="Favorite"
 			>
 				<Heart class="size-5" fill={isFavorited ? 'currentColor' : 'none'} />
 			</button>
 			<button
-				on:click={handleShare}
+				onclick={handleShare}
 				class="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md transition-all hover:bg-black/50"
 				aria-label="Share"
 			>
@@ -430,7 +432,7 @@
 				{#each categories as category}
 					{#if !searchQuery || hasItemsInCategory(category)}
 						<button
-							on:click={() => scrollToCategory(category)}
+							onclick={() => scrollToCategory(category)}
 							class="flex-shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-all {activeCategory ===
 							category
 								? 'border-primary/10 bg-primary/10 text-primary shadow-sm'
@@ -456,7 +458,7 @@
 					<Search class="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
 					{#if searchQuery}
 						<button
-							on:click={clearSearch}
+							onclick={clearSearch}
 							class="absolute right-3 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full bg-gray-200 p-1 text-gray-500 hover:bg-gray-300"
 						>
 							<svg
@@ -514,7 +516,7 @@
 						<h3 class="mb-2 text-lg font-medium text-gray-900">No results found</h3>
 						<p class="mb-4 text-gray-500">No menu items found matching "{searchQuery}"</p>
 						<button
-							on:click={clearSearch}
+							onclick={clearSearch}
 							class="rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20"
 						>
 							Clear search
@@ -555,10 +557,6 @@
 									src={`https://maps.googleapis.com/maps/api/staticmap?center=${data.restaurant.latitude},${data.restaurant.longitude}&zoom=15&size=600x300&markers=color:red%7C${data.restaurant.latitude},${data.restaurant.longitude}&key=YOUR_API_KEY`}
 									alt="Restaurant location map"
 									class="h-full w-full object-cover"
-									on:error={(e) => {
-										e.currentTarget.onerror = null;
-										e.currentTarget.src = '/shop.avif';
-									}}
 								/>
 							</div>
 							<a
@@ -708,7 +706,7 @@
 			<!-- Additional Information Accordion -->
 			<div class="mt-8">
 				<button
-					on:click={() => (isMoreInfoOpen = !isMoreInfoOpen)}
+					onclick={() => (isMoreInfoOpen = !isMoreInfoOpen)}
 					class="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors hover:bg-gray-50"
 				>
 					<span class="flex items-center gap-2 font-medium text-gray-900">
@@ -835,8 +833,8 @@
 	{#if hasCartItems}
 		<div class="fixed bottom-8 right-8 z-40">
 			<button
-				on:click={handleCartClick}
-				class="group flex items-center gap-3 rounded-full bg-primary px-4 py-3 text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+				onclick={handleCartClick}
+				class="group flex w-full items-center gap-3 rounded-md bg-primary px-4 py-3 text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
 				in:fly={{ y: 50, duration: 300 }}
 			>
 				<div class="relative flex items-center">
@@ -849,7 +847,7 @@
 				</div>
 				<div class="flex flex-col items-start">
 					<span class="text-xs font-medium text-white/80">Your order</span>
-					<span class="font-medium">₦{cartTotal.toLocaleString()}</span>
+					<span class="font-medium">{formatCurrency(data.shopCart.subtotal)}</span>
 				</div>
 			</button>
 		</div>

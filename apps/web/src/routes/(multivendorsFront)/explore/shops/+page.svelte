@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { fade, fly } from 'svelte/transition';
 	import { Star, MapPin, Search, Clock } from 'lucide-svelte';
+	import FilterModal from '$lib/components/modal/FilterModal.svelte';
 
 	// Sample restaurant data (in a real app, this would come from an API)
 	let { data } = $props();
@@ -15,6 +16,7 @@
 	<div class="mb-8">
 		<h1 class="mb-2 text-3xl font-semibold">Restaurants</h1>
 		<p class="mb-6 text-muted-foreground">Explore our selection of restaurants</p>
+		<FilterModal />
 	</div>
 
 	<!-- Restaurant grid - clean and simple -->
