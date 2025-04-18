@@ -23,6 +23,15 @@
 	};
 
 	const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+	const daysOrder = {
+		Monday: 0,
+		Tuesday: 1,
+		Wednesday: 2,
+		Thursday: 3,
+		Friday: 4,
+		Saturday: 5,
+		Sunday: 6
+	};
 
 	const defaultSchedule = days.map((day) => ({
 		day,
@@ -65,56 +74,62 @@
 			}
 		}
 	);
-	console.log('🚀 ~ const{form,enhance,delayed,errors}=superForm ~ form:', $form);
+
+	// Simple helper function to find the index of a day in the form.schedule array
+	function getDayIndex(dayName: string): number {
+		return $form.schedule.findIndex((item) => item.day === dayName);
+	}
 </script>
 
 <form method="POST" use:enhance class="space-y-6">
 	{#if $form.schedule}
-		{#each [...$form.schedule].sort((a, b) => {
-			const daysOrder = { Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: 6 };
-			return daysOrder[a.day] - daysOrder[b.day];
-		}) as day, i}
-			<div class="rounded-lg border p-4">
-				<div class="flex items-center justify-between">
-					<h3 class="text-lg font-medium">{day.day}</h3>
-					<div class="flex items-center space-x-2">
-						<Switch id="{day.day}-isOpen" bind:checked={$form.schedule[i].isOpen} />
-						<label for="{day.day}-isOpen">
-							{$form.schedule[i].isOpen ? 'Open' : 'Closed'}
-						</label>
-					</div>
-				</div>
-
-				{#if $form.schedule[i].isOpen}
-					<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div class="space-y-2">
-							<label for="{day.day}-openTime">Opening Time</label>
-							<input
-								type="time"
-								id="{day.day}-openTime"
-								bind:value={$form.schedule[i].openTime}
-								class="w-full rounded-md border border-gray-300 px-3 py-2"
-							/>
-							{#if $errors.schedule?.[i]?.openTime}
-								<p class="text-sm text-red-500">{$errors.schedule[i].openTime}</p>
-							{/if}
+		{#each days as dayName}
+			{#if $form.schedule.some((item) => item.day === dayName)}
+				{@const dayIndex = getDayIndex(dayName)}
+				{#if dayIndex >= 0}
+					<div class="rounded-lg border p-4">
+						<div class="flex items-center justify-between">
+							<h3 class="text-lg font-medium">{dayName}</h3>
+							<div class="flex items-center space-x-2">
+								<Switch id="{dayName}-isOpen" bind:checked={$form.schedule[dayIndex].isOpen} />
+								<label for="{dayName}-isOpen">
+									{$form.schedule[dayIndex].isOpen ? 'Open' : 'Closed'}
+								</label>
+							</div>
 						</div>
 
-						<div class="space-y-2">
-							<label for="{day.day}-closeTime">Closing Time</label>
-							<input
-								type="time"
-								id="{day.day}-closeTime"
-								bind:value={$form.schedule[i].closeTime}
-								class="w-full rounded-md border border-gray-300 px-3 py-2"
-							/>
-							{#if $errors.schedule?.[i]?.closeTime}
-								<p class="text-sm text-red-500">{$errors.schedule[i].closeTime}</p>
-							{/if}
-						</div>
+						{#if $form.schedule[dayIndex].isOpen}
+							<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+								<div class="space-y-2">
+									<label for="{dayName}-openTime">Opening Time</label>
+									<input
+										type="time"
+										id="{dayName}-openTime"
+										bind:value={$form.schedule[dayIndex].openTime}
+										class="w-full rounded-md border border-gray-300 px-3 py-2"
+									/>
+									{#if $errors.schedule?.[dayIndex]?.openTime}
+										<p class="text-sm text-red-500">{$errors.schedule[dayIndex].openTime}</p>
+									{/if}
+								</div>
+
+								<div class="space-y-2">
+									<label for="{dayName}-closeTime">Closing Time</label>
+									<input
+										type="time"
+										id="{dayName}-closeTime"
+										bind:value={$form.schedule[dayIndex].closeTime}
+										class="w-full rounded-md border border-gray-300 px-3 py-2"
+									/>
+									{#if $errors.schedule?.[dayIndex]?.closeTime}
+										<p class="text-sm text-red-500">{$errors.schedule[dayIndex].closeTime}</p>
+									{/if}
+								</div>
+							</div>
+						{/if}
 					</div>
 				{/if}
-			</div>
+			{/if}
 		{/each}
 	{/if}
 

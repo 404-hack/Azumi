@@ -304,7 +304,6 @@ const shopRoute = factory
           menuCategories: {
             with: {
               menus: {
-                where: (menuItems, { eq }) => eq(menuItems.inStock, true),
                 orderBy: (menuItems, { asc }) => asc(menuItems.name),
                 with: {
                   menuItemOptionGroups: {

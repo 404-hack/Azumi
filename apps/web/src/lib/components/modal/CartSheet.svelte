@@ -41,19 +41,6 @@
 </script>
 
 <Sheet.Root bind:open={cartSheetState.value}>
-	<Sheet.Trigger>
-		<Button variant="outline" size="icon" onclick={cart.toggleCart} class="relative">
-			<ShoppingBag class="h-4 w-4" />
-			{#if displayItemCount > 0}
-				<span
-					class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground"
-				>
-					{displayItemCount}
-				</span>
-			{/if}
-		</Button>
-	</Sheet.Trigger>
-
 	<Sheet.Content class="w-full overflow-y-auto rounded-s-lg p-4 pt-10 sm:max-w-lg">
 		<Sheet.Header>
 			<Sheet.Title class="flex items-center gap-2">

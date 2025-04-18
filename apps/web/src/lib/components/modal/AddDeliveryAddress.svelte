@@ -33,6 +33,8 @@
 				lat: place.lat,
 				lng: place.lng
 			};
+			toast.success('Location obtained successfully');
+			addDeliveryAddressModalState.setFalse();
 		}
 	}
 

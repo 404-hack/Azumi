@@ -56,7 +56,7 @@
 			</a>
 			{#if activeLocation.current.lat != 0 && activeLocation.current.lng != 0}
 				<button
-					class="group hidden items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary md:flex"
+					class="group flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
 					aria-label="Change location"
 					onclick={() => {
 						addDeliveryAddressModalState.setTrue();
@@ -112,8 +112,6 @@
 
 			{#if user}
 				<nav class="flex items-center gap-3">
-					
-
 					<DropdownMenu.Root>
 						<DropdownMenu.Trigger>
 							<Button
@@ -185,67 +183,75 @@
 					</DropdownMenu.Root>
 					<ResponsiveDropdown>
 						{#snippet trigger()}
-						<Button
-						variant="ghost"
-						class="relative h-9 w-9 rounded-full p-0 hover:bg-muted/80"
-						aria-label="User menu"
-					>
-						<Avatar class="h-9 w-9">
-							<AvatarImage src={user.image} alt={user.name || 'User'} />
-							<AvatarFallback>
-								{user?.name
-									?.split(' ')
-									.map((n) => n.charAt(0))
-									.join('')
-									.toUpperCase() ?? ''}
-							</AvatarFallback>
-						</Avatar>
-					</Button>
+							<Button
+								variant="ghost"
+								class="relative h-9 w-9 rounded-full p-0 hover:bg-muted/80"
+								aria-label="User menu"
+							>
+								<Avatar class="h-9 w-9">
+									<AvatarImage src={user.image} alt={user.name || 'User'} />
+									<AvatarFallback>
+										{user?.name
+											?.split(' ')
+											.map((n) => n.charAt(0))
+											.join('')
+											.toUpperCase() ?? ''}
+									</AvatarFallback>
+								</Avatar>
+							</Button>
 						{/snippet}
 						{#snippet children()}
-						<div  >
-						<div class='dropdown-menu-label'>My Account</div>
-						<Separator />
-							<a class="dropdown-menu-item " href="/me/personal-info" ><User class="mr-2 h-4 w-4" />Profile</a>
-							<a href="/me/orders" class="dropdown-menu-item"><Package class="mr-2 h-4 w-4" />Orders</a>
-							<a href="/me/favorites" class="dropdown-menu-item"><Heart class="mr-2 h-4 w-4" />Favorites</a>
-							<a href="/me/settings" class="dropdown-menu-item"><Settings class="mr-2 h-4 w-4" />Settings</a>
-						<Separator />
-						
-						{#if $organizations.isPending}
-							<p>Loading...</p>
-						{:else if $organizations.data === null}
-							<span class="sr-only">no organizations</span>
-						{:else}
-							{#each $organizations.data as organization}
-								<button
-								type='button'
-								class="dropdown-menu-item"
-									onclick={() => {
-										authClient.organization.setActive({
-											organizationSlug: organization.slug
-										});
-										goto('/vendor/menu');
-									}}
+							<div>
+								<div class="dropdown-menu-label">My Account</div>
+								<Separator />
+								<a class="dropdown-menu-item" href="/me/personal-info"
+									><User class="mr-2 h-4 w-4" />Profile</a
 								>
-									<Store class="mr-2 h-4 w-4" />
-									{organization.name}
-								</button>
-							{/each}
-						{/if}
+								<a href="/me/orders" class="dropdown-menu-item"
+									><Package class="mr-2 h-4 w-4" />Orders</a
+								>
+								<a href="/me/favorites" class="dropdown-menu-item"
+									><Heart class="mr-2 h-4 w-4" />Favorites</a
+								>
+								<a href="/me/settings" class="dropdown-menu-item"
+									><Settings class="mr-2 h-4 w-4" />Settings</a
+								>
+								<Separator />
 
-						<Separator />
-							<button
-							class="dropdown-menu-item text-red-500"
-								onclick={async () => {
-									authClient.signOut();
-									await invalidateAll();
-								}}
-								type="button"
-							>
-								Sign out
-							</button>
-						</div>
+								{#if $organizations.isPending}
+									<p>Loading...</p>
+								{:else if $organizations.data === null}
+									<span class="sr-only">no organizations</span>
+								{:else}
+									{#each $organizations.data as organization}
+										<button
+											type="button"
+											class="dropdown-menu-item"
+											onclick={() => {
+												authClient.organization.setActive({
+													organizationSlug: organization.slug
+												});
+												goto('/vendor/menu');
+											}}
+										>
+											<Store class="mr-2 h-4 w-4" />
+											{organization.name}
+										</button>
+									{/each}
+								{/if}
+
+								<Separator />
+								<button
+									class="dropdown-menu-item text-red-500"
+									onclick={async () => {
+										authClient.signOut();
+										await invalidateAll();
+									}}
+									type="button"
+								>
+									Sign out
+								</button>
+							</div>
 						{/snippet}
 					</ResponsiveDropdown>
 				</nav>

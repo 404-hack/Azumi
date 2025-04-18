@@ -3,13 +3,12 @@
 	import { Button } from '$lib/components/ui/button';
 	import { fade, fly } from 'svelte/transition';
 	import { Star, MapPin, Search, Clock } from 'lucide-svelte';
+	import FilterModal from '$lib/components/modal/FilterModal.svelte';
 
 	// Sample restaurant data (in a real app, this would come from an API)
-	let {data} = $props();
+	let { data } = $props();
 
 	let searchTerm = $state('');
-
-	
 </script>
 
 <div in:fade={{ duration: 300 }} class=" mx-auto py-6">
@@ -17,29 +16,23 @@
 	<div class="mb-8">
 		<h1 class="mb-2 text-3xl font-semibold">Restaurants</h1>
 		<p class="mb-6 text-muted-foreground">Explore our selection of restaurants</p>
-
-		<div class="max-w-md">
-			<div class="flex items-center rounded-md border bg-background px-3 py-2 shadow-sm">
-				<Search class="mr-2 h-4 w-4 text-muted-foreground" />
-				<input
-					type="text"
-					placeholder="Search restaurants or cuisines..."
-					class="flex-1 border-none bg-transparent focus:outline-none"
-					bind:value={searchTerm}
-				/>
-			</div>
-		</div>
+		<FilterModal />
 	</div>
 
 	<!-- Restaurant grid - clean and simple -->
-	<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 ">
-		{#each data.shops as {name, description, coverImage, averageRating,deliveryFee,estimatedTime,distance,slug	}, i}
-			<RestaurantCard2 name={name} description={description} image={coverImage} rating={averageRating} i={i}
-			deliveryTime={estimatedTime} deliveryRange={distance} deliveryPrice={deliveryFee} {slug}
-
+	<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+		{#each data.shops as { name, description, coverImage, averageRating, deliveryFee, estimatedTime, distance, slug }, i}
+			<RestaurantCard2
+				{name}
+				{description}
+				image={coverImage}
+				rating={averageRating}
+				{i}
+				deliveryTime={estimatedTime}
+				deliveryRange={distance}
+				deliveryPrice={deliveryFee}
+				{slug}
 			/>
-			
-		
 		{/each}
 	</div>
 

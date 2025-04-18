@@ -129,7 +129,7 @@
 
 <div>
 	<!-- Filter tabs -->
-	<div class="mb-6 border-b">
+	<!-- <div class="mb-6 border-b">
 		<div class="scrollbar-hide flex overflow-x-auto">
 			{#each filters as filter}
 				<button
@@ -142,7 +142,7 @@
 				</button>
 			{/each}
 		</div>
-	</div>
+	</div> -->
 
 	<!-- Featured section with larger cards -->
 	<div class="mb-10" in:fade={{ duration: 300 }}>
@@ -179,7 +179,9 @@
 						<h3 class="mb-1 text-lg font-medium">{item.name}</h3>
 						<p class="mb-2 line-clamp-2 text-sm text-muted-foreground">{item.description}</p>
 
-						<div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+						<div
+							class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+						>
 							<span class="flex items-center">
 								<Bike class="mr-1 h-3 w-3" />
 								{item.deliveryTime}
@@ -248,7 +250,7 @@
 					<div class="p-3">
 						<h4 class="line-clamp-1 text-sm font-medium">{item.name}</h4>
 						<div class="mt-1 flex items-center justify-between text-xs">
-<span class="text-muted-foreground">{item.category}</span>
+							<span class="text-muted-foreground">{item.category}</span>
 							<div class="flex items-center text-amber-500">
 								<Star class="h-3 w-3 fill-current" />
 								<span class="ml-1">{item.rating}</span>
