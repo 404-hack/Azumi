@@ -5,7 +5,7 @@
 	import { Star, MapPin, Search, Clock } from 'lucide-svelte';
 	import FilterModal from '$lib/components/modal/FilterModal.svelte';
 
-	// Sample restaurant data (in a real app, this would come from an API)
+	// Get data from load function
 	let { data } = $props();
 
 	let searchTerm = $state('');
@@ -13,9 +13,12 @@
 
 <div in:fade={{ duration: 300 }} class=" mx-auto py-6">
 	<!-- Header with simple search -->
-	<div class="mb-8">
-		<h1 class="mb-2 text-3xl font-semibold">Restaurants</h1>
-		<p class="mb-6 text-muted-foreground">Explore our selection of restaurants</p>
+	<div class="mb-8 flex items-center justify-between">
+		<div>
+			<h1 class="mb-2 text-3xl font-semibold">Restaurants Near me</h1>
+			<!-- <p class="mb-6 text-muted-foreground">Explore our selection of restaurants</p> -->
+		</div>
+		<!-- No initialFilters prop needed - FilterModal gets all data from URL params -->
 		<FilterModal />
 	</div>
 
@@ -39,7 +42,7 @@
 	<!-- Simple message when no results -->
 	{#if data.shops.length === 0}
 		<div class="py-8 text-center">
-			<p class="text-muted-foreground">No restaurants found. Try a different search.</p>
+			<p class="text-muted-foreground">No restaurants found. Try adjusting your filters.</p>
 		</div>
 	{/if}
 </div>

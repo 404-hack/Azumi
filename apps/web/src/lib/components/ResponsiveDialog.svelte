@@ -20,13 +20,13 @@
 
 <Dialog.Root bind:open>
 	<Dialog.Content class=" pt-7 sm:max-w-[425px]  ">
-		<!-- <ScrollArea class= "max-h-[90vh]  w-fit "> -->
 		<Dialog.Header>
 			<Dialog.Title>{title}</Dialog.Title>
 			<Dialog.Description>
 				{description}
 			</Dialog.Description>
 		</Dialog.Header>
+		<!-- <ScrollArea class= "max-h-[90vh]  w-fit "> -->
 		<div class="p-1">
 			{@render children()}
 		</div>

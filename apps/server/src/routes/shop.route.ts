@@ -11,10 +11,19 @@ import {
   shopTable,
   shopTodoTable,
 } from "../lib/db/schema/shop.schema";
-import { and, between, eq, sql } from "drizzle-orm";
+import { and, between, eq, gte, in_, lte, sql } from "drizzle-orm";
 import { createAuth } from "../lib/auth";
 import { nanoid } from "nanoid";
 import { factory } from "../lib/factory";
+import { DAYS_OF_WEEK } from "../lib/constant";
+import {
+  isShopCurrentlyOpen,
+  parseTimeStringToMinutes,
+  calculateHaversineDistance, // Import new utility function
+  calculateDeliveryFee, // Import new utility function
+  estimateTravelTime, // Import new utility function
+} from "../lib/utils/shop.utils"; // Import helpers
+import { z } from "zod";
 
 const shopRoute = factory
   .createApp()
@@ -30,9 +39,24 @@ const shopRoute = factory
         distance: searchRadius,
         maxDistance: maxDeliveryDistance,
         shopType,
+        // Get simplified filter parameters
+        openNow,
+        feeMin,
+        feeMax,
+        rating,
+        discount,
+        sort,
       } = c.req.valid("query");
 
       console.log("User coordinates:", { lat, lng });
+      console.log("Filters applied:", {
+        openNow,
+        feeMin,
+        feeMax,
+        rating,
+        discount,
+        sort,
+      });
 
       // Calculate boundary box (rough approximation)
       const latDelta = searchRadius / 111; // 1 degree of latitude is approximately 111 km
@@ -43,20 +67,47 @@ const shopRoute = factory
       const minLon = lng - lonDelta;
       const maxLon = lng + lonDelta;
 
+      // Get current time for openNow filter
+      const now = new Date();
+      const currentDay = now.getDay(); // 0 for Sunday, 1 for Monday, etc.
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const currentTimeMinutes = currentHour * 60 + currentMinute;
+
+      // Convert day number to day string based on your constants
+      const dayMapping = {
+        0: "SUNDAY",
+        1: "MONDAY",
+        2: "TUESDAY",
+        3: "WEDNESDAY",
+        4: "THURSDAY",
+        5: "FRIDAY",
+        6: "SATURDAY",
+      };
+
+      const currentDayString =
+        dayMapping[currentDay as keyof typeof dayMapping];
+
       // Query for shops within the bounding box
       let query = db.query.shopTable.findMany({
-        where: (shops, { and, eq, gte, lte, sql }) => {
+        where: (shops, { and, eq, gte, lte, sql, not, isNull, or }) => {
           // Start with base query conditions
           let conditions = [
             gte(shops.latitude, minLat),
             lte(shops.latitude, maxLat),
             gte(shops.longitude, minLon),
             lte(shops.longitude, maxLon),
+            // eq(shops.active, true), // Only active shops
           ];
 
           // Add shop type filter if provided
           if (shopType) {
             conditions.push(eq(shops.shopType, shopType));
+          }
+
+          // Add rating filter if provided (single minimum rating value)
+          if (rating !== null) {
+            conditions.push(gte(shops.averageRating, rating));
           }
 
           // Return combined conditions
@@ -71,10 +122,11 @@ const shopRoute = factory
           coverImage: true,
           averageRating: true,
           totalRatings: true,
-
           active: true,
           longitude: true,
           latitude: true,
+          createdAt: true,
+          updatedAt: true,
         },
         with: {
           operatingHours: true,
@@ -82,17 +134,17 @@ const shopRoute = factory
       });
 
       const shops = await query;
-      console.log(shops);
+      console.log(`Found ${shops.length} shops within the bounding box`);
 
       // Filter shops by actual distance using Haversine (still needed for accuracy)
-      const nearbyShops = shops
-        .filter((shop) => {
+      let nearbyShops = shops
+        .map((shop) => {
           try {
             // Use direct latitude and longitude from the shop record
             const shopLat = shop.latitude;
             const shopLng = shop.longitude;
 
-            // Skip shops without coordinates (already filtered by DB if non-null constraint exists, but good safety check)
+            // Skip shops without coordinates
             if (
               shopLat === null ||
               shopLng === null ||
@@ -102,117 +154,138 @@ const shopRoute = factory
               console.warn(
                 `Shop ${shop.id} skipped due to missing coordinates.`
               );
-              return false;
+              return null; // Return null for shops that don't have coordinates
             }
 
-            // Bounding box check is now done in the DB query, technically redundant here but harmless
-            // if (
-            //   shopLat < minLat ||
-            //   shopLat > maxLat ||
-            //   shopLng < minLon ||
-            //   shopLng > maxLon
-            // ) {
-            //   return false;
-            // }
+            // Calculate actual distance using Haversine formula (use imported function)
+            const distance = calculateHaversineDistance(
+              lat,
+              lng,
+              shopLat,
+              shopLng
+            );
 
-            // Calculate actual distance using Haversine formula
-            const R = 6371; // Earth's radius in km
-            const dLat = ((shopLat - lat) * Math.PI) / 180;
-            const dLon = ((shopLng - lng) * Math.PI) / 180;
-            const a =
-              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos((lat * Math.PI) / 180) *
-                Math.cos((shopLat * Math.PI) / 180) *
-                Math.sin(dLon / 2) *
-                Math.sin(dLon / 2);
-            const c_dist = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            const distance = R * c_dist;
+            // Calculate isOpen status
+            const isOpen = isShopCurrentlyOpen(
+              shop.operatingHours,
+              currentDayString,
+              currentTimeMinutes
+            );
 
-            // Store distance for later use in sorting
-            (shop as any).distance = distance;
-
-            // Check if shop is within the specified radius
-            return distance <= searchRadius;
+            // Return shop with distance and isOpen status
+            return { ...shop, distance, isOpen };
           } catch (e) {
             console.error(`Error processing shop ${shop.id}:`, e);
-            return false;
+            return null; // Return null for shops that errored
           }
         })
-        // Sort by distance (closest first)
-        .sort((a, b) => (a as any).distance - (b as any).distance);
+        .filter((shop): shop is NonNullable<typeof shop> => shop !== null) // Filter out nulls
+        .filter((shop) => {
+          // Check if shop is within the specified radius
+          return shop.distance <= searchRadius;
+        });
 
-      // Function to estimate total delivery time (including buffer for prep/rider travel to shop)
-      // Updated with a slightly reduced average buffer and tight 10-min range.
-      const estimateTravelTime = (distanceKm: number): string => {
-        // --- Configuration ---
-        const averageSpeedKmh = 17.5; // Avg. cycling speed (km/h) - Adjust if needed based on vehicle/area
-        // Buffer includes avg. prep time, rider assignment, and rider travel TO shop.
-        // Reduced slightly to 6 mins, acknowledging riders might often be nearby,
-        // but retaining buffer for necessary prep and assignment variability.
-        const averageBufferMinutes = 6;
-        const rangeHalfWidth = 5; // Creates a 10-minute total range (center +/- 5)
-        const minimumEstimateCenter = 15; // Min. center time (e.g., avoids "5-15 min")
+      // Apply additional filters
+      nearbyShops = nearbyShops.filter((shop) => {
+        // Apply delivery fee filter
+        const distanceKm = shop.distance; // Use pre-calculated distance
+        const deliveryFee = calculateDeliveryFee(distanceKm);
+        (shop as any).deliveryFee = deliveryFee; // Store fee for sorting/response
 
-        // --- Calculation ---
-        // Calculate base travel time from shop to customer
-        const baseTimeMinutes = (distanceKm / averageSpeedKmh) * 60;
-
-        // Calculate total estimated time including average buffer
-        const totalEstimatedTime = baseTimeMinutes + averageBufferMinutes;
-
-        // Round the total estimate to the nearest 5 minutes to get the center of our range
-        const centerRounded = Math.round(totalEstimatedTime / 5) * 5;
-
-        // Ensure the center point isn't below our defined minimum
-        const finalCenter = Math.max(minimumEstimateCenter, centerRounded);
-
-        // Calculate the lower and upper bounds based on the final center
-        const lowerBound = finalCenter - rangeHalfWidth;
-        const upperBound = finalCenter + rangeHalfWidth;
-
-        // Return the formatted string (e.g., "20-30 min")
-        return `${lowerBound}-${upperBound} min`;
-      };
-
-      // Function to calculate delivery fee based on distance in Nigerian Naira (NGN)
-      // Using a base fee + per km model for more granular pricing.
-      const calculateDeliveryFee = (distanceKm: number): number => {
-        const baseFee = 350; // Base fee in NGN (covers first ~1km)
-        const perKmFee = 150; // Fee per km after the first km in NGN
-        const minimumDistanceForPerKm = 1; // Distance (km) included in the base fee
-
-        let deliveryFee = baseFee;
-
-        if (distanceKm > minimumDistanceForPerKm) {
-          deliveryFee += (distanceKm - minimumDistanceForPerKm) * perKmFee;
+        if (deliveryFee < feeMin || deliveryFee > feeMax) {
+          return false;
         }
 
-        // Ensure the fee is at least the base fee and round to nearest 50 Naira for cleaner pricing
-        const finalFee = Math.max(baseFee, deliveryFee);
-        return Math.round(finalFee / 50) * 50;
+        // Apply open now filter using pre-calculated isOpen status
+        if (openNow && !shop.isOpen) {
+          return false;
+        }
 
-        // Example calculations:
-        // 1 km: Math.round(Math.max(350, 350 + (1-1)*150) / 50) * 50 = 350
-        // 3 km: Math.round(Math.max(350, 350 + (3-1)*150) / 50) * 50 = Math.round(650 / 50) * 50 = 650
-        // 5 km: Math.round(Math.max(350, 350 + (5-1)*150) / 50) * 50 = Math.round(950 / 50) * 50 = 950
-        // 7 km: Math.round(Math.max(350, 350 + (7-1)*150) / 50) * 50 = Math.round(1250 / 50) * 50 = 1250
-        // Note: This model provides smoother scaling than fixed tiers. Adjust baseFee/perKmFee as needed.
+        // For discount filter implementation (when discountPercentage is added to schema)
+        // We'll keep the structure ready for future implementation
+        // if (discount === 'any') {
+        //   // Check if shop has any discount
+        //   if (!shop.discountPercentage || shop.discountPercentage <= 0) {
+        //     return false;
+        //   }
+        // } else if (discount) {
+        //   // Check for specific discount percentage
+        //   const discountValue = Number(discount);
+        //   if (shop.discountPercentage !== discountValue) {
+        //     return false;
+        //   }
+        // }
+
+        return true;
+      });
+
+      // Sort results based on sort parameter
+      switch (sort) {
+        case "newest":
+          // Sort by creation date (newest first)
+          nearbyShops.sort((a, b) => {
+            const aCreatedAt = a.createdAt
+              ? new Date(a.createdAt).getTime()
+              : 0;
+            const bCreatedAt = b.createdAt ? new Date(bCreatedAt).getTime() : 0;
+            return bCreatedAt - aCreatedAt;
+          });
+          break;
+        case "price: low to high":
+          // Sort by delivery fee, lowest first
+          nearbyShops.sort(
+            (a, b) => (a as any).deliveryFee - (b as any).deliveryFee
+          );
+          break;
+        case "price: high to low":
+          // Sort by delivery fee, highest first
+          nearbyShops.sort(
+            (a, b) => (b as any).deliveryFee - (a as any).deliveryFee
+          );
+          break;
+        case "rating: high to low":
+          // Sort by average rating, highest first
+          nearbyShops.sort(
+            (a, b) => (b.averageRating || 0) - (a.averageRating || 0)
+          );
+          break;
+        case "recommended":
+        default:
+          // Default sort by distance (closest first)
+          nearbyShops.sort((a, b) => (a as any).distance - (b as any).distance);
+          break;
+      }
+
+      // Create a simplified filter state for the response
+      const appliedFilters = {
+        openNow,
+        feeRange: [feeMin, feeMax],
+        rating,
+        discount,
+        activeSort: sort,
       };
 
       return c.json({
         data: {
           userLocation: { latitude: lat, longitude: lng },
           shops: nearbyShops.map((shop) => {
-            const distanceKm = parseFloat((shop as any).distance.toFixed(2)); // Distance is in kilometers
-            const estimatedTime = estimateTravelTime(distanceKm); // Uses the updated function
-            const deliveryFee = calculateDeliveryFee(distanceKm); // Calculate the delivery fee
+            const distanceKm = parseFloat(shop.distance.toFixed(2)); // Use pre-calculated distance
+            const estimatedTime = estimateTravelTime(distanceKm); // Use imported function
+            const deliveryFee =
+              (shop as any).deliveryFee || calculateDeliveryFee(distanceKm); // Use imported function
+
+            // Remove operatingHours from the final shop object if desired, keep isOpen
+            const { operatingHours, ...shopResponse } = shop;
+
             return {
-              ...shop,
-              distance: distanceKm, // Keep the precise distance in km
-              estimatedTime: estimatedTime, // Add the updated estimated time string (e.g., "20-30 min")
-              deliveryFee: deliveryFee, // Add the calculated delivery fee
+              ...shopResponse, // Includes the pre-calculated isOpen
+              distance: distanceKm,
+              estimatedTime: estimatedTime,
+              deliveryFee: deliveryFee,
+              // isOpen: shop.isOpen // Already included via spread
             };
           }),
+          filters: appliedFilters,
         },
       });
     } catch (error) {
@@ -228,10 +301,10 @@ const shopRoute = factory
       const auth = await createAuth(db);
 
       // Get user and verify
-      // const user = c.get("user");
-      // if (!user) {
-      //   return c.json({ error: "Unauthorized" }, 401);
-      // }
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
 
       const slug = `${data.name
         .trim()
@@ -292,44 +365,54 @@ const shopRoute = factory
   })
 
   // Get shop by slug
-  .get("/:slug", async (c) => {
-    try {
-      const { slug } = c.req.param();
-      const db = c.get("db");
-      const shop = await db.query.shopTable.findFirst({
-        where: eq(shopTable.slug, slug),
-        with: {
-          operatingHours: true,
-
-          menuCategories: {
-            with: {
-              menus: {
-                orderBy: (menuItems, { asc }) => asc(menuItems.name),
-                with: {
-                  menuItemOptionGroups: {
-                    columns: {
-                      menuItemId: false,
-                      optionGroupId: false,
-                      sortOrder: false,
-                    },
-                    with: {
-                      optionGroup: {
-                        columns: {
-                          id: true,
-                          name: true,
-                          minSelections: true,
-                          maxSelections: true,
-                        },
-                        with: {
-                          optionsToOptionGroups: {
-                            columns: {
-                              optionId: false,
-                              optionGroupId: false,
-                              createdAt: false,
-                              updatedAt: false,
-                            },
-                            with: {
-                              option: true,
+  .get(
+    "/:slug",
+    zValidator(
+      "query",
+      z.object({
+        latitude: z.number().optional(),
+        longitude: z.number().optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        const { slug } = c.req.param();
+        const { latitude: userLat, longitude: userLng } = c.req.valid("query");
+        const db = c.get("db");
+        const shop = await db.query.shopTable.findFirst({
+          where: eq(shopTable.slug, slug),
+          with: {
+            operatingHours: true,
+            menuCategories: {
+              with: {
+                menus: {
+                  orderBy: (menuItems, { asc }) => asc(menuItems.name),
+                  with: {
+                    menuItemOptionGroups: {
+                      columns: {
+                        menuItemId: false,
+                        optionGroupId: false,
+                        sortOrder: false,
+                      },
+                      with: {
+                        optionGroup: {
+                          columns: {
+                            id: true,
+                            name: true,
+                            minSelections: true,
+                            maxSelections: true,
+                          },
+                          with: {
+                            optionsToOptionGroups: {
+                              columns: {
+                                optionId: false,
+                                optionGroupId: false,
+                                createdAt: false,
+                                updatedAt: false,
+                              },
+                              with: {
+                                option: true,
+                              },
                             },
                           },
                         },
@@ -340,25 +423,85 @@ const shopRoute = factory
               },
             },
           },
-        },
-      });
+        });
 
-      if (!shop) {
-        return c.json({ message: "Shop not found" }, 404);
+        if (!shop) {
+          return c.json({ message: "Shop not found" }, 404);
+        }
+
+        // Calculate isOpen status
+        const now = new Date();
+        const currentDay = now.getDay(); // 0 for Sunday, 1 for Monday, etc.
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentTimeMinutes = currentHour * 60 + currentMinute;
+        const dayMapping = {
+          0: "SUNDAY",
+          1: "MONDAY",
+          2: "TUESDAY",
+          3: "WEDNESDAY",
+          4: "THURSDAY",
+          5: "FRIDAY",
+          6: "SATURDAY",
+        };
+        const currentDayString =
+          dayMapping[currentDay as keyof typeof dayMapping];
+
+        const isOpen = isShopCurrentlyOpen(
+          shop.operatingHours,
+          currentDayString,
+          currentTimeMinutes
+        );
+        // --- Calculate distance, fee, and time if user location is provided ---
+        let distance: number | undefined = undefined;
+        let deliveryFee: number | undefined = undefined;
+        let estimatedTime: string | undefined = undefined;
+
+        const shopLat = shop.latitude;
+        const shopLng = shop.longitude;
+
+        if (
+          userLat !== undefined &&
+          userLng !== undefined &&
+          shopLat !== null &&
+          shopLng !== null &&
+          shopLat !== undefined &&
+          shopLng !== undefined
+        ) {
+          distance = parseFloat(
+            calculateHaversineDistance(
+              userLat,
+              userLng,
+              shopLat,
+              shopLng
+            ).toFixed(2)
+          );
+          deliveryFee = calculateDeliveryFee(distance);
+          estimatedTime = estimateTravelTime(distance);
+        }
+        // --- End calculation ---
+        return c.json({
+          data: {
+            ...shop,
+            isOpen, // Add the calculated isOpen status
+            // Conditionally add distance, fee, and time
+            ...(distance !== undefined && { distance }),
+            ...(deliveryFee !== undefined && { deliveryFee }),
+            ...(estimatedTime !== undefined && { estimatedTime }),
+          },
+        });
+      } catch (error) {
+        console.error("Error fetching shop:", error);
+        if (error instanceof z.ZodError) {
+          return c.json(
+            { error: "Invalid query parameters", details: error.errors },
+            400
+          );
+        }
+        return c.json({ error: "Internal server error" }, 500);
       }
-
-      // Get active member to check role
-
-      // Get shop with role-based data
-
-      return c.json({
-        data: shop,
-      });
-    } catch (error) {
-      console.error("Error fetching shop:", error);
-      return c.json({ error: "Internal server error" }, 500);
     }
-  })
+  )
   .get("/vendor", async (c) => {
     const db = c.get("db");
     const session = c.get("session");

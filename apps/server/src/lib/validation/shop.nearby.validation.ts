@@ -38,6 +38,33 @@ export const nearbyShopsQuerySchema = z.object({
     )
     .transform((val) => (val ? Number(val) : 10)), // Default to 10km
   shopType: z.string().optional(),
+
+  // Named filter parameters
+  openNow: z
+    .string()
+    .optional()
+    .transform((val) => val === "true"), // Transform "true"/"false" string to boolean
+
+  feeMin: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number(val) : 300)), // Default minimum fee
+
+  feeMax: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number(val) : 3000)), // Default maximum fee
+
+  // Single rating parameter (stores the minimum rating value)
+  rating: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number(val) : null)),
+
+  // Single discount parameter (stores the discount value or "any")
+  discount: z.string().optional(),
+
+  sort: z.string().optional().default("recommended"),
 });
 
 export type NearbyShopsQueryParams = z.infer<typeof nearbyShopsQuerySchema>;

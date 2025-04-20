@@ -39,7 +39,7 @@
 		bind:ref
 		forceMount
 		class={cn(
-			'scrollbar-thumb-gray-200 scrollbar-track-white scrollbar-thin scrollbar-track-rounded-full fixed  bottom-0 left-0 z-50  grid h-fit max-h-[95vh]   w-full gap-4 overflow-auto rounded-t-lg border-0 bg-background p-5 shadow-lg sm:left-[50%] sm:top-[50%] sm:w-full sm:max-w-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg',
+			' fixed  bottom-0 left-0 z-50  grid h-fit  w-full  gap-4 rounded-t-lg  border-0 bg-background   shadow-lg sm:left-[50%] sm:top-[50%] sm:w-full sm:max-w-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg',
 			className
 		)}
 		{...restProps}
@@ -47,10 +47,13 @@
 		{#snippet child({ props, open })}
 			{#if open}
 				<div {...props} transition:fly={{ duration: 200, y: 300 }}>
-					<ScrollArea class="max-h-[90vh] w-full   ">
-						{@render children?.()}
+					<ScrollArea class="max-h-[90vh] w-full p-5   ">
+						<div class="">
+							{@render children?.()}
+						</div>
 					</ScrollArea>
 				</div>
+				s
 			{/if}
 		{/snippet}
 

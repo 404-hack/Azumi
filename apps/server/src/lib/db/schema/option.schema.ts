@@ -33,7 +33,7 @@ export const optionTable = sqliteTable("option", {
     .$defaultFn(() => nanoid()),
   name: text("name").notNull(),
   price: integer("price").notNull(),
-  inStock: integer({ mode: "boolean" }).default(true).notNull(),
+  inStock: integer("", { mode: "boolean" }).default(true).notNull(),
   shopId: text("shop_id")
     .references(() => shopTable.id)
     .notNull(),

@@ -15,6 +15,20 @@
       "when": 1744990939878,
       "tag": "0001_lumpy_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1744991482618,
+      "tag": "0002_dashing_skreet",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1744999015567,
+      "tag": "0003_common_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,10 @@
 import { client } from '$lib/hc';
+import { activeLocation } from '$lib/states/locationState.svelte';
+import { redirect } from '@sveltejs/kit';
 import { error } from '@sveltejs/kit';
-
+if (activeLocation.current.lat === 0 && activeLocation.current.lng === 0) {
+	redirect(308, '/');
+}
 export const load = async ({ params }) => {
 	const { slug } = params;
 	const data = await client.shop[':slug'].$get({
@@ -16,6 +20,10 @@ export const load = async ({ params }) => {
 	const shopCart = await client.cart.shop[':shopId'].$get({
 		param: {
 			shopId: restaurantData.data.id
+		},
+		query: {
+			longitude: activeLocation.current.lng,
+			latitude: activeLocation.current.lat
 		}
 	});
 	const cartData = await shopCart.json();
