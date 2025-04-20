@@ -42,7 +42,7 @@
 	let productDescription = $derived(product?.description ?? 'No description available');
 	let productImage = $derived(
 		product?.image ??
-			'https://consumer-static-assets.wolt.com/frontpage-assets/hero-images/5_Friday.jpg'
+			'/hero-1.png'
 	);
 	let optionGroups = $derived(product?.menuItemOptionGroups ?? []);
 
@@ -321,7 +321,7 @@
 </script>
 
 <Dialog.Root bind:open={productModalState.value}>
-	<Dialog.Content class="overflow-hidden p-0  sm:max-w-[425px]">
+	<Dialog.Content scrollClass='p-0' class=" p-0 w-full  sm:max-w-[425px]">
 		<div class="">
 			<img
 				src={productImage}
@@ -495,7 +495,7 @@
 
 		<Separator class="mb-32" />
 
-		<div class="fixed bottom-0 z-10 w-full bg-white px-3 py-4">
+		<div class="sticky bottom-0 z-10 w-full bg-white px-3 py-4">
 			<div class="mb-4 flex items-center justify-between">
 				<span class="font-medium">Quantity</span>
 				<div class="flex items-center gap-4">

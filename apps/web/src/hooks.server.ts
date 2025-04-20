@@ -21,13 +21,13 @@ const preloadFonts: Handle = async ({ event, resolve }) => {
 
 const protectRoutes: Handle = async ({ event, resolve }) => {
 	const path = event.url.pathname;
+	console.log('🚀from the hook server');
 
 	// Check if the current path needs protection
 	const needsProtection = protectedPaths.some((protectedPath) => path.startsWith(protectedPath));
 
 	if (needsProtection) {
 		const session = await authClient.getSession();
-		console.log('🚀from the hook server', session.data);
 
 		if (!session) {
 			throw redirect(303, `/`);

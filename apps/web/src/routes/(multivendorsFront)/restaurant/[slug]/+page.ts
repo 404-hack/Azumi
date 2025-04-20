@@ -2,10 +2,10 @@ import { client } from '$lib/hc';
 import { activeLocation } from '$lib/states/locationState.svelte';
 import { redirect } from '@sveltejs/kit';
 import { error } from '@sveltejs/kit';
-if (activeLocation.current.lat === 0 && activeLocation.current.lng === 0) {
-	redirect(308, '/');
-}
 export const load = async ({ params }) => {
+	if (activeLocation.current.lat === 0 && activeLocation.current.lng === 0) {
+		redirect(308, '/');
+	}
 	const { slug } = params;
 	const data = await client.shop[':slug'].$get({
 		param: {

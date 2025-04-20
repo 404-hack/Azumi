@@ -18,17 +18,13 @@
 		class: className,
 		portalProps,
 		children,
-		transition = fly,
-		transitionConfig = {
-			duration: 200,
-			y: 300
-		},
+		scrollClass,
 		...restProps
 	}: WithoutChildrenOrChild<DialogPrimitive.ContentProps> & {
 		portalProps?: DialogPrimitive.PortalProps;
 		children: Snippet;
-		transition?: typeof fly;
-		transitionConfig?: TransitionConfig;
+		scrollClass?:string
+		
 	} = $props();
 </script>
 
@@ -39,7 +35,7 @@
 		bind:ref
 		forceMount
 		class={cn(
-			' fixed  bottom-0 left-0 z-50  grid h-fit  w-full  gap-4 rounded-t-lg  border-0 bg-background   shadow-lg sm:left-[50%] sm:top-[50%] sm:w-full sm:max-w-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg',
+			' fixed  bottom-0 left-0 z-50   grid h-fit  w-full  gap-4 rounded-t-lg  border-0 bg-background   shadow-lg sm:left-[50%] sm:top-[50%] sm:w-full sm:max-w-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg',
 			className
 		)}
 		{...restProps}
@@ -47,7 +43,7 @@
 		{#snippet child({ props, open })}
 			{#if open}
 				<div {...props} transition:fly={{ duration: 200, y: 300 }}>
-					<ScrollArea class="max-h-[90vh] w-full p-5   ">
+					<ScrollArea class={cn("max-h-[90vh] w-full p-5   ",scrollClass)}>
 						<div class="">
 							{@render children?.()}
 						</div>
