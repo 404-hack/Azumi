@@ -23,7 +23,7 @@
 	import { cartSheetState } from '$lib/states/modalState.svelte.js';
 	import { fly, fade, slide } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
-	import { formatCurrency } from '$lib/utils.js';
+	import { formatCurrency, formatTime } from '$lib/utils.js'; // Ensure formatTime is imported
 
 	let activeCategory = $state('');
 	let searchQuery = $state('');
@@ -31,7 +31,11 @@
 	let isFavorited = $state(false);
 	let showHeroOverlay = $state(false);
 
-	let { data } = $props();
+	let { data } = $props(); // Add type for data
+	console.log('🚀 ~ data:', data.restaurant);
+
+	// Use isOpen from backend data
+	const isOpenNow = $derived(data.restaurant.isOpen);
 
 	// Reactive check for cart items
 	const hasCartItems = $derived(data.shopCart && data.shopCart.items.length > 0);
@@ -68,50 +72,21 @@
 				.then(() => alert('Link copied to clipboard!'))
 				.catch((err) => console.error('Copy failed:', err));
 		}
-	} // Check if the restaurant is currently open
-	const isOpenNow = $derived.by((): boolean => {
-		const now = new Date();
-		const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-		const today = days[now.getDay()];
+	}
 
-		const todayHours = data.restaurant.operatingHours?.find(
-			(h) => h.day.toLowerCase() === today.toLowerCase()
-		);
-
-		if (
-			!todayHours ||
-			todayHours.isOpen === false ||
-			!todayHours.openTime ||
-			!todayHours.closeTime
-		) {
-			return false;
+	// Get information about when the restaurant will open today (simplified using backend data)
+	const getOpeningInfo = $derived.by((): { willOpenToday: boolean; opensAt: string | null } => {
+		// If already open, no need to show opening info
+		if (isOpenNow) {
+			return { willOpenToday: false, opensAt: null };
 		}
 
-		// Convert current time to minutes since midnight
-		const currentHour = now.getHours();
-		const currentMinute = now.getMinutes();
-		const currentTimeInMinutes = currentHour * 60 + currentMinute;
-
-		// Convert opening hours to minutes since midnight
-		const [openHour, openMinute] = todayHours.openTime.split(':').map(Number);
-		const openTimeInMinutes = openHour * 60 + openMinute;
-
-		// Convert closing hours to minutes since midnight
-		const [closeHour, closeMinute] = todayHours.closeTime.split(':').map(Number);
-		const closeTimeInMinutes = closeHour * 60 + closeMinute;
-
-		// Check if current time is between opening and closing
-		return currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes;
-	});
-
-	// Get information about when the restaurant will open today
-	const getOpeningInfo = $derived.by((): { willOpenToday: boolean; opensAt: string | null } => {
 		const now = new Date();
-		const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+		const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 		const today = days[now.getDay()];
 
 		const todayHours = data.restaurant.operatingHours?.find(
-			(h) => h.day.toLowerCase() === today.toLowerCase()
+			(h) => h.day.toUpperCase() === today.toUpperCase()
 		);
 
 		// If no hours for today or explicitly closed
@@ -137,13 +112,36 @@
 		if (currentTimeInMinutes < openTimeInMinutes) {
 			return {
 				willOpenToday: true,
-				opensAt: formatTime(todayHours.openTime)
+				opensAt: formatTime(todayHours.openTime) // Use imported formatTime
 			};
 		}
 
-		// Already open or closed for the day
+		// Already closed for the day (or was never open)
 		return { willOpenToday: false, opensAt: null };
 	});
+
+	// Get current day's operating hours string
+	const getCurrentDayHours = (): string => {
+		const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+		const today = days[new Date().getDay()];
+
+		const todayHours = data.restaurant.operatingHours?.find(
+			(h) => h.day.toUpperCase() === today.toUpperCase()
+		);
+
+		if (todayHours) {
+			if (
+				todayHours.isOpen === false ||
+				todayHours.openTime === todayHours.closeTime ||
+				!todayHours.openTime ||
+				!todayHours.closeTime
+			) {
+				return 'Closed';
+			}
+			return `${formatTime(todayHours.openTime)}–${formatTime(todayHours.closeTime)}`;
+		}
+		return 'Closed';
+	};
 
 	// Get current day's operating hours
 	const categories = $derived(
@@ -218,38 +216,6 @@
 	function clearSearch() {
 		searchQuery = '';
 	}
-
-	// Format time from 24hr to 12hr format
-	function formatTime(time: string): string {
-		if (!time) return '';
-		const [hour, minute] = time.split(':').map(Number);
-		const period = hour >= 12 ? 'PM' : 'AM';
-		const formattedHour = hour % 12 || 12;
-		return `${formattedHour}:${minute.toString().padStart(2, '0')} ${period}`;
-	}
-
-	// Get current day's operating hours
-	const getCurrentDayHours = (): string => {
-		const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-		const today = days[new Date().getDay()];
-
-		const todayHours = data.restaurant.operatingHours?.find(
-			(h) => h.day.toLowerCase() === today.toLowerCase()
-		);
-
-		if (todayHours) {
-			if (
-				todayHours.isOpen === false ||
-				todayHours.openTime === todayHours.closeTime ||
-				!todayHours.openTime ||
-				!todayHours.closeTime
-			) {
-				return 'Closed';
-			}
-			return `${formatTime(todayHours.openTime)}–${formatTime(todayHours.closeTime)}`;
-		}
-		return 'Closed';
-	};
 </script>
 
 <svelte:window on:scroll={handleScroll} />
@@ -270,6 +236,7 @@
 			<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20"></div>
 			<!-- Restaurant Closed Banner Overlay -->
 			{#if !isOpenNow}
+				<!-- Use isOpenNow derived from backend -->
 				<div class="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
 					<div
 						class="rounded-xl bg-black/70 px-8 py-6 text-center text-white shadow-xl backdrop-blur-md"
@@ -337,6 +304,7 @@
 					<div class="flex flex-wrap gap-3">
 						<!-- Status Badge - Only shown when actually open -->
 						{#if isOpenNow}
+							<!-- Use isOpenNow derived from backend -->
 							<span
 								class="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1 text-xs font-medium text-white"
 							>

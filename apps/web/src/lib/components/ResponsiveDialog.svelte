@@ -18,35 +18,18 @@
 	let activeSnapPoint = $state(148);
 </script>
 
-{#if true}
-	<Dialog.Root bind:open>
-		<Dialog.Content class=" pt-7 sm:max-w-[425px]  ">
-			<!-- <ScrollArea class= "max-h-[90vh]  w-fit "> -->
-			<Dialog.Header>
-				<Dialog.Title>{title}</Dialog.Title>
-				<Dialog.Description>
-					{description}
-				</Dialog.Description>
-			</Dialog.Header>
-			<div class="p-1">
-				{@render children()}
-			</div>
-			<!-- </ScrollArea> -->
-		</Dialog.Content>
-	</Dialog.Root>
-{:else}
-	<Drawer.Root bind:open>
-		<!-- <ScrollArea class="max-h-[90vh] w-full  p-5 "></ScrollArea> -->
-		<Drawer.Content class="w-full p-5 sm:p-7   ">
-			<Drawer.Header class="px-0 text-left">
-				<Drawer.Title>{title}</Drawer.Title>
-				<Drawer.Description>
-					{description}
-				</Drawer.Description>
-			</Drawer.Header>
-			<div>
-				{@render children()}
-			</div>
-		</Drawer.Content>
-	</Drawer.Root>
-{/if}
+<Dialog.Root bind:open>
+	<Dialog.Content class=" pt-7 sm:max-w-[425px]  ">
+		<Dialog.Header>
+			<Dialog.Title>{title}</Dialog.Title>
+			<Dialog.Description>
+				{description}
+			</Dialog.Description>
+		</Dialog.Header>
+		<!-- <ScrollArea class= "max-h-[90vh]  w-fit "> -->
+		<div class="p-1">
+			{@render children()}
+		</div>
+		<!-- </ScrollArea> -->
+	</Dialog.Content>
+</Dialog.Root>

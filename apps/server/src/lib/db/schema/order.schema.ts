@@ -26,12 +26,16 @@ export const orderTable = sqliteTable("order", {
     .notNull(), // Required cart reference
 
   // Delivery information
+  addressName: text("address_name").notNull().default(""),
+  longitude: real("longitude").notNull().default(0.0),
+  latitude: real("latitude").notNull().default(0.0),
+
   deliveryAddressId: text("delivery_address_id").references(
     () => addressesTable.id
   ),
   deliveryNotes: text("delivery_notes"),
   vendorNotes: text("vendor_notes"),
-  contactPhone: text("contact_phone"),
+  contactPhone: text("contact_phone").notNull(),
 
   // Payment information
   paymentMethod: text("payment_method", { enum: PAYMENT_METHODS })
