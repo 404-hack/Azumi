@@ -321,7 +321,7 @@
 </script>
 
 <Dialog.Root bind:open={productModalState.value}>
-	<Dialog.Content scrollClass='p-0' class=" p-0 w-full  sm:max-w-[425px]">
+	<Dialog.Content scrollClass='p-0' class=" p-0 w-full overflow-hidden  sm:max-w-[425px]">
 		<div class="">
 			<img
 				src={productImage}
@@ -493,7 +493,7 @@
 			{/each}
 		{/if}
 
-		<Separator class="mb-32" />
+		<Separator  />
 
 		<div class="sticky bottom-0 z-10 w-full bg-white px-3 py-4">
 			<div class="mb-4 flex items-center justify-between">
