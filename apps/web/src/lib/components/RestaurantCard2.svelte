@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fly } from 'svelte/transition';
 	import { ThumbsUp, TrendingUp, Bike, MapPin, CircleDollarSign, Star } from 'lucide-svelte';
+	import { formatCurrency } from '$lib/utils';
 
 	// Define the type for the props, including the index 'i' for the transition
 	type ExploreItem = {
@@ -79,7 +80,7 @@
 			</span>
 			<span class="text-gray-400">•</span>
 			<span class="flex items-center">
-				<CircleDollarSign class="mr-1 h-3 w-3" />${deliveryPrice.toFixed(2)} Delivery
+				{formatCurrency(deliveryPrice)} Delivery
 			</span>
 		</div>
 

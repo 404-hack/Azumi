@@ -10,6 +10,10 @@ export const load = async ({ params }) => {
 	const data = await client.shop[':slug'].$get({
 		param: {
 			slug: slug
+		},
+		query: {
+			longitude: activeLocation.current.lng,
+			latitude: activeLocation.current.lat
 		}
 	});
 
@@ -20,12 +24,9 @@ export const load = async ({ params }) => {
 	const shopCart = await client.cart.shop[':shopId'].$get({
 		param: {
 			shopId: restaurantData.data.id
-		},
-		query: {
-			longitude: activeLocation.current.lng,
-			latitude: activeLocation.current.lat
 		}
 	});
+	console.log('🚀 ~ load ~ activeLocation.current.lng:', activeLocation.current);
 	const cartData = await shopCart.json();
 	return {
 		restaurant: restaurantData.data,
