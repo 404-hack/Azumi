@@ -205,7 +205,7 @@
 			<Dialog.Title class=" text-3xl">Filter</Dialog.Title>
 		</Dialog.Header>
 
-		<div class="space-y-8">
+		<div class="space-y-8 p-3">
 			{#each Object.entries(categorizedFacets) as [key, category]}
 				<div>
 					<h2 class="font-display mb-3 text-xl font-semibold capitalize">{category.name}</h2>

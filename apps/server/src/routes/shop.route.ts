@@ -370,8 +370,26 @@ const shopRoute = factory
     zValidator(
       "query",
       z.object({
-        latitude: z.number().optional(),
-        longitude: z.number().optional(),
+        latitude: z
+          .string()
+          .refine(
+            (val) => {
+              const num = Number(val);
+              return !isNaN(num) && num >= -90 && num <= 90;
+            },
+            { message: "Latitude must be a number between -90 and 90" }
+          )
+          .transform((val) => Number(val)),
+        longitude: z
+          .string()
+          .refine(
+            (val) => {
+              const num = Number(val);
+              return !isNaN(num) && num >= -180 && num <= 180;
+            },
+            { message: "Longitude must be a number between -180 and 180" }
+          )
+          .transform((val) => Number(val)),
       })
     ),
     async (c) => {
@@ -379,6 +397,7 @@ const shopRoute = factory
         const { slug } = c.req.param();
         const { latitude: userLat, longitude: userLng } = c.req.valid("query");
         const db = c.get("db");
+        console.log("🚀 ~ userLat:", userLat);
         const shop = await db.query.shopTable.findFirst({
           where: eq(shopTable.slug, slug),
           with: {
@@ -459,6 +478,7 @@ const shopRoute = factory
 
         const shopLat = shop.latitude;
         const shopLng = shop.longitude;
+        console.log("this actually runs1");
 
         if (
           userLat !== undefined &&
@@ -468,6 +488,7 @@ const shopRoute = factory
           shopLat !== undefined &&
           shopLng !== undefined
         ) {
+          console.log("this actually runs2");
           distance = parseFloat(
             calculateHaversineDistance(
               userLat,
