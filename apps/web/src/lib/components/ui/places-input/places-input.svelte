@@ -139,28 +139,26 @@
 			</svg>
 		</span>
 	{/if}
+	{#if predictions.length > 0 && isFocused}
+		<div class="absolute top-10 mt-1 w-full rounded-md border border-input bg-background shadow-md">
+			<ul id="places-listbox" class="max-h-[300px] overflow-auto py-1 text-sm" role="listbox">
+				{#each predictions as prediction, i}
+					<div
+						class={cn(
+							'flex cursor-pointer items-start gap-2 px-3 py-2 hover:bg-muted',
+							highlightedIndex === i ? 'bg-muted' : ''
+						)}
+						id={`places-option-${i}`}
+						role="option"
+						aria-selected={highlightedIndex === i}
+						onmousedown={() => handlePredictionSelect(prediction)}
+						tabindex="-1"
+					>
+						<MapPin class="mt-0.5 h-4 w-4 shrink-0" />
+						<span>{prediction.description}</span>
+					</div>
+				{/each}
+			</ul>
+		</div>
+	{/if}
 </div>
-{#if predictions.length > 0 && isFocused}
-	<div
-		class="absolute top-10 z-50 mt-1 w-full rounded-md border border-input bg-background shadow-md"
-	>
-		<ul id="places-listbox" class="max-h-[300px] overflow-auto py-1 text-sm" role="listbox">
-			{#each predictions as prediction, i}
-				<div
-					class={cn(
-						'flex cursor-pointer items-start gap-2 px-3 py-2 hover:bg-muted',
-						highlightedIndex === i ? 'bg-muted' : ''
-					)}
-					id={`places-option-${i}`}
-					role="option"
-					aria-selected={highlightedIndex === i}
-					onmousedown={() => handlePredictionSelect(prediction)}
-					tabindex="-1"
-				>
-					<MapPin class="mt-0.5 h-4 w-4 shrink-0" />
-					<span>{prediction.description}</span>
-				</div>
-			{/each}
-		</ul>
-	</div>
-{/if}

@@ -20,7 +20,7 @@
 
 <Dialog.Root bind:open>
 	<Dialog.Content class=" pt-7 sm:max-w-[425px]  ">
-		<Dialog.Header class='sticky top-0 left-0 bg-white' >
+		<Dialog.Header class="sticky left-0 top-0 bg-white">
 			<Dialog.Title>{title}</Dialog.Title>
 			<Dialog.Description>
 				{description}

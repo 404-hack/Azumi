@@ -121,5 +121,65 @@ favoriteRoute.get("/", async (c) => {
     return c.json({ error: "Failed to fetch favorites" }, 500);
   }
 });
+// Toggle favorite status for a shop
+favoriteRoute.post("/toggle/:shopId", async (c) => {
+  const shopId = c.req.param("shopId");
+  const user = c.get("user");
+  const db = c.get("db");
 
+  if (!user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  try {
+    // 1. Check if shop exists (optional but recommended)
+    const shopExists = await db
+      .select({ id: shopTable.id })
+      .from(shopTable)
+      .where(eq(shopTable.id, shopId))
+      .limit(1);
+
+    if (!shopExists.length) {
+      return c.json({ error: "Shop not found" }, 404);
+    }
+
+    // 2. Check if the shop is currently favorited
+    const existingFavorite = await db
+      .select({ id: favoriteShops.id }) // Select only id for efficiency
+      .from(favoriteShops)
+      .where(
+        and(eq(favoriteShops.userId, user.id), eq(favoriteShops.shopId, shopId))
+      )
+      .limit(1);
+
+    if (existingFavorite.length > 0) {
+      // 3a. If favorited, remove it
+      await db
+        .delete(favoriteShops)
+        .where(
+          and(
+            eq(favoriteShops.userId, user.id),
+            eq(favoriteShops.shopId, shopId)
+          )
+        );
+      return c.json({
+        message: "Shop removed from favorites",
+        favorited: false,
+      });
+    } else {
+      // 3b. If not favorited, add it
+      await db.insert(favoriteShops).values({
+        userId: user.id,
+        shopId: shopId,
+      });
+      return c.json(
+        { message: "Shop added to favorites", favorited: true },
+        201
+      );
+    }
+  } catch (error) {
+    console.error("Error toggling favorite:", error);
+    return c.json({ error: "Failed to toggle favorite status" }, 500);
+  }
+});
 export default favoriteRoute; // Export the refactored route

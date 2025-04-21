@@ -137,6 +137,14 @@
 		</div>
 		<div class="px-3">
 			<div class="space-y-1">
+				<Button
+					variant="ghost"
+					href="/restaurant/{$activeOrganization.data?.slug}"
+					class="w-full justify-start"
+				>
+					<Store class="mr-2 h-4 w-4" />
+					Store front
+				</Button>
 				<Button variant="ghost" class="w-full justify-start">
 					<HelpCircle class="mr-2 h-4 w-4" />
 					Help & Support
