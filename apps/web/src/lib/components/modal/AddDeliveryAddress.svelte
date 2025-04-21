@@ -84,7 +84,7 @@
 </script>
 
 <ResponsiveDialog title="Delivery Address" bind:open={addDeliveryAddressModalState.value}>
-	<form>
+	<form class="relative">
 		<div class="relative mt-3 space-y-2">
 			<!-- bind:value={$formData.address} -->
 			<PlacesInput onPlaceSelect={handlePlaceSelect} />

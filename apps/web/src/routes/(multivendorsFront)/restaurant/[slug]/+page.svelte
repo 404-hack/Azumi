@@ -23,7 +23,8 @@
 	import { cartSheetState } from '$lib/states/modalState.svelte.js';
 	import { fly, fade, slide } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
-	import { formatCurrency, formatTime } from '$lib/utils.js'; // Ensure formatTime is imported
+	import { formatCurrency, formatTime } from '$lib/utils.js';
+	import { toast } from 'svelte-sonner';
 
 	let activeCategory = $state('');
 	let searchQuery = $state('');
@@ -31,8 +32,56 @@
 	let isFavorited = $state(false);
 	let showHeroOverlay = $state(false);
 
-	let { data } = $props(); // Add type for data
+	let { data } = $props();
 	console.log('🚀 ~ data:', data.restaurant);
+
+	// Function to check if shop is favorited on mount
+	async function checkFavoriteStatus() {
+		try {
+			const res = await client.favorite.$get();
+			if (res.ok) {
+				const favorites = await res.json();
+				isFavorited = favorites.some((fav) => fav.shopId === data.restaurant.id);
+			}
+		} catch (error) {
+			console.error('Error checking favorite status:', error);
+		}
+	}
+
+	// Call on mount
+	$effect(() => {
+		checkFavoriteStatus();
+	});
+
+	// Toggle favorite function
+	async function toggleFavorite() {
+		try {
+			if (isFavorited) {
+				// Remove from favorites
+				const res = await client.favorite[data.restaurant.id].$delete();
+				if (res.ok) {
+					isFavorited = false;
+					toast.success('Removed from favorites');
+				} else {
+					toast.error('Failed to remove from favorites');
+				}
+			} else {
+				// Add to favorites
+				const res = await client.favorite.$post({
+					json: { shopId: data.restaurant.id }
+				});
+				if (res.ok) {
+					isFavorited = true;
+					toast.success('Added to favorites');
+				} else {
+					toast.error('Failed to add to favorites');
+				}
+			}
+		} catch (error) {
+			console.error('Error toggling favorite:', error);
+			toast.error('Error updating favorites');
+		}
+	}
 
 	// Use isOpen from backend data
 	const isOpenNow = $derived(data.restaurant.isOpen);
@@ -49,11 +98,6 @@
 	// Function to handle cart button click
 	function handleCartClick() {
 		cartSheetState.setTrue(); // Open the cart sheet
-	}
-
-	// Toggle favorite status
-	function toggleFavorite() {
-		isFavorited = !isFavorited;
 	}
 
 	// Handle share click
@@ -294,11 +338,20 @@
 							<Bike class="size-4" />
 							{data.restaurant.deliveryType}
 						</span>
-						<span class="h-1.5 w-1.5 rounded-full bg-white/70"></span>
-						<span class="flex items-center gap-1.5">
-							<Clock class="size-4" />
-							{getCurrentDayHours()}
-						</span>
+						{#if data.restaurant.estimatedTime}
+							<span class="h-1.5 w-1.5 rounded-full bg-white/70"></span>
+							<span class="flex items-center gap-1.5">
+								<Clock class="size-4" />
+								{data.restaurant.estimatedTime}
+							</span>
+						{/if}
+						{#if data.restaurant.distance}
+							<span class="h-1.5 w-1.5 rounded-full bg-white/70"></span>
+							<span class="flex items-center gap-1.5">
+								<MapPin class="size-4" />
+								{data.restaurant.distance} km
+							</span>
+						{/if}
 					</div>
 					<!-- Action Buttons & Tags -->
 					<div class="flex flex-wrap gap-3">
@@ -336,7 +389,6 @@
 		<!-- Action Buttons -->
 		<div class="absolute right-4 top-4 z-20 flex gap-2">
 			<button
-				onclick={toggleFavorite}
 				class="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md transition-all hover:bg-black/50"
 				aria-label="Favorite"
 			>
@@ -722,7 +774,7 @@
 										<Bike class="mt-0.5 size-4 text-gray-400" />
 										<span>Delivery Type: {data.restaurant?.deliveryType || 'Not specified'}</span>
 									</li>
-									{#if data.restaurant?.minimumOrderAmount}
+									{#if data.restaurant.deliveryFee}
 										<li class="flex items-start gap-2">
 											<svg
 												xmlns="http://www.w3.org/2000/svg"
@@ -736,11 +788,22 @@
 												stroke-linejoin="round"
 												class="mt-0.5 text-gray-400"
 											>
-												<circle cx="12" cy="12" r="10"></circle>
-												<line x1="12" y1="8" x2="12" y2="12"></line>
-												<line x1="12" y1="16" x2="12.01" y2="16"></line>
+												<line x1="12" y1="1" x2="12" y2="23"></line>
+												<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
 											</svg>
-											<span>Minimum Order: ${data.restaurant.minimumOrderAmount}</span>
+											<span>Delivery Fee: {formatCurrency(data.restaurant.deliveryFee)}</span>
+										</li>
+									{/if}
+									{#if data.restaurant.estimatedTime}
+										<li class="flex items-start gap-2">
+											<Clock class="mt-0.5 size-4 text-gray-400" />
+											<span>Delivery Time: {data.restaurant.estimatedTime} </span>
+										</li>
+									{/if}
+									{#if data.restaurant.distance}
+										<li class="flex items-start gap-2">
+											<MapPin class="mt-0.5 size-4 text-gray-400" />
+											<span>Distance: {data.restaurant.distance} km</span>
 										</li>
 									{/if}
 								</ul>
