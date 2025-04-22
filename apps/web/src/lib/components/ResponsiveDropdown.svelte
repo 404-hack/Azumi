@@ -37,13 +37,13 @@
 	</DropdownMenu.Root>
 {:else}
 	<div>
-		<button type='button' onclick={() => (open = true)}>
+		<button type="button" onclick={() => (open = true)}>
 			{@render trigger()}
 		</button>
 		<Drawer.Root bind:open shouldScaleBackground>
 			<Drawer.Content>
 				<div class="mx-auto w-full max-w-sm">
-					<div class="py-4 px-2">
+					<div class="py-2">
 						<div class="space-y-1">
 							{#snippet mobileChildren()}
 								{@render children()}

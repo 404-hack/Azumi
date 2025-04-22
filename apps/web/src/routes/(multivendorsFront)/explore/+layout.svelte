@@ -39,7 +39,7 @@
 <div class="container mx-auto max-w-6xl py-4">
 	<!-- Section Header -->
 	<div class="mb-4">
-		<h2 class="text-2xl font-bold tracking-tight">Explore Categories</h2>
+		<h2 class="text-2xl font-semibold tracking-tight">Explore Categories</h2>
 	</div>
 	<!-- Desktop: Category Tabs with precisely sized squares -->
 	<div class=" bg-background/95 pb-3 pt-1 backdrop-blur-sm">

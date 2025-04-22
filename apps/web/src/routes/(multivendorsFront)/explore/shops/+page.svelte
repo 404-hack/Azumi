@@ -15,7 +15,7 @@
 	<!-- Header with simple search -->
 	<div class="mb-8 flex items-center justify-between">
 		<div>
-			<h1 class="mb-2 text-3xl font-semibold">Restaurants Near me</h1>
+			<h1 class="mb-2 text-xl font-semibold md:text-3xl">Restaurants Near me</h1>
 			<!-- <p class="mb-6 text-muted-foreground">Explore our selection of restaurants</p> -->
 		</div>
 		<!-- No initialFilters prop needed - FilterModal gets all data from URL params -->
