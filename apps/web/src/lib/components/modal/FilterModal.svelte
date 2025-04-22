@@ -302,8 +302,9 @@
 			{appliedFilterCount}
 		</span>
 	{/if}
-	<span class="hidden md:inline-flex">
-		sorted by <span class="font-semibold">{activeSort}</span>
+	<span class="hidden gap-2 md:inline-flex">
+		<span class=""> sorted by </span>
+		<span class="font-semibold capitalize">{activeSort}</span>
 	</span>
 	<div
 		class="flex items-center justify-center rounded-full bg-primary/20 p-3 group-hover:bg-primary/30"

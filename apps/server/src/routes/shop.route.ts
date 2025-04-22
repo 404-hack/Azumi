@@ -397,7 +397,6 @@ const shopRoute = factory
         const { slug } = c.req.param();
         const { latitude: userLat, longitude: userLng } = c.req.valid("query");
         const db = c.get("db");
-        console.log("🚀 ~ userLat:", userLat);
         const shop = await db.query.shopTable.findFirst({
           where: eq(shopTable.slug, slug),
           with: {
