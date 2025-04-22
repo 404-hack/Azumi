@@ -26,56 +26,26 @@
 	import { formatCurrency, formatTime } from '$lib/utils.js';
 	import { toast } from 'svelte-sonner';
 
+	let { data } = $props();
 	let activeCategory = $state('');
 	let searchQuery = $state('');
 	let isMoreInfoOpen = $state(false);
-	let isFavorited = $state(false);
+	let isFavorited = $derived(data.isFavorite);
+	console.log('🚀 ~ data.isFavorite:', data.isFavorite);
 	let showHeroOverlay = $state(false);
-
-	let { data } = $props();
-	console.log('🚀 ~ data:', data.restaurant);
-
-	// Function to check if shop is favorited on mount
-	async function checkFavoriteStatus() {
-		try {
-			const res = await client.favorite.$get();
-			if (res.ok) {
-				const favorites = await res.json();
-				isFavorited = favorites.some((fav) => fav.shopId === data.restaurant.id);
-			}
-		} catch (error) {
-			console.error('Error checking favorite status:', error);
-		}
-	}
-
-	// Call on mount
-	$effect(() => {
-		checkFavoriteStatus();
-	});
 
 	// Toggle favorite function
 	async function toggleFavorite() {
 		try {
-			if (isFavorited) {
-				// Remove from favorites
-				const res = await client.favorite[data.restaurant.id].$delete();
-				if (res.ok) {
-					isFavorited = false;
-					toast.success('Removed from favorites');
-				} else {
-					toast.error('Failed to remove from favorites');
-				}
+			const res = await client.favorite.toggle[':shopId'].$post({
+				param: { shopId: data.restaurant.id }
+			});
+			if (res.ok) {
+				toast.success(isFavorited ? 'Removed from favorites' : 'Added to favorites');
+
+				isFavorited = !isFavorited; // Toggle isFavorited after successful removal
 			} else {
-				// Add to favorites
-				const res = await client.favorite.$post({
-					json: { shopId: data.restaurant.id }
-				});
-				if (res.ok) {
-					isFavorited = true;
-					toast.success('Added to favorites');
-				} else {
-					toast.error('Failed to add to favorites');
-				}
+				toast.error('Failed to remove from favorites');
 			}
 		} catch (error) {
 			console.error('Error toggling favorite:', error);
@@ -88,12 +58,8 @@
 
 	// Reactive check for cart items
 	const hasCartItems = $derived(data.shopCart && data.shopCart.items.length > 0);
-	console.log('🚀 ~ data.shopCart:', data.shopCart);
 
 	// Calculate total cart amount
-	const cartTotal = $derived(
-		data.shopCart?.items.reduce((total, item) => total + item.price * item.quantity, 0) || 0
-	);
 
 	// Function to handle cart button click
 	function handleCartClick() {
@@ -163,29 +129,6 @@
 		// Already closed for the day (or was never open)
 		return { willOpenToday: false, opensAt: null };
 	});
-
-	// Get current day's operating hours string
-	const getCurrentDayHours = (): string => {
-		const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-		const today = days[new Date().getDay()];
-
-		const todayHours = data.restaurant.operatingHours?.find(
-			(h) => h.day.toUpperCase() === today.toUpperCase()
-		);
-
-		if (todayHours) {
-			if (
-				todayHours.isOpen === false ||
-				todayHours.openTime === todayHours.closeTime ||
-				!todayHours.openTime ||
-				!todayHours.closeTime
-			) {
-				return 'Closed';
-			}
-			return `${formatTime(todayHours.openTime)}–${formatTime(todayHours.closeTime)}`;
-		}
-		return 'Closed';
-	};
 
 	// Get current day's operating hours
 	const categories = $derived(
@@ -391,6 +334,7 @@
 			<button
 				class="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md transition-all hover:bg-black/50"
 				aria-label="Favorite"
+				onclick={toggleFavorite}
 			>
 				<Heart class="size-5" fill={isFavorited ? 'currentColor' : 'none'} />
 			</button>

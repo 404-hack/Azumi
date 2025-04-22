@@ -181,7 +181,7 @@
 							</DropdownMenu.Item>
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
-					<ResponsiveDropdown>
+					<!-- <ResponsiveDropdown>
 						{#snippet trigger()}
 							<Button
 								variant="ghost"
@@ -253,7 +253,7 @@
 								</button>
 							</div>
 						{/snippet}
-					</ResponsiveDropdown>
+					</ResponsiveDropdown> -->
 				</nav>
 			{:else}
 				<div class="hidden items-center gap-2 md:flex">

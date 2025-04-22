@@ -3,6 +3,7 @@ export * from "./auth.schema";
 
 // Shop related schemas
 export * from "./shop.schema";
+export * from "./favorite.schema";
 
 // Menu related schemas
 export * from "./menu.schema";

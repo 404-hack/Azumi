@@ -4,8 +4,8 @@ import { shopTable } from "./shop.schema";
 import { timestamps } from "./utils.schema";
 import { userTable } from "./auth.schema";
 
-export const favoriteShops = sqliteTable(
-  "favorite_shops",
+export const favoriteTable = sqliteTable(
+  "favorite_table",
   {
     userId: text("user_id")
       .references(() => userTable.id, { onDelete: "cascade" })
