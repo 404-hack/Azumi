@@ -9,12 +9,12 @@
 	import { client } from '$lib/hc';
 	import { toast } from 'svelte-sonner';
 	import { goto, invalidateAll } from '$app/navigation';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 
 	type Props = {
 		options: TOption[];
 	};
 	let { options }: Props = $props();
-	console.log('🚀 ~ options:', options);
 
 	// Add loading state
 	let deletingId: string | null = $state(null);
@@ -57,7 +57,7 @@
 		{#if options.length > 0}
 			<Button href="/vendor/menu/options/new">
 				<Plus class="mr-2 h-4 w-4" />
-				Add Option Item
+				<span class="hidden md:inline"> Add Option Item </span>
 			</Button>
 		{/if}
 	</div>
@@ -79,40 +79,57 @@
 			</Button>
 		</div>
 	{:else}
-		<div class="rounded-md border">
-			<Table.Root>
+		<div class="overflow-x-auto rounded-md border">
+			<Table.Root class="min-w-full">
 				<Table.Header>
 					<Table.Row>
 						<Table.Head>Name</Table.Head>
 						<Table.Head>Price</Table.Head>
-						<Table.Head>status</Table.Head>
+						<Table.Head class="hidden sm:table-cell">status</Table.Head>
 						<Table.Head class="text-right">Actions</Table.Head>
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
 					{#each options as item (item.id)}
-						<Table.Row>
+						<Table.Row
+							class="cursor-pointer"
+							onclick={() => goto(`/vendor/menu/options/${item.id}`)}
+						>
 							<Table.Cell class="font-medium">{item.name}</Table.Cell>
 							<Table.Cell>${item.price}</Table.Cell>
-							<Table.Cell>
+							<Table.Cell class="hidden sm:table-cell">
 								<Badge variant={item.inStock ? 'default' : 'destructive'}>
-
 									{item.inStock ? 'available' : 'unavailable'}
 								</Badge>
 							</Table.Cell>
 							<Table.Cell class="text-right">
-								<div class="flex justify-end gap-2">
-									<Button
-										variant="outline"
-										onclick={() => {
-											goto(`/vendor/menu/options/${item.id}`);
-										}}
-										size="sm">Edit</Button
-									>
-									<Button variant="destructive" size="sm" onclick={() => handleDeleteClick(item)}>
-										Delete
-									</Button>
-								</div>
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger>
+										<Button variant="ghost" size="icon" onclick={(e) => e.stopPropagation()}>
+											<span class="sr-only">Open menu</span>
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="h-4 w-4"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle
+													cx="12"
+													cy="19"
+													r="1.5"
+												/></svg
+											>
+										</Button>
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Content align="end">
+										<DropdownMenu.Item
+											onselect={() => handleDeleteClick(item)}
+											class="text-destructive"
+										>
+											Delete
+										</DropdownMenu.Item>
+									</DropdownMenu.Content>
+								</DropdownMenu.Root>
 							</Table.Cell>
 						</Table.Row>
 					{/each}
