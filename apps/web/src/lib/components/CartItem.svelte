@@ -4,9 +4,10 @@
 	import { client } from '$lib/hc';
 	import { formatCurrency } from '$lib/utils';
 	import { crossfade, scale, fade } from 'svelte/transition';
-	import { cubicOut, quintOut } from 'svelte/easing';
+	import { cubicOut } from 'svelte/easing';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
+	import { onClickOutside } from 'runed';
 
 	interface CartItemProps {
 		id: string;
@@ -109,6 +110,21 @@
 		easing: cubicOut,
 		fallback: (node) => scale(node, { start: 0.95, opacity: 0, duration: 150 })
 	});
+
+	let showControls = $state(false);
+
+	function toggleControls() {
+		showControls = !showControls;
+	}
+
+	// Handle clicks outside
+	let controlsRef = $state<HTMLDivElement>();
+	onClickOutside(
+		() => controlsRef,
+		() => {
+			if (showControls) showControls = false;
+		}
+	);
 </script>
 
 <div
@@ -132,34 +148,48 @@
 			<p class="mt-1 text-xs italic text-gray-500">Note: {specialInstructions}</p>
 		{/if}
 	</div>
-
 	<div class="flex items-center gap-2">
-		<div class="flex items-center rounded-md border bg-background shadow-sm">
-			<Button
-				variant="ghost"
-				size="icon"
-				class="h-8 w-8 rounded-r-none"
-				disabled={status !== 'idle' || optimisticQuantity <= 1}
-				onclick={() => debouncedUpdate(optimisticQuantity - 1)}
-			>
-				<Minus class="h-3.5 w-3.5" />
-			</Button>
+		<div
+			class="flex h-8 items-center rounded-md border bg-background transition-all duration-200"
+			class:w-8={!showControls}
+			class:w-32={showControls}
+			bind:this={controlsRef}
+		>
+			{#if showControls}
+				<Button
+					variant="ghost"
+					size="icon"
+					class="h-8 w-8 rounded-r-none"
+					disabled={status !== 'idle' || optimisticQuantity <= 1}
+					onclick={() => debouncedUpdate(optimisticQuantity - 1)}
+				>
+					<Minus class="h-3.5 w-3.5" />
+				</Button>
+			{/if}
 
-			<div class="grid w-8 place-items-center border-x">
-				<span class="text-sm font-medium">
+			<button
+				class="grid cursor-pointer place-items-center transition-all"
+				class:w-8={!showControls}
+				class:w-16={showControls}
+				class:border-x={showControls}
+				onclick={toggleControls}
+			>
+				<span class="text-sm font-medium" class:px-2={showControls}>
 					{optimisticQuantity}
 				</span>
-			</div>
+			</button>
 
-			<Button
-				variant="ghost"
-				size="icon"
-				class="h-8 w-8 rounded-l-none"
-				disabled={status !== 'idle'}
-				onclick={() => debouncedUpdate(optimisticQuantity + 1)}
-			>
-				<Plus class="h-3.5 w-3.5" />
-			</Button>
+			{#if showControls}
+				<Button
+					variant="ghost"
+					size="icon"
+					class="h-8 w-8 rounded-l-none"
+					disabled={status !== 'idle'}
+					onclick={() => debouncedUpdate(optimisticQuantity + 1)}
+				>
+					<Plus class="h-3.5 w-3.5" />
+				</Button>
+			{/if}
 		</div>
 
 		<Button
