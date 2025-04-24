@@ -31,7 +31,6 @@
 	let searchQuery = $state('');
 	let isMoreInfoOpen = $state(false);
 	let isFavorited = $derived(data.isFavorite);
-	console.log('🚀 ~ data.isFavorite:', data.isFavorite);
 	let showHeroOverlay = $state(false);
 
 	// Toggle favorite function
@@ -209,25 +208,16 @@
 <CartSheet shopCart={data.shopCart} />
 
 <!-- Modern Immersive Redesign -->
-<div class="relative">
-	<!-- Fullwidth Hero Section with Parallax Effect -->
-	<section class="relative h-[60vh] w-full overflow-hidden sm:h-[50vh] md:h-[70vh]">
-		<!-- Hero Image with Subtle Parallax -->
-		<div class="absolute inset-0 z-0">
-			<img
-				src={data.restaurant.coverImage || '/shop.avif'}
-				alt={data.restaurant.name}
-				class="h-full w-full object-cover object-center transition-transform duration-700 hover:scale-105"
-				loading="eager"
-			/>
+<main class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-4">
+	<div class="">
+		<div class="relative h-64 overflow-hidden rounded-lg">
+			<img src="/shop.avif" alt="Kebab Royal" class="absolute inset-0 h-full w-full object-cover" />
 			<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20"></div>
 			<!-- Restaurant Closed Banner Overlay -->
 			{#if !isOpenNow}
 				<!-- Use isOpenNow derived from backend -->
-				<div class="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-					<div
-						class="rounded-xl bg-black/70 px-8 py-6 text-center text-white shadow-xl backdrop-blur-md"
-					>
+				<div class="absolute inset-0 flex items-center justify-center backdrop-blur-sm">
+					<div class=" rounded-xl text-center text-white backdrop-blur-md">
 						{#if getOpeningInfo.willOpenToday}
 							<h2 class="mb-2 text-2xl font-bold">Opens Today at {getOpeningInfo.opensAt}</h2>
 							<p class="text-white/80">Come back later</p>
@@ -238,155 +228,87 @@
 					</div>
 				</div>
 			{/if}
-		</div>
-
-		<!-- Hero Content -->
-		<div class="absolute bottom-0 left-0 right-0 z-10 p-4 sm:p-8 md:p-12">
-			<div in:fly={{ y: 50, duration: 500, delay: 200 }} class="flex items-end gap-4">
-				<!-- Restaurant Logo -->
-				<div class="relative">
-					<div
-						class="flex size-24 items-center justify-center overflow-hidden rounded-xl border-4 border-white/90 bg-white shadow-xl md:size-32"
-					>
-						<img
-							src={data.restaurant.logo || '/shop.avif'}
-							alt={`${data.restaurant.name} logo`}
-							class="h-full w-full rounded-lg object-cover"
-						/>
-					</div>
-				</div>
-
-				<!-- Restaurant Title & Quick Info -->
-				<div class="flex-1">
-					<h1 class="mb-2 text-3xl font-bold text-white md:text-4xl lg:text-5xl">
-						{data.restaurant.name}
-					</h1>
-					<div class="mb-3 flex flex-wrap items-center gap-3 text-sm text-white/90">
-						<div class="flex items-center gap-1">
-							<div class="flex">
-								{#each Array(5) as _, i}
-									<Star
-										size={16}
-										class="fill-current {i < Math.floor(data.restaurant.totalRatings || 0)
-											? 'text-yellow-400'
-											: 'text-white/30'}"
-										strokeWidth={0}
-									/>
-								{/each}
-							</div>
-							<span class="font-medium">{data.restaurant.totalRatings || '0.0'}</span>
-						</div>
-						<span class="h-1.5 w-1.5 rounded-full bg-white/70"></span>
-						<span class="flex items-center gap-1.5">
-							<Bike class="size-4" />
-							{data.restaurant.deliveryType}
-						</span>
-						{#if data.restaurant.estimatedTime}
-							<span class="h-1.5 w-1.5 rounded-full bg-white/70"></span>
-							<span class="flex items-center gap-1.5">
-								<Clock class="size-4" />
-								{data.restaurant.estimatedTime}
-							</span>
-						{/if}
-						{#if data.restaurant.distance}
-							<span class="h-1.5 w-1.5 rounded-full bg-white/70"></span>
-							<span class="flex items-center gap-1.5">
-								<MapPin class="size-4" />
-								{data.restaurant.distance} km
-							</span>
-						{/if}
-					</div>
-					<!-- Action Buttons & Tags -->
-					<div class="flex flex-wrap gap-3">
-						<!-- Status Badge - Only shown when actually open -->
-						{#if isOpenNow}
-							<!-- Use isOpenNow derived from backend -->
-							<span
-								class="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1 text-xs font-medium text-white"
-							>
-								Open Now
-							</span>
-						{/if}
-
-						{#if data.restaurant.tags && data.restaurant.tags.length > 0}
-							{#each data.restaurant.tags.slice(0, 2) as tag}
-								<Badge variant="secondary" class="bg-white/20 hover:bg-white/30">{tag}</Badge>
-							{/each}
-							{#if data.restaurant.tags.length > 2}
-								<Badge variant="secondary" class="bg-white/20 hover:bg-white/30"
-									>+{data.restaurant.tags.length - 2} more</Badge
-								>
-							{/if}
-						{:else}
-							<span
-								class="rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white hover:bg-white/30"
-							>
-								{data.restaurant.shopType}
-							</span>
-						{/if}
-					</div>
-				</div>
+			<!-- Action Buttons -->
+			<div class="absolute right-4 top-4 z-20 flex gap-2">
+				<button
+					class="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md transition-all hover:bg-black/50"
+					aria-label="Favorite"
+					onclick={toggleFavorite}
+				>
+					<Heart class="size-5" fill={isFavorited ? 'currentColor' : 'none'} />
+				</button>
+				<button
+					onclick={handleShare}
+					class="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md transition-all hover:bg-black/50"
+					aria-label="Share"
+				>
+					<Share2 class="size-5" />
+				</button>
 			</div>
 		</div>
+		<h1 class="mt-4 text-3xl font-bold">{data.restaurant.name}</h1>
+		<p class="text-sm leading-relaxed text-gray-700">{data.restaurant.description}</p>
 
-		<!-- Action Buttons -->
-		<div class="absolute right-4 top-4 z-20 flex gap-2">
-			<button
-				class="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md transition-all hover:bg-black/50"
-				aria-label="Favorite"
-				onclick={toggleFavorite}
-			>
-				<Heart class="size-5" fill={isFavorited ? 'currentColor' : 'none'} />
-			</button>
-			<button
-				onclick={handleShare}
-				class="flex size-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md transition-all hover:bg-black/50"
-				aria-label="Share"
-			>
-				<Share2 class="size-5" />
-			</button>
+		<div class="mt-4 flex items-center text-xs">
+			<div class="flex items-center gap-1">
+				<div class="flex">
+					{#each Array(5) as _, i}
+						<Star
+							size={16}
+							class="fill-current stroke-black text-white/30 {i <
+							Math.floor(data.restaurant.totalRatings || 0)
+								? 'text-yellow-400'
+								: 'text-white/30'}"
+							strokeWidth={1}
+						/>
+					{/each}
+				</div>
+				<span class="font-medium">{data.restaurant.totalRatings || '0.0'}</span>
+			</div>
+			<span class="mx-2">•</span>
+			{#if data.restaurant.estimatedTime}
+				<div class="flex items-center gap-1">
+					<Bike class="size-4" />
+					<span>{data.restaurant.estimatedTime}</span>
+				</div>
+			{/if}
+			<span class="mx-2">•</span>
+			{#if isOpenNow}
+				<Badge>Open Now</Badge>
+			{/if}
 		</div>
-	</section>
+
+		<!-- <div class="mt-2 flex flex-wrap gap-2">
+			{#each ['Mediterranean', 'Kebab', 'Halal', 'Falafel'] as tag}
+				<Badge variant="secondary">
+					{tag}
+				</Badge>
+			{/each}
+		</div> -->
+		<span class="flex items-center gap-1.5">
+			{data.restaurant.deliveryType}
+		</span>
+
+		{#if data.restaurant.tags && data.restaurant.tags.length > 0}
+			{#each data.restaurant.tags.slice(0, 2) as tag}
+				<Badge variant="secondary" class="bg-white/20 hover:bg-white/30">{tag}</Badge>
+			{/each}
+			{#if data.restaurant.tags.length > 2}
+				<Badge variant="secondary" class="bg-white/20 hover:bg-white/30"
+					>+{data.restaurant.tags.length - 2} more</Badge
+				>
+			{/if}
+		{:else}
+			<span
+				class="rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white hover:bg-white/30"
+			>
+				{data.restaurant.shopType}
+			</span>
+		{/if}
+	</div>
 
 	<!-- Main Content Container -->
-	<div class="mx-auto max-w-5xl px-3 pb-24 pt-4 sm:px-6 md:pb-32 md:pt-6 lg:px-8">
-		<!-- Restaurant Description Card -->
-		<div class="mb-6 rounded-xl bg-white p-5 shadow-sm">
-			<p class="text-sm leading-relaxed text-gray-700">{data.restaurant.description}</p>
-
-			<!-- Quick Contact Buttons -->
-			<div class="mt-4 flex flex-wrap gap-3">
-				{#if data.restaurant.phoneNumber}
-					<a
-						href={`tel:${data.restaurant.phoneNumber}`}
-						class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-					>
-						<Phone size={16} />
-						Call
-					</a>
-				{/if}
-				{#if data.restaurant.latitude && data.restaurant.longitude}
-					<a
-						href={`https://maps.google.com/?q=${data.restaurant.latitude},${data.restaurant.longitude}`}
-						target="_blank"
-						rel="noopener noreferrer"
-						class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-					>
-						<MapPin size={16} />
-						Directions
-					</a>
-				{/if}
-				{#if data.restaurant.email}
-					<a
-						href={`mailto:${data.restaurant.email}`}
-						class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-					>
-						<Mail size={16} />
-						Email
-					</a>
-				{/if}
-			</div>
-		</div>
+	<div class="  pb-24 sm:px-6">
 		<!-- Category Navigation - Horizontal Scrollable Tabs -->
 		<nav
 			class="sticky top-0 z-30 -mx-3 mb-6 bg-white/95 px-3 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
@@ -395,22 +317,19 @@
 			<div class="hide-scrollbar flex items-center gap-2 overflow-x-auto pb-1">
 				{#each categories as category}
 					{#if !searchQuery || hasItemsInCategory(category)}
-						<button
+						<Badge
 							onclick={() => scrollToCategory(category)}
-							class="flex-shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-all {activeCategory ===
-							category
-								? 'border-primary/10 bg-primary/10 text-primary shadow-sm'
-								: 'border-gray-100 bg-gray-50 text-gray-700 hover:bg-gray-100'}"
+							variant={activeCategory === category ? 'default' : 'secondary'}
 						>
 							{category}
-						</button>
+						</Badge>
 					{/if}
 				{/each}
 			</div>
 		</nav>
 
 		<!-- Search & Filter Bar -->
-		<div class="mb-8">
+		<div class="mb-3">
 			<div class="relative flex items-center gap-2">
 				<div class="relative flex-1">
 					<input
@@ -827,7 +746,7 @@
 			</button>
 		</div>
 	{/if}
-</div>
+</main>
 
 <ProductModal title="Product Modal" />
 
