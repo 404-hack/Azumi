@@ -412,8 +412,8 @@
 			{#each categories as category}
 				<div id="category-{category}" class="mb-12 scroll-mt-32">
 					<div class="mb-4 flex items-center justify-between">
-						<h2 class="text-xl font-semibold text-gray-900">{category}</h2>
-						<span class="text-sm text-gray-500">{menuByCategory[category].length} items</span>
+						<h2 class="text-xl font-semibold capitalize text-gray-900">{category}</h2>
+						<!-- <span class="text-sm text-gray-500">{menuByCategory[category].length} items</span> -->
 					</div>
 					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
 						{#each menuByCategory[category] as item, index (item.id)}
@@ -748,7 +748,7 @@
 	{/if}
 </main>
 
-<ProductModal title="Product Modal" />
+<ProductModal cart={data.shopCart} />
 
 <!-- Add some stylistic elements -->
 <style>

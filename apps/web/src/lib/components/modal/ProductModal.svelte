@@ -25,10 +25,15 @@
 	import { client } from '$lib/hc';
 	import { toast } from 'svelte-sonner';
 	import { invalidateAll } from '$app/navigation';
+	import type { Cart } from '$lib/types/cart';
 
 	const isDesktop = new MediaQuery('(min-width: 768px)');
 	let quantity = $state(1);
 	let isLoading = $state(false);
+
+	// Props
+	let { cart } = $props();
+	console.log('🚀 ~ cart:', cart);
 
 	// For option groups and option selection
 	let selectedOptions = $state<Record<string, { id: string; quantity: number }[]>>({});
@@ -36,14 +41,66 @@
 	// Get product data from the modal state
 	const product = $derived(productModalState.productData);
 
+	// Function to load existing cart item state
+	function loadExistingCartState() {
+		if (!product?.id) return;
+
+		// Find if this product is already in cart
+		const existingItem = cart?.items?.find((item) => item.menuItemId === product.id);
+
+		if (existingItem) {
+			// Set quantity
+			quantity = existingItem.quantity;
+
+			// Set options
+			if (existingItem.options?.length > 0) {
+				const groupedOptions: Record<string, { id: string; quantity: number }[]> = {};
+
+				existingItem.options.forEach((opt) => {
+					if (!groupedOptions[opt.optionGroupId]) {
+						groupedOptions[opt.optionGroupId] = [];
+					}
+					groupedOptions[opt.optionGroupId].push({
+						id: opt.optionId,
+						quantity: opt.quantity
+					});
+				});
+
+				selectedOptions = groupedOptions;
+			}
+		} else {
+			resetModalState();
+		}
+	}
+
+	// Reset the modal state when closing or opening with a new product
+	function resetModalState() {
+		quantity = 1;
+		selectedOptions = {};
+		optionGroupErrors = {};
+	}
+
+	// Watch for modal state changes
+	$effect(() => {
+		if (!productModalState.value) {
+			// Reset when modal is closed
+			resetModalState();
+		}
+	});
+
+	// Watch for product changes
+	$effect(() => {
+		if (product?.id) {
+			// Load existing state when a new product is loaded
+			loadExistingCartState();
+		}
+	});
+
 	// Use the product price or default to a fallback price
 	let basePrice = $derived(product?.price ?? 16.99);
 	let productName = $derived(product?.name ?? 'Product');
 	let productDescription = $derived(product?.description ?? 'No description available');
-	let productImage = $derived(
-		product?.image ??
-			'/hero-1.png'
-	);
+	let productImage = $derived(product?.image ?? '/hero-1.png');
 	let optionGroups = $derived(product?.menuItemOptionGroups ?? []);
 
 	// Track validation state for option groups
@@ -141,6 +198,18 @@
 		return option.price > 0;
 	}
 
+	// Add this helper function to determine if an option should be disabled
+	function isOptionDisabled(groupId: string, optionId: string, group: OptionGroup): boolean {
+		if (!isMultipleSelect(group)) return false;
+		if (group.maxSelections === null) return false;
+
+		const currentTotal = getTotalGroupQuantity(groupId);
+		const isSelected = isOptionSelected(groupId, optionId);
+
+		// If the option is not selected and we're at max selections, disable it
+		return !isSelected && currentTotal >= group.maxSelections;
+	}
+
 	// Modify toggleOptionSelection to properly handle selection states
 	function toggleOptionSelection(groupId: string, optionId: string, group: OptionGroup) {
 		if (isMultipleSelect(group)) {
@@ -153,19 +222,12 @@
 			const currentTotal = getTotalGroupQuantity(groupId);
 
 			const option = group.optionsToOptionGroups.find((og) => og.option.id === optionId)?.option;
-			if (!option) return;
-
-			// If unchecking (removing selection)
+			if (!option) return; // If unchecking (removing selection)
 			if (existingSelection) {
 				// Remove option entirely
 				selectedOptions[groupId] = selections.filter((s) => s.id !== optionId);
-
-				if (selectedOptions[groupId].length === 0 && group.minSelections > 0) {
-					optionGroupErrors[groupId] =
-						`Please select at least ${group.minSelections} item${group.minSelections > 1 ? 's' : ''}`;
-				} else {
-					delete optionGroupErrors[groupId];
-				}
+				// Always clear the error when removing a selection
+				delete optionGroupErrors[groupId];
 				return;
 			}
 
@@ -321,13 +383,13 @@
 </script>
 
 <Dialog.Root bind:open={productModalState.value}>
-	<Dialog.Content scrollClass='p-0' class=" p-0 w-full overflow-hidden  sm:max-w-[425px]">
+	<Dialog.Content scrollClass="p-0" class=" w-full overflow-hidden p-0  sm:max-w-[425px]">
 		<div class="">
 			<img
 				src={productImage}
 				in:blur={{ duration: 300 }}
 				loading="lazy"
-				class="h-[350px] w-full object-cover"
+				class="h-[300px] w-full object-cover"
 				alt={productName}
 			/>
 		</div>
@@ -376,8 +438,11 @@
 					</p>
 
 					{#if optionGroupErrors[optionGroup.id]}
-						<Alert variant="destructive" class="mb-4">
-							<AlertCircle class="h-4 w-4" />
+						<Alert
+							variant="destructive"
+							class="mb-4 flex items-center bg-destructive/90 p-2 text-destructive-foreground   [&>svg]:top-2.5"
+						>
+							<AlertCircle class="h-4 w-4  stroke-destructive-foreground" />
 							<AlertDescription>
 								{optionGroupErrors[optionGroup.id]}
 							</AlertDescription>
@@ -395,10 +460,11 @@
 												toggleOptionSelection(optionGroup.id, option.id, optionGroup);
 											}}
 											id={`${optionGroup.id}-${option.id}`}
+											disabled={isOptionDisabled(optionGroup.id, option.id, optionGroup)}
 										/>
 										<label
 											for={`${optionGroup.id}-${option.id}`}
-											class="flex flex-1 items-center justify-between text-sm"
+											class="flex flex-1 items-center justify-between font-medium"
 										>
 											<span>{option.name}</span>
 											<div class="flex items-center gap-2">
@@ -465,7 +531,7 @@
 										<RadioGroupItem value={option.id} id={`${optionGroup.id}-${option.id}`} />
 										<label
 											for={`${optionGroup.id}-${option.id}`}
-											class="flex flex-1 items-center justify-between text-sm"
+											class="flex flex-1 items-center justify-between font-medium"
 											onclick={(e) => {
 												// If this is already selected and not required, prevent default and deselect
 												if (
@@ -493,7 +559,7 @@
 			{/each}
 		{/if}
 
-		<Separator  />
+		<Separator />
 
 		<div class="sticky bottom-0 z-10 w-full bg-white px-3 py-4">
 			<div class="mb-4 flex items-center justify-between">
