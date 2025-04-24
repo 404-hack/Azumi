@@ -253,49 +253,8 @@
 											</div>
 											<div class="flex flex-col items-end gap-2">
 												<span class="text-lg font-semibold">{formatCurrency(meal.price)}</span>
-												<ResponsiveDropdown>
-													{#snippet trigger()}
-														<Button variant="ghost" size="icon">
-															<MoreVertical class="h-4 w-4" />
-															<span class="sr-only">Open menu</span>
-														</Button>
-													{/snippet}
-													{#snippet children()}
-														<button
-															class="dropdown-menu-item"
-															onclick={() => goto(`/vendor/menu/${meal.id}/`)}
-														>
-															<Pencil class="mr-2 h-4 w-4" />
-															Edit Item
-														</button>
-														<button class="dropdown-menu-item">
-															<Settings class="mr-2 h-4 w-4" />
-															Manage Options
-														</button>
-														<button class="dropdown-menu-item">
-															<BarChart2 class="mr-2 h-4 w-4" />
-															View Analytics
-														</button>
-														<div class="dropdown-menu-separator" />
-														<button class="dropdown-menu-item text-destructive">
-															<Trash class="mr-2 h-4 w-4" />
-															Delete Item
-														</button>
-													{/snippet}
-												</ResponsiveDropdown>
 											</div>
 										</div>
-
-										<details class="mt-4">
-											<summary
-												class="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
-											>
-												Show more details
-											</summary>
-											<div class="mt-4">
-												<p class="text-sm text-muted-foreground">{meal.description}</p>
-											</div>
-										</details>
 									</div>
 								{/each}
 							</div>
