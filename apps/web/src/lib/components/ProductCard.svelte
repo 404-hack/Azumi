@@ -59,7 +59,7 @@
 	)}
 	onclick={openProductModal}
 >
-	<div class="relative aspect-square w-20 flex-shrink-0 overflow-hidden rounded-md">
+	<div class="relative aspect-square w-28 flex-shrink-0 overflow-hidden rounded-md">
 		<img
 			src={image || '/shop.avif'}
 			alt={name}
