@@ -450,7 +450,7 @@
 					{/if}
 
 					{#if isMultipleSelect(optionGroup)}
-						<div class="space-y-3">
+						<div class="space-y-7">
 							{#each optionGroup.optionsToOptionGroups as { option }}
 								{#if option.inStock !== false}
 									<div class="flex items-center space-x-2">
@@ -472,7 +472,7 @@
 													<div class="flex items-center gap-2">
 														<button
 															type="button"
-															class="flex h-6 w-6 items-center justify-center rounded-full border text-sm"
+															class="flex size-8 items-center justify-center rounded-full border text-sm"
 															onclick={(e) => {
 																e.stopPropagation();
 																const currentQty = getOptionQuantity(optionGroup.id, option.id);
@@ -485,17 +485,17 @@
 																}
 															}}
 														>
-															<Minus class="h-3 w-3" />
+															<Minus class="size-5" />
 														</button>
 														<span class="w-4 text-center">
 															{getOptionQuantity(optionGroup.id, option.id)}
 														</span>
 														<button
 															type="button"
-															class="flex h-6 w-6 items-center justify-center rounded-full border text-sm"
+															class="flex size-8 items-center justify-center rounded-full border text-sm"
 															onclick={() => updateOptionQuantity(optionGroup.id, option.id, 1)}
 														>
-															<Plus class="h-3 w-3" />
+															<Plus class="size-5" />
 														</button>
 													</div>
 												{/if}
