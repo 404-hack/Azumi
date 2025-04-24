@@ -40,13 +40,15 @@
 
 	// Get product data from the modal state
 	const product = $derived(productModalState.productData);
-
 	// Function to load existing cart item state
 	function loadExistingCartState() {
-		if (!product?.id) return;
+		if (!product?.id || !cart?.items) {
+			resetModalState();
+			return;
+		}
 
 		// Find if this product is already in cart
-		const existingItem = cart?.items?.find((item) => item.menuItemId === product.id);
+		const existingItem = cart.items.find((item) => item.menuItemId === product.id);
 
 		if (existingItem) {
 			// Set quantity
@@ -185,6 +187,7 @@
 				}
 			}
 		}
+
 
 		// Return the formatted price using the formatCurrency utility
 		return formatCurrency(total);

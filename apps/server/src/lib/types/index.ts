@@ -53,6 +53,10 @@ export type TPack = Omit<
 >;
 
 export type TShopTodo = typeof schema.shopTodoTable.$inferSelect;
+export type TCartItem = typeof schema.cartItems.$inferSelect;
+export type TCart = typeof schema.cartTable.$inferSelect & {
+  items: TCartItem[];
+};
 export type TOperatingHours =
   typeof schema.shopOperatingHoursTable.$inferSelect;
 // Hono Context Variables
