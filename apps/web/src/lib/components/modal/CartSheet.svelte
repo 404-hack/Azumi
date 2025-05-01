@@ -1,5 +1,4 @@
 <script lang="ts">
-	import type { Cart } from '$lib/types/cart';
 	import { Button } from '$lib/components/ui/button';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { ShoppingBag, ShoppingCart } from 'lucide-svelte';
@@ -8,7 +7,8 @@
 	import { formatCurrency } from '$lib/utils';
 	import { cartSheetState } from '$lib/states/modalState.svelte';
 
-	let { shopCart } = $props<{ shopCart: Cart }>();
+	let { shopCart } = $props();
+	console.log('🚀 ~ shopCart:', shopCart);
 
 	// Derive cart item count from shopCart
 	const cartItemCount = $derived(shopCart?.totalItems || 0);
@@ -41,9 +41,9 @@
 </script>
 
 <Sheet.Root bind:open={cartSheetState.value}>
-	<Sheet.Content class="w-full overflow-y-auto rounded-s-lg p-4 pt-10 sm:max-w-lg">
+	<Sheet.Content class="w-[95vw] overflow-y-auto rounded-s-xl p-4 pt-10 sm:max-w-lg">
 		<Sheet.Header>
-			<Sheet.Title class="flex items-center gap-2">
+			<Sheet.Title class="flex items-center gap-2 text-xl font-semibold">
 				<ShoppingBag class="h-5 w-5" />
 				Your Orders
 			</Sheet.Title>
@@ -54,18 +54,24 @@
 			{#if shopCart?.items?.length > 0}
 				<div class="space-y-4">
 					{#each shopCart.items as item (item.id)}
-						<CartItem
-							id={item.id}
-							cartId={shopCart.id}
-							name={item.menuItem.name}
-							price={item.menuItem.price}
-							quantity={item.quantity}
-							image={item.menuItem.image}
-							specialInstructions={item.specialInstructions}
-							onQuantityChange={(newQty) =>
-								handleQuantityChange(item.id, newQty, item.menuItem.price)}
-							onRemove={() => handleItemRemove(item.id)}
-						/>
+						{#if item.menuItem}
+							<CartItem
+								id={item.id}
+								cartId={shopCart.id}
+								menuItem={item.menuItem}
+								availableOptionGroups={item.availableOptionGroups || []}
+								quantity={item.quantity}
+								selectedOptions={item.selectedOptions || []}
+								specialInstructions={item.specialInstructions}
+								onQuantityChange={(newQty) =>
+									handleQuantityChange(item.id, newQty, item.menuItem.price)}
+								onRemove={() => handleItemRemove(item.id)}
+							/>
+						{:else}
+							<div class="p-4 text-sm text-red-600">
+								Error: Product details missing for item ID {item.id}
+							</div>
+						{/if}
 					{/each}
 				</div>
 

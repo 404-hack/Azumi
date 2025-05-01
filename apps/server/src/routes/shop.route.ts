@@ -224,9 +224,7 @@ const shopRoute = factory
         case "newest":
           // Sort by creation date (newest first)
           nearbyShops.sort((a, b) => {
-            const aCreatedAt = a.createdAt
-              ? new Date(a.createdAt).getTime()
-              : 0;
+            const aCreatedAt = a.createdAt ? new Date(aCreatedAt).getTime() : 0;
             const bCreatedAt = b.createdAt ? new Date(bCreatedAt).getTime() : 0;
             return bCreatedAt - aCreatedAt;
           });
@@ -447,6 +445,46 @@ const shopRoute = factory
           return c.json({ message: "Shop not found" }, 404);
         }
 
+        // Map the shop data to a cleaner structure
+        const mappedShopData = {
+          ...shop, // Keep other shop properties
+          menuCategories: shop.menuCategories.map((category) => ({
+            ...category, // Keep other category properties
+            menus: category.menus.map((menu) => {
+              // Map the menuItemOptionGroups to a more direct structure
+              const mappedOptionGroups = menu.menuItemOptionGroups.map(
+                (menuItemOptGroup) => {
+                  const optionGroupData = menuItemOptGroup.optionGroup;
+
+                  // Extract the options directly from the nested structure
+                  const mappedOptions =
+                    optionGroupData.optionsToOptionGroups.map(
+                      (optToGroup) => optToGroup.option
+                    );
+
+                  // Return the cleaned-up option group structure
+                  return {
+                    id: optionGroupData.id,
+                    name: optionGroupData.name,
+                    minSelections: optionGroupData.minSelections,
+                    maxSelections: optionGroupData.maxSelections,
+                    options: mappedOptions, // Array of option objects
+                  };
+                }
+              );
+
+              // Create the final menu item structure, replacing the old junction table data
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { menuItemOptionGroups, ...restOfMenu } = menu; // Remove original structure
+
+              return {
+                ...restOfMenu, // Keep other menu item properties (id, name, price, etc.)
+                optionGroups: mappedOptionGroups, // Add the cleaned-up array
+              };
+            }),
+          })),
+        };
+
         // Calculate isOpen status
         const now = new Date();
         const currentDay = now.getDay(); // 0 for Sunday, 1 for Monday, etc.
@@ -502,7 +540,7 @@ const shopRoute = factory
         // --- End calculation ---
         return c.json({
           data: {
-            ...shop,
+            ...mappedShopData,
             isOpen, // Add the calculated isOpen status
             // Conditionally add distance, fee, and time
             ...(distance !== undefined && { distance }),

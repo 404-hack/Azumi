@@ -8,35 +8,89 @@
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { onClickOutside } from 'runed';
+	import ProductModal from './modal/ProductModal.svelte';
+	import { productModalState, cartSheetState } from '$lib/states/modalState.svelte';
+	// Import the necessary types from the refactored modalState
+	import type {
+		ProductDataForModal,
+		CartItemEditContext,
+		SelectedCartOption,
+		MenuItem, // Assuming MenuItem is defined in modalState or imported elsewhere
+		OptionGroup // Assuming OptionGroup is defined in modalState or imported elsewhere
+	} from '$lib/states/modalState.svelte.ts';
 
+	// Define CartItemProps based on the data received
+	// Ensure it includes all necessary fields for both product display and edit context
 	interface CartItemProps {
-		id: string;
+		id: string; // Cart item ID
 		cartId: string;
-		name: string;
-		price: number;
+		menuItem: MenuItem; // The full menu item details, including available option groups
+		// Add availableOptionGroups prop
+		availableOptionGroups: OptionGroup[];
 		quantity: number;
-		image?: string | null;
 		specialInstructions?: string;
+		selectedOptions: SelectedCartOption[]; // Use the specific type for selected options from cart
+		// Add other props passed to CartItem if any (like onQuantityChange, onRemove)
 		onQuantityChange?: (newQuantity: number) => void;
 		onRemove?: () => void;
 	}
 
+	// Destructure props, using menuItem for product details
 	let {
-		id,
+		id, // Cart item ID
 		cartId,
-		name,
-		price,
+		menuItem, // Contains name, price, image, description, optionGroups etc.
+		// Destructure availableOptionGroups
+		availableOptionGroups,
 		quantity: initialQuantity,
-		image = 'https://placehold.co/400x300?text=No+Image',
 		specialInstructions = '',
+		selectedOptions = [], // Use the correct name and type
 		onQuantityChange,
 		onRemove
 	}: CartItemProps = $props();
+
+	// Add console log to check received selectedOptions
+	console.log(`CartItem [${id}] received selectedOptions:`, selectedOptions);
 
 	// Simplified state using a single status variable
 	let optimisticQuantity = $state(initialQuantity);
 	let status = $state<'idle' | 'updating' | 'removing'>('idle'); // 'idle', 'updating', 'removing'
 	let updateTimeout: NodeJS.Timeout;
+
+	function openProductModal(e?: Event) {
+		e?.stopPropagation();
+		// Close the current sheet if open
+		if (cartSheetState.value) {
+			cartSheetState.setFalse();
+		}
+
+		// Prepare product data for the modal using the menuItem prop
+		// AND the availableOptionGroups prop
+		const productDataForModal: ProductDataForModal = {
+			...menuItem, // Spread the base menuItem details
+			// Explicitly add the available option groups
+			optionGroups: availableOptionGroups
+		};
+
+		// Prepare edit context for the modal
+		const editContextForModal: CartItemEditContext = {
+			cartItemId: id, // The ID of the cart item itself
+			initialQuantity: optimisticQuantity,
+			initialSpecialInstructions: specialInstructions,
+			initialSelectedOptions: selectedOptions // Pass the selected options directly
+		};
+
+		// Call the new openModal method with both product data and edit context
+		productModalState.openModal(productDataForModal, editContextForModal);
+	}
+
+	// Calculate total price including options
+	const totalOptionPrice = $derived(
+		selectedOptions.reduce((total, opt) => total + opt.option.price * opt.quantity, 0)
+	);
+
+	// Use menuItem.price as the base price
+	const totalPrice = $derived((menuItem.price + totalOptionPrice) * optimisticQuantity);
 
 	// Debounced update function
 	async function debouncedUpdate(newQuantity: number) {
@@ -128,27 +182,82 @@
 </script>
 
 <div
-	class="relative flex items-center gap-4 overflow-hidden p-4"
+	class="relative flex gap-4 overflow-hidden p-4"
 	in:receive={{ key: id }}
 	out:send={{ key: id }}
 >
 	<div class="relative">
 		<img
-			src={image || 'https://placehold.co/400x300?text=No+Image'}
-			alt={name}
+			src={menuItem.image || 'https://placehold.co/400x300?text=No+Image'}
+			alt={menuItem.name}
 			transition:fade={{ duration: 200 }}
 			class="h-16 w-16 rounded-lg object-cover object-center"
 		/>
 	</div>
-
+	<!-- Only make the content area clickable, not the entire item -->
 	<div class="min-w-0 flex-1">
-		<h3 class="truncate text-base font-medium">{name}</h3>
-		<p class="mt-1 text-sm text-gray-600">{formatCurrency(price)}</p>
+		<div class="flex items-start justify-between">
+			<h3 class="truncate text-base font-medium">{menuItem.name}</h3>
+			<!-- Use menuItem.name -->
+			<p class="text-sm font-medium">{formatCurrency(totalPrice)}</p>
+		</div>
+		<p class="text-sm text-gray-600">{formatCurrency(menuItem.price)} × {optimisticQuantity}</p>
+		<!-- Use menuItem.price -->
+
+		<!-- Show selected options with improved styling -->
+		{#if selectedOptions?.length > 0}
+			<!-- Use selectedOptions -->
+			<div class="mt-2 rounded-md bg-gray-50 p-2">
+				<div class="flex items-center justify-between">
+					<p class="text-xs font-medium text-gray-700">Selected Options:</p>
+					<button
+						class="text-xs font-medium text-primary hover:text-primary/80"
+						onclick={openProductModal}
+					>
+						Edit Options
+					</button>
+				</div>
+				<div class="mt-1 space-y-1.5">
+					{#each selectedOptions as { option, optionGroup, quantity }}
+						<!-- Use selectedOptions -->
+						<div class="flex items-center justify-between text-xs">
+							<div class="flex items-center gap-1">
+								{#if optionGroup?.name}<span class="text-primary-600 font-medium"
+										>{optionGroup.name}:</span
+									>{/if}
+								<span class="text-gray-700">{option.name}</span>
+								{#if quantity > 1}
+									<span class="text-gray-500">× {quantity}</span>
+								{/if}
+							</div>
+							{#if option.price > 0}
+								<span class="font-medium text-gray-700">
+									+{formatCurrency(option.price * quantity)}
+									<!-- Show total price for this option -->
+								</span>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
 		{#if specialInstructions}
-			<p class="mt-1 text-xs italic text-gray-500">Note: {specialInstructions}</p>
+			<div class="mt-2 rounded-md bg-amber-50 p-2 text-xs">
+				<div class="flex items-center justify-between">
+					<p class="font-medium text-amber-700">Notes:</p>
+					<button
+						class="text-xs font-medium text-primary hover:text-primary/80"
+						onclick={openProductModal}
+					>
+						Edit Notes
+					</button>
+				</div>
+				<p class="text-amber-800">{specialInstructions}</p>
+			</div>
 		{/if}
 	</div>
-	<div class="flex items-center gap-2">
+	<div class="items-cente flex gap-2">
 		<div
 			class="flex h-8 items-center rounded-md border bg-background transition-all duration-200"
 			class:w-8={!showControls}
@@ -203,3 +312,5 @@
 		</Button>
 	</div>
 </div>
+
+<ProductModal />

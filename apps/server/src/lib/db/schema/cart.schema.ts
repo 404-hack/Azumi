@@ -36,6 +36,7 @@ export const cartItems = sqliteTable("cart_items", {
   menuItemId: text("menu_item_id").references(() => menuItemTable.id, {
     onDelete: "cascade",
   }),
+  optionsHash: text("options_hash").notNull().default("no-options"), // Hash of the selected options to identify unique configurations
   quantity: integer("quantity").notNull().default(1),
   specialInstructions: text("special_instructions"),
   totalPrice: integer("total_price").notNull(), // Calculated price including options

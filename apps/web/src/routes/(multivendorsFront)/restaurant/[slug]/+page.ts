@@ -21,6 +21,7 @@ export const load = async ({ params }) => {
 		error(400, 'Failed to fetch restaurant data');
 	}
 	const restaurantData = await data.json();
+	console.log('🚀 ~ load ~ restaurantData:', restaurantData);
 	const isFavorite = await (
 		await client.favorite[':shopId'].$get({
 			param: {
@@ -34,7 +35,6 @@ export const load = async ({ params }) => {
 			shopId: restaurantData.data.id
 		}
 	});
-	console.log('🚀 ~ load ~ activeLocation.current.lng:', activeLocation.current);
 	const cartData = await shopCart.json();
 	return {
 		restaurant: restaurantData.data,

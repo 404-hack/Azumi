@@ -7,7 +7,6 @@
 	interface ProductCardProps extends MenuItem {
 		category?: string;
 	}
-
 	let {
 		description,
 		image,
@@ -18,31 +17,33 @@
 		category,
 		priceDescription,
 		inStock,
-		menuItemOptionGroups,
+		optionGroups, // Changed from menuItemOptionGroups to match new structure
 		packId,
 		shopId,
 		createdAt,
 		updatedAt
 	}: ProductCardProps = $props();
-
 	function openProductModal(e: Event) {
 		e.stopPropagation();
-		productModalState.openWithProduct({
+		// Prepare the product data according to the ProductDataForModal interface
+		const productData: ProductDataForModal = {
 			id,
 			name,
 			description,
 			image,
 			price,
 			categoryId,
-			category,
+			// category, // category is not part of MenuItem/ProductDataForModal
 			priceDescription,
 			inStock,
-			menuItemOptionGroups,
+			optionGroups, // Pass the option groups directly
 			packId,
 			shopId,
 			createdAt,
 			updatedAt
-		});
+		};
+		// Call the new openModal method without edit context
+		productModalState.openModal(productData);
 	}
 
 	function notifyAvailability(e: Event) {
@@ -59,7 +60,7 @@
 	)}
 	onclick={openProductModal}
 >
-	<div class="relative aspect-square w-28 flex-shrink-0 overflow-hidden rounded-md">
+	<div class="relative aspect-square w-24 flex-shrink-0 overflow-hidden rounded-md">
 		<img
 			src={image || '/shop.avif'}
 			alt={name}
