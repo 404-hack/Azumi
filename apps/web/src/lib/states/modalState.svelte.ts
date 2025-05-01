@@ -15,19 +15,16 @@ class ModalState {
 	}
 }
 
-// Create interfaces that match our database schema
+// Create interfaces that match our mapped database schema
 export interface OptionItem {
 	id: string;
 	name: string;
 	price: number;
-	inStock: boolean;
-	shopId: string;
-	createdAt: string;
-	updatedAt: string;
-}
-
-export interface OptionsToOptionGroups {
-	option: OptionItem;
+	inStock?: boolean;
+	shopId?: string;
+	optionGroupId?: string;
+	createdAt?: string;
+	updatedAt?: string;
 }
 
 export interface OptionGroup {
@@ -35,13 +32,9 @@ export interface OptionGroup {
 	name: string;
 	minSelections: number; // Required minimum selections
 	maxSelections: number | null; // null means unlimited
-	optionsToOptionGroups: OptionsToOptionGroups[];
+	options: OptionItem[]; // Direct array of options
 	// An option group is multiple if maxSelections > 1 or null (unlimited)
 	get multiple(): boolean;
-}
-
-export interface MenuItemOptionGroup {
-	optionGroup: OptionGroup;
 }
 
 export interface MenuItem {
@@ -50,14 +43,14 @@ export interface MenuItem {
 	description: string;
 	image: string | null;
 	price: number;
-	priceDescription: string;
-	inStock: boolean;
-	categoryId: string;
-	shopId: string;
-	menuItemOptionGroups: MenuItemOptionGroup[];
-	packId: string | null;
-	createdAt: string;
-	updatedAt: string;
+	priceDescription?: string;
+	inStock?: boolean;
+	categoryId?: string;
+	shopId?: string;
+	optionGroups: OptionGroup[]; // Direct array of option groups
+	packId?: string | null;
+	createdAt?: string;
+	updatedAt?: string;
 }
 
 export interface MenuCategory {
@@ -103,26 +96,85 @@ export interface Restaurant {
 
 export interface ProductData extends MenuItem {
 	category?: string;
+	// Add description if it's missing from MenuItem but needed
+	description?: string;
 }
 
-export interface OptionSelection {
-	groupId: string;
-	selections: string[]; // Array of selected option IDs
-	valid: boolean;
-	error?: string;
+// Interface for a single selected option within a cart item
+// Matches the structure observed in the shopCart data
+export interface SelectedCartOption {
+	option: {
+		id: string;
+		name: string;
+		price: number;
+	};
+	optionGroup: {
+		id: string;
+		name: string;
+	};
+	quantity: number; // Usually 1 for selected options, but included for completeness
+}
+
+// Interface for the data specific to the cart item being edited
+// Used to pre-populate the modal when editing
+export interface CartItemEditContext {
+	cartItemId: string;
+	initialQuantity: number;
+	initialSpecialInstructions: string;
+	initialSelectedOptions: SelectedCartOption[]; // Use the detailed interface
+}
+
+// Interface representing the full product data needed by the modal
+// This includes the base menu item details and all its available option groups
+export interface ProductDataForModal extends MenuItem {
+	// MenuItem already includes optionGroups, but ensure it's populated correctly
+	// If MenuItem definition changes, adjust here.
 }
 
 class ProductModalState extends ModalState {
-	public productData = $state<ProductData | null>(null);
-	public optionSelections = $state<Record<string, OptionSelection>>({});
+	// Holds the full product data (including all available options)
+	// This is set regardless of whether adding or editing
+	public productData = $state<ProductDataForModal | null>(null);
 
-	openWithProduct(product: ProductData) {
+	// Holds the specific context of the cart item being edited, if any
+	public editContext = $state<CartItemEditContext | null>(null);
+
+	// Unified method to open the modal
+	// Pass the full product data.
+	// Pass editContext only when editing an existing cart item.
+	openModal(product: ProductDataForModal, editContext?: CartItemEditContext) {
+		// Log for debugging purposes
+		console.log('Opening ProductModal...');
+		console.log('Product Data:', product);
+		if (editContext) {
+			console.log('Edit Context:', editContext);
+		} else {
+			console.log('Mode: Adding new item');
+		}
+
+		// Basic validation: Ensure product data is provided
+		if (!product) {
+			console.error('ProductModalState: Cannot open modal without product data.');
+			return;
+		}
+		// Ensure product data includes option groups if expected
+		if (!product.optionGroups) {
+			console.warn('ProductModalState: Product data is missing optionGroups.', product);
+			// Assign empty array if missing, though ideally the source should provide it
+			product.optionGroups = [];
+		}
+
 		this.productData = product;
-		this.setTrue();
+		this.editContext = editContext || null; // Set edit context if provided, otherwise null
+		this.setTrue(); // Open the modal (sets value = true)
 	}
 
 	close() {
-		this.setFalse();
+		// Reset state completely when closing
+		this.productData = null;
+		this.editContext = null;
+		this.setFalse(); // Close the modal (sets value = false)
+		console.log('ProductModal closed and state reset.');
 	}
 }
 

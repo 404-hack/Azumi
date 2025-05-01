@@ -2,6 +2,8 @@
 	import '@fontsource-variable/inter';
 	import '../app.css';
 	import { onMount } from 'svelte';
+	import { MediaQuery } from 'svelte/reactivity';
+
 	import { Toaster } from '$lib/components/ui/sonner/index.js';
 	import { afterNavigate, beforeNavigate } from '$app/navigation';
 	import NProgress from 'nprogress';
@@ -15,10 +17,16 @@
 	NProgress.configure({
 		showSpinner: false
 	});
+	const isDesktop = new MediaQuery('(min-width: 768px)');
 </script>
 
 <div>
 	{@render children()}
 </div>
-<Toaster richColors closeButton theme="light" />
+
+{#if !isDesktop.current}
+	<Toaster richColors closeButton theme="light" position="top-center" />
+{:else}
+	<Toaster richColors closeButton theme="light" />
+{/if}
 <!-- data-vaul-drawer-wrapper -->

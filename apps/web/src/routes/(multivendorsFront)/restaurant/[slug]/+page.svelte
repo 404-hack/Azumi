@@ -736,7 +736,7 @@
 					<span
 						class="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-white text-xs font-bold text-primary"
 					>
-						{data.shopCart.items.length}
+						{data.shopCart.totalItems}
 					</span>
 				</div>
 				<div class="flex flex-col items-start">

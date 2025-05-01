@@ -6,10 +6,11 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { buttonVariants } from '$lib/components/ui/button/index.js';
 	import ResponsiveDialog from '../ResponsiveDialog.svelte';
+	import NumberFlow from '@number-flow/svelte';
 	import {
 		productModalState,
-		type MenuItemOptionGroup,
-		type OptionGroup
+		type OptionGroup,
+		type OptionItem
 	} from '$lib/states/modalState.svelte';
 	import { Minus, Plus, Star } from 'lucide-svelte';
 	import Button from '../ui/button/button.svelte';
@@ -26,21 +27,29 @@
 	import { toast } from 'svelte-sonner';
 	import { invalidateAll } from '$app/navigation';
 	import type { Cart } from '$lib/types/cart';
-
 	const isDesktop = new MediaQuery('(min-width: 768px)');
 	let quantity = $state(1);
 	let isLoading = $state(false);
-
+	let specialInstructions = $state('');
 	// Props
-	let { cart } = $props();
-	console.log('🚀 ~ cart:', cart);
+	let { cart = null } = $props();
 
 	// For option groups and option selection
 	let selectedOptions = $state<Record<string, { id: string; quantity: number }[]>>({});
 
-	// Get product data from the modal state
+	// Get product data and edit context from the modal state
 	const product = $derived(productModalState.productData);
-	// Function to load existing cart item state
+	const editContext = $derived(productModalState.editContext); // Use editContext instead of editData
+
+	// Remove derived states for old edit mode properties
+	// const isEditMode = $derived(productModalState.editMode);
+	// const cartItemId = $derived(productModalState.cartItemId);
+	// const initialOptions = $derived(productModalState.initialOptions);
+	// const initialQuantity = $derived(productModalState.initialQuantity);
+	// const initialInstructions = $derived(productModalState.initialInstructions);
+
+	// Remove loadExistingCartState function - no longer needed for this flow
+	/*
 	function loadExistingCartState() {
 		if (!product?.id || !cart?.items) {
 			resetModalState();
@@ -51,66 +60,112 @@
 		const existingItem = cart.items.find((item) => item.menuItemId === product.id);
 
 		if (existingItem) {
-			// Set quantity
-			quantity = existingItem.quantity;
-
-			// Set options
-			if (existingItem.options?.length > 0) {
-				const groupedOptions: Record<string, { id: string; quantity: number }[]> = {};
-
-				existingItem.options.forEach((opt) => {
-					if (!groupedOptions[opt.optionGroupId]) {
-						groupedOptions[opt.optionGroupId] = [];
-					}
-					groupedOptions[opt.optionGroupId].push({
-						id: opt.optionId,
-						quantity: opt.quantity
-					});
-				});
-
-				selectedOptions = groupedOptions;
-			}
+			// Pre-fill state based on existing item (optional, depends on desired UX)
+			// For now, we only load state explicitly in edit mode via loadEditingState
 		} else {
 			resetModalState();
 		}
+	}
+	*/
+
+	// Function to load state when editing an existing cart item
+	function loadEditingState() {
+		if (!editContext) {
+			// Check editContext
+			// Should not happen if called correctly, but good practice
+			resetModalState();
+			return;
+		}
+
+		// Set the initial quantity from editContext
+		quantity = editContext.initialQuantity || 1; // Use editContext
+
+		// Set special instructions from editContext
+		specialInstructions = editContext.initialSpecialInstructions || ''; // Use editContext
+
+		// Map the initial options from editContext to the format expected by the modal
+		const groupedOptions: Record<string, { id: string; quantity: number }[]> = {};
+
+		// Use the updated structure with nested option and optionGroup
+		editContext.initialSelectedOptions.forEach((opt) => {
+			// Use editContext
+			// Ensure optionGroup and option exist and have IDs
+			if (!opt.optionGroup?.id || !opt.option?.id) {
+				console.warn('Skipping initial option due to missing data:', opt);
+				return;
+			}
+
+			const groupId = opt.optionGroup.id; // Use nested ID
+			if (!groupedOptions[groupId]) {
+				groupedOptions[groupId] = [];
+			}
+
+			groupedOptions[groupId].push({
+				id: opt.option.id, // Use nested ID
+				quantity: opt.quantity || 1 // Default quantity to 1 if missing
+			});
+		});
+
+		selectedOptions = groupedOptions;
+
+		// Remove validation call from here - it might be causing the loop
+		// validateAllOptionGroups();
 	}
 
 	// Reset the modal state when closing or opening with a new product
 	function resetModalState() {
 		quantity = 1;
+		specialInstructions = ''; // Reset instructions too
 		selectedOptions = {};
 		optionGroupErrors = {};
 	}
 
-	// Watch for modal state changes
+	// Consolidated Effect for modal state initialization and reset
 	$effect(() => {
-		if (!productModalState.value) {
-			// Reset when modal is closed
+		const is_open = productModalState.value;
+		const product_id = product?.id; // Track product ID
+		const edit_context_id = editContext?.cartItemId; // Track edit context ID
+
+		if (is_open) {
+			// Modal is open
+			if (product_id) {
+				// Product data is available
+				if (editContext && edit_context_id === editContext.cartItemId) {
+					// Edit mode: Check if edit_context_id matches current context to avoid re-running unnecessarily
+					console.log('Effect: Loading editing state for', edit_context_id);
+					loadEditingState();
+				} else if (!editContext) {
+					// Add mode (or product changed without edit context)
+					console.log('Effect: Resetting state for new product', product_id);
+					resetModalState();
+				}
+			} else {
+				// Product data not yet available while modal is open? Reset maybe?
+				console.log('Effect: Modal open but no product data yet.');
+				// resetModalState(); // Avoid resetting if product is just loading
+			}
+		} else {
+			// Modal is closed: Reset state
+			console.log('Effect: Modal closed, resetting state.');
 			resetModalState();
 		}
 	});
 
-	// Watch for product changes
-	$effect(() => {
-		if (product?.id) {
-			// Load existing state when a new product is loaded
-			loadExistingCartState();
-		}
-	});
-
 	// Use the product price or default to a fallback price
-	let basePrice = $derived(product?.price ?? 16.99);
-	let productName = $derived(product?.name ?? 'Product');
+	let basePrice = $derived(product?.price ?? 0); // Default to 0 or handle appropriately
+	let productName = $derived(product?.name ?? 'no name');
+	// Ensure productDescription uses the description from productData
 	let productDescription = $derived(product?.description ?? 'No description available');
 	let productImage = $derived(product?.image ?? '/hero-1.png');
-	let optionGroups = $derived(product?.menuItemOptionGroups ?? []);
+	// Updated to use direct optionGroups array from the mapped data structure
+	let optionGroups = $derived(product?.optionGroups ?? []);
 
 	// Track validation state for option groups
 	let optionGroupErrors = $state<Record<string, string>>({});
 
 	// Helper function to check if an option group is required
-	function isRequired(group: MenuItemOptionGroup): boolean {
-		return group.optionGroup.minSelections > 0;
+	function isRequired(group: OptionGroup): boolean {
+		return group.minSelections > 0;
 	}
 
 	// Add this helper function near the top of the script section
@@ -123,218 +178,236 @@
 		if (!selectedOptions[groupId]) return 0;
 		return selectedOptions[groupId].reduce((total, selection) => total + selection.quantity, 0);
 	}
-
 	// Helper function to validate option group selections
-	function validateOptionGroup(group: MenuItemOptionGroup): string | null {
-		const selection = selectedOptions[group.optionGroup.id];
-		const totalQuantity = getTotalGroupQuantity(group.optionGroup.id);
+	function validateOptionGroup(group: OptionGroup): string | null {
+		const totalSelected = getTotalGroupQuantity(group.id);
+		let error: string | null = null;
 
-		if (isMultipleSelect(group.optionGroup)) {
-			if (group.optionGroup.minSelections > 0 && totalQuantity < group.optionGroup.minSelections) {
-				return `Please select at least ${group.optionGroup.minSelections} total item${group.optionGroup.minSelections > 1 ? 's' : ''}`;
-			}
-			if (
-				group.optionGroup.maxSelections !== null &&
-				totalQuantity > group.optionGroup.maxSelections
-			) {
-				return `Please select no more than ${group.optionGroup.maxSelections} total items`;
-			}
-		} else if (
-			!isMultipleSelect(group.optionGroup) &&
-			group.optionGroup.minSelections > 0 &&
-			!selection
-		) {
-			return 'Please select an option';
+		if (totalSelected < group.minSelections) {
+			error = `Select at least ${group.minSelections}.`;
+		} else if (group.maxSelections !== null && totalSelected > group.maxSelections) {
+			error = `Select no more than ${group.maxSelections}.`;
 		}
 
-		return null;
+		// Return the error instead of setting state here
+		// optionGroupErrors = { ...optionGroupErrors, [group.id]: error || '' };
+		return error;
 	}
 
 	// Function to validate all option groups
 	function validateAllOptionGroups(): boolean {
-		let isValid = true;
-		optionGroupErrors = {};
-
-		if (!product?.menuItemOptionGroups) return true;
-
-		product.menuItemOptionGroups.forEach((group) => {
+		let allValid = true;
+		const currentErrors: Record<string, string> = {}; // Use a temporary object
+		for (const group of optionGroups) {
 			const error = validateOptionGroup(group);
 			if (error) {
-				optionGroupErrors[group.optionGroup.id] = error;
-				isValid = false;
+				allValid = false;
+				currentErrors[group.id] = error; // Collect errors
 			}
-		});
-
-		return isValid;
+		}
+		// Update the state once at the end
+		optionGroupErrors = currentErrors;
+		return allValid;
 	}
 
 	// Calculate total price including all selected options, packs, etc.
-	function calculateTotalPrice(): string {
-		let total = basePrice * quantity;
+	function calculateNumericTotalPrice(): number {
+		let total = basePrice;
 
-		// Add price of selected option groups
-		if (optionGroups.length > 0) {
-			for (const { optionGroup } of optionGroups) {
-				const selections = selectedOptions[optionGroup.id] || [];
-
-				for (const selection of selections) {
-					const option = optionGroup.optionsToOptionGroups.find(
-						(og) => og.option.id === selection.id
-					)?.option;
+		// Add option prices
+		for (const groupId in selectedOptions) {
+			const group = optionGroups.find((g) => g.id === groupId);
+			if (group) {
+				for (const selection of selectedOptions[groupId]) {
+					const option = group.options.find((o) => o.id === selection.id);
 					if (option) {
-						total += option.price * selection.quantity * quantity;
+						total += option.price * selection.quantity;
 					}
 				}
 			}
 		}
 
+		// Multiply by quantity
+		total *= quantity;
 
-		// Return the formatted price using the formatCurrency utility
-		return formatCurrency(total);
+		return total;
 	}
 
-	// Use derived to recompute the total price whenever dependencies change
-	const getTotalPrice = $derived(calculateTotalPrice());
+	// Derived state for the raw numeric total
+	const numericTotalPrice = $derived(calculateNumericTotalPrice());
+
+	// Keep the formatted price derived state for potential other uses (or remove if unused elsewhere)
+	const getTotalPrice = $derived(formatCurrency(numericTotalPrice));
 
 	// Simplify canSelectMultiple to derive from price only
 	function canSelectMultiple(option: any): boolean {
-		return option.price > 0;
-	}
-
-	// Add this helper function to determine if an option should be disabled
+		// This logic might need adjustment based on specific business rules
+		// For now, assume multiple can be selected if price > 0 or if group allows
+		return option.price > 0; // Example: Allow multiple only if it adds cost
+	} // Add this helper function to determine if an option should be disabled
 	function isOptionDisabled(groupId: string, optionId: string, group: OptionGroup): boolean {
-		if (!isMultipleSelect(group)) return false;
-		if (group.maxSelections === null) return false;
-
-		const currentTotal = getTotalGroupQuantity(groupId);
+		const totalSelected = getTotalGroupQuantity(groupId);
 		const isSelected = isOptionSelected(groupId, optionId);
 
-		// If the option is not selected and we're at max selections, disable it
-		return !isSelected && currentTotal >= group.maxSelections;
-	}
+		// For multi-select groups: Disable if max selections reached and this option is not already selected
+		if (
+			isMultipleSelect(group) &&
+			group.maxSelections !== null &&
+			totalSelected >= group.maxSelections &&
+			!isSelected
+		) {
+			return true;
+		}
 
-	// Modify toggleOptionSelection to properly handle selection states
+		// For single-select (radio) groups: NEVER disable options based on selection
+		// This ensures users can always change their selection in radio groups
+
+		// Only disable based on stock for all group types
+		const option = group.options.find((o) => o.id === optionId);
+		if (option && option.inStock === false) {
+			return true;
+		}
+
+		return false;
+	}
+	// Modify toggleOptionSelection to use updateOptionQuantity
 	function toggleOptionSelection(groupId: string, optionId: string, group: OptionGroup) {
-		if (isMultipleSelect(group)) {
-			if (!Array.isArray(selectedOptions[groupId])) {
-				selectedOptions[groupId] = [];
-			}
+		const currentQuantity = getOptionQuantity(groupId, optionId);
+		const isSelected = currentQuantity > 0;
 
-			const selections = selectedOptions[groupId];
-			const existingSelection = selections.find((s) => s.id === optionId);
-			const currentTotal = getTotalGroupQuantity(groupId);
-
-			const option = group.optionsToOptionGroups.find((og) => og.option.id === optionId)?.option;
-			if (!option) return; // If unchecking (removing selection)
-			if (existingSelection) {
-				// Remove option entirely
-				selectedOptions[groupId] = selections.filter((s) => s.id !== optionId);
-				// Always clear the error when removing a selection
-				delete optionGroupErrors[groupId];
-				return;
-			}
-
-			// If adding new selection
-			if (group.maxSelections !== null && currentTotal + 1 > group.maxSelections) {
-				optionGroupErrors[groupId] =
-					`You can only select up to ${group.maxSelections} total items in this group`;
-				return;
-			}
-
-			// Add new selection with quantity 1
-			selectedOptions[groupId] = [...selections, { id: optionId, quantity: 1 }];
-			delete optionGroupErrors[groupId];
+		if (isSelected) {
+			// Option exists, remove it (set quantity to 0)
+			updateOptionQuantity(groupId, optionId, -currentQuantity); // Use update function to set to 0
 		} else {
-			// For radio buttons (single selection)
-			const currentSelection = selectedOptions[groupId]?.[0];
-
-			// If clicking the same option and it's not required (minSelections = 0), deselect it
-			if (currentSelection?.id === optionId && group.minSelections === 0) {
-				selectedOptions[groupId] = [];
-				delete optionGroupErrors[groupId];
-				return;
+			// Option doesn't exist, add it with quantity 1 (only if not disabled)
+			if (!isOptionDisabled(groupId, optionId, group)) {
+				updateOptionQuantity(groupId, optionId, 1); // Use update function to set to 1
 			}
-
-			// Otherwise select the new option
-			selectedOptions[groupId] = [{ id: optionId, quantity: 1 }];
-			delete optionGroupErrors[groupId];
 		}
+		// No need to validate here, updateOptionQuantity does it
 	}
 
-	// Modify updateOptionQuantity to properly handle zero quantity
+	// Modify updateOptionQuantity (ensure validation is called)
 	function updateOptionQuantity(groupId: string, optionId: string, delta: number) {
-		if (!selectedOptions[groupId]) return;
+		const currentSelections = selectedOptions[groupId] || [];
+		const existingIndex = currentSelections.findIndex((sel) => sel.id === optionId);
+		const group = optionGroups.find((g) => g.id === groupId); // Get group info
 
-		const group = optionGroups.find((g) => g.optionGroup.id === groupId)?.optionGroup;
-		if (!group) return;
-
-		const selections = selectedOptions[groupId];
-		const optionIndex = selections.findIndex((s) => s.id === optionId);
-
-		if (optionIndex === -1) return;
-
-		const option = group.optionsToOptionGroups.find((og) => og.option.id === optionId)?.option;
-		if (!option) return;
-
-		// Don't allow quantity changes for free options
-		if (option.price === 0) {
-			optionGroupErrors[groupId] = 'Free options can only be selected once';
+		// Ensure group exists before proceeding
+		if (!group) {
+			console.error('Group not found for ID:', groupId);
 			return;
 		}
 
-		const currentQuantity = selections[optionIndex].quantity;
-		const newQuantity = currentQuantity + delta;
-		const currentTotal = getTotalGroupQuantity(groupId);
-		const newTotal = currentTotal + delta;
+		// Find the specific option details to check stock if increasing
+		const option = group.options.find((o) => o.id === optionId);
+		let newSelections = [...currentSelections]; // Clone current selections
 
-		// If reducing to zero or below, remove the option completely (deselect checkbox)
-		if (newQuantity <= 0) {
-			const newSelections = selections.filter((s) => s.id !== optionId);
-			selectedOptions[groupId] = newSelections;
+		if (existingIndex > -1) {
+			// Option exists, update its quantity or remove it
+			const currentQuantity = newSelections[existingIndex].quantity;
+			const newQuantity = currentQuantity + delta;
 
-			// Check minimum selections after removal
-			if (newSelections.length === 0 && group.minSelections > 0) {
-				optionGroupErrors[groupId] =
-					`Please select at least ${group.minSelections} item${group.minSelections > 1 ? 's' : ''}`;
-			} else {
-				delete optionGroupErrors[groupId];
+			// Check max group selections *before* increasing quantity (only if delta is positive)
+			if (
+				delta > 0 &&
+				group.maxSelections !== null &&
+				getTotalGroupQuantity(groupId) >= group.maxSelections
+			) {
+				toast.info(`Maximum selections (${group.maxSelections}) reached for this group.`);
+				return; // Stop update
 			}
+
+			// Check stock before increasing quantity (only if delta is positive)
+			if (delta > 0 && option?.inStock === false) {
+				toast.info(`${option.name} is out of stock.`);
+				return; // Stop update
+			}
+
+			if (newQuantity <= 0) {
+				// Remove the option if quantity drops to 0 or below
+				newSelections.splice(existingIndex, 1);
+			} else {
+				// Update the quantity
+				newSelections[existingIndex] = { ...newSelections[existingIndex], quantity: newQuantity };
+			}
+		} else if (delta > 0) {
+			// Option doesn't exist, and we are trying to increment (delta > 0)
+			// Add it with quantity 1, checking limits and stock first
+			if (group.maxSelections !== null && getTotalGroupQuantity(groupId) >= group.maxSelections) {
+				toast.info(`Maximum selections (${group.maxSelections}) reached for this group.`);
+				return; // Stop update
+			}
+			if (option?.inStock === false) {
+				toast.info(`${option.name} is out of stock.`);
+				return; // Stop update
+			}
+			// Add the new selection
+			newSelections.push({ id: optionId, quantity: 1 });
+		} else {
+			// Option doesn't exist and delta is not positive - do nothing
 			return;
 		}
 
-		// Check if new total would exceed group maximum
-		if (group.maxSelections !== null && newTotal > group.maxSelections) {
-			optionGroupErrors[groupId] =
-				`You can only select up to ${group.maxSelections} total items in this group`;
-			return;
-		}
+		// Update the state
+		selectedOptions = { ...selectedOptions, [groupId]: newSelections };
 
-		// Update the quantity
-		selections[optionIndex].quantity = newQuantity;
-		selectedOptions[groupId] = [...selections];
-		delete optionGroupErrors[groupId];
+		// Validate after state change
+		validateAllOptionGroups();
 	}
 
 	function isOptionSelected(groupId: string, optionId: string): boolean {
-		return selectedOptions[groupId]?.some((s) => s.id === optionId) ?? false;
+		return selectedOptions[groupId]?.some((sel) => sel.id === optionId) ?? false;
 	}
 
 	// Update getOptionQuantity helper
 	function getOptionQuantity(groupId: string, optionId: string): number {
-		return selectedOptions[groupId]?.find((s) => s.id === optionId)?.quantity ?? 0;
+		return selectedOptions[groupId]?.find((sel) => sel.id === optionId)?.quantity ?? 0;
 	}
 
 	// Add helper to display remaining selections
 	function getRemainingSelections(group: OptionGroup): number | null {
-		if (group.maxSelections === null) return null;
-		const totalSelected = getTotalGroupQuantity(group.id);
-		return Math.max(0, group.maxSelections - totalSelected);
+		if (group.maxSelections === null) return null; // Unlimited
+		const remaining = group.maxSelections - getTotalGroupQuantity(group.id);
+		return Math.max(0, remaining);
 	}
 
-	// Add to cart handler
+	// Helper function to get the selected option ID for a radio group
+	function getSelectedRadioValue(groupId: string): string | undefined {
+		const selections = selectedOptions[groupId];
+		// For radio groups (single select), there should be at most one selection
+		return selections?.[0]?.id;
+	} // Handle radio button changes for single-select groups
+	function handleRadioChange(groupId: string, newOptionId: string | undefined, group: OptionGroup) {
+		// Check if the option is already selected (clicked again) to allow deselection
+		const currentSelection = selectedOptions[groupId]?.[0]?.id;
+
+		// If clicking same option that's already selected and group isn't required, clear selection
+		if (currentSelection === newOptionId && !isRequired(group)) {
+			selectedOptions = { ...selectedOptions, [groupId]: [] };
+		} else if (newOptionId !== undefined) {
+			// If a valid option ID is provided, select it (handles both new selection and changing selection cases)
+			selectedOptions = { ...selectedOptions, [groupId]: [{ id: newOptionId, quantity: 1 }] };
+		} else if (newOptionId === undefined && !isRequired(group)) {
+			// If explicit deselection (undefined) and group isn't required, clear selection
+			selectedOptions = { ...selectedOptions, [groupId]: [] };
+		}
+
+		// Validate after change
+		validateAllOptionGroups();
+	}
+
+	// Handle add/update cart
 	async function handleAddToCart() {
+		// Ensure product and product.id are available
+		if (!product?.id) {
+			toast.error('Product information is missing. Cannot add to cart.');
+			return;
+		}
+
 		if (!validateAllOptionGroups()) {
 			// Show error message or handle invalid state
+			toast.error('Please check required options.');
 			return;
 		}
 
@@ -355,243 +428,334 @@
 			}
 
 			// Create request payload according to addCartItemSchema
+			// Remove shopId, ensure menuItemId is string
 			const cartData = {
-				menuItemId: product?.id,
+				menuItemId: product.id,
 				quantity: quantity,
-				specialInstructions: '',
+				specialInstructions: specialInstructions,
 				options: formattedOptions.length > 0 ? formattedOptions : undefined
 			};
 
-			// Make the API request using the Hono client
-			const response = await client.cart.$post({
-				json: cartData
-			});
-			await invalidateAll();
+			let response;
+
+			// Check if editContext exists to determine if it's an edit operation
+			if (editContext) {
+				// Use editContext
+				// Edit Mode: Delete the old item, then add the modified item as new
+
+				// 1. Delete the existing cart item using cartItemId from editContext
+				const deleteResponse = await client.cart.items[':itemId'].$delete({
+					param: { itemId: editContext.cartItemId } // Use ID from editContext
+				});
+
+				if (!deleteResponse.ok) {
+					const errorData = await deleteResponse.json();
+					throw new Error(
+						(errorData as any).message || 'Failed to remove original item during update'
+					);
+				}
+
+				// 2. Add the modified item as a new entry
+				response = await client.cart.$post({
+					json: cartData
+				});
+			} else {
+				// Add Mode: Add as a new item
+				response = await client.cart.$post({
+					json: cartData
+				});
+			}
+
+			await invalidateAll(); // Refresh cart data everywhere
 
 			if (response.ok) {
-				// Close the modal
-				productModalState.value = false;
-				toast.success('Item added to cart!');
+				productModalState.close();
+				toast.success(editContext ? 'Item updated in cart!' : 'Item added to cart!'); // Use editContext
 			} else {
 				const errorData = await response.json();
-				toast.error(errorData.error || 'Failed to add item to cart');
+				toast.error(
+					(errorData as any).message || `Failed to ${editContext ? 'update' : 'add'} item`
+				); // Use editContext
 			}
 		} catch (error) {
-			console.error('Error adding to cart:', error);
-			toast.error('Something went wrong. Please try again.');
+			console.error(`Error ${editContext ? 'updating' : 'adding to'} cart:`, error); // Use editContext
+			toast.error((error as Error).message || 'Something went wrong. Please try again.');
 		} finally {
 			isLoading = false;
 		}
 	}
 </script>
 
-<Dialog.Root bind:open={productModalState.value}>
-	<Dialog.Content scrollClass="p-0" class=" w-full overflow-hidden p-0  sm:max-w-[425px]">
-		<div class="">
-			<img
-				src={productImage}
-				in:blur={{ duration: 300 }}
-				loading="lazy"
-				class="h-[300px] w-full object-cover"
-				alt={productName}
-			/>
-		</div>
-		<div class="w-full overflow-auto">
-			<div class="grid gap-4 p-4">
-				<h1 class="italian text-2xl font-bold capitalize lg:text-3xl">
-					{productName}
-				</h1>
-				<div class="flex items-center gap-2">
-					<p class="text-primary">{formatCurrency(basePrice)}</p>
-					<!-- <Badge>popular</Badge> -->
-				</div>
-				<p class="mt-2 text-sm text-muted-foreground">
-					{productDescription}
-				</p>
+<Dialog.Root
+	bind:open={productModalState.value}
+	onOpenChange={(open) => !open && productModalState.close()}
+>
+	<!-- Ensure Dialog.Content is a flex column and set a max height for viewport fitting -->
+	<Dialog.Content scrollClass="p-0" class=" w-full overflow-hidden p-0 sm:max-w-[425px]">
+		{#if product}
+			<!-- Header Part 1: Image (Doesn't shrink) -->
+			<div class="relative h-64 w-full flex-shrink-0">
+				<img
+					src={productImage}
+					alt={productName}
+					class="absolute inset-0 h-full w-full object-cover"
+				/>
 			</div>
-		</div>
 
-		{#if optionGroups && optionGroups.length > 0}
-			<Separator />
-			{#each optionGroups as { optionGroup }}
-				<div class="px-4 py-3">
-					<div class="flex items-center justify-between">
-						<h3 class="mb-3 font-medium">{optionGroup.name}</h3>
-						<div class="flex items-center gap-2">
-							{#if isRequired({ optionGroup })}
-								<span class="text-sm text-destructive">Required</span>
-							{/if}
-							{#if optionGroup.maxSelections !== null}
-								<span class="text-sm text-muted-foreground">
-									{getRemainingSelections(optionGroup)} remaining
-								</span>
-							{/if}
-						</div>
-					</div>
-					<p class="mb-4 text-sm text-muted-foreground">
-						{#if isMultipleSelect(optionGroup)}
-							{#if optionGroup.maxSelections === null}
-								Choose {optionGroup.minSelections} or more options
-							{:else}
-								Choose {optionGroup.minSelections} to {optionGroup.maxSelections} options
-							{/if}
-						{:else}
-							Choose one option
-						{/if}
-					</p>
-
-					{#if optionGroupErrors[optionGroup.id]}
-						<Alert
-							variant="destructive"
-							class="mb-4 flex items-center bg-destructive/90 p-2 text-destructive-foreground   [&>svg]:top-2.5"
-						>
-							<AlertCircle class="h-4 w-4  stroke-destructive-foreground" />
-							<AlertDescription>
-								{optionGroupErrors[optionGroup.id]}
-							</AlertDescription>
-						</Alert>
+			<!-- Revert header section layout/styling -->
+			<div class="flex-shrink-0 p-4">
+				<Dialog.Title class="text-lg font-semibold capitalize">{productName}</Dialog.Title>
+				{#if productDescription}
+					<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+						{productDescription}
+					</Dialog.Description>
+				{/if}
+				<div class="mt-2 flex items-center gap-2">
+					<p class="font-semibold text-primary">{formatCurrency(basePrice)}</p>
+					{#if product.priceDescription}
+						<Badge variant="outline">{product.priceDescription}</Badge>
 					{/if}
+				</div>
+			</div>
 
-					{#if isMultipleSelect(optionGroup)}
-						<div class="space-y-7">
-							{#each optionGroup.optionsToOptionGroups as { option }}
-								{#if option.inStock !== false}
-									<div class="flex items-center space-x-2">
-										<Checkbox
-											checked={isOptionSelected(optionGroup.id, option.id)}
-											onCheckedChange={() => {
-												toggleOptionSelection(optionGroup.id, option.id, optionGroup);
-											}}
-											id={`${optionGroup.id}-${option.id}`}
-											disabled={isOptionDisabled(optionGroup.id, option.id, optionGroup)}
-										/>
-										<label
-											for={`${optionGroup.id}-${option.id}`}
-											class="flex flex-1 items-center justify-between font-medium"
-										>
-											<span>{option.name}</span>
-											<div class="flex items-center gap-2">
-												{#if isOptionSelected(optionGroup.id, option.id) && canSelectMultiple(option)}
-													<div class="flex items-center gap-2">
-														<button
-															type="button"
-															class="flex size-8 items-center justify-center rounded-full border text-sm"
-															onclick={(e) => {
-																e.stopPropagation();
-																const currentQty = getOptionQuantity(optionGroup.id, option.id);
-																if (currentQty <= 1) {
-																	// If at 1, toggling will remove the option
-																	toggleOptionSelection(optionGroup.id, option.id, optionGroup);
-																} else {
-																	// Otherwise just decrease quantity
-																	updateOptionQuantity(optionGroup.id, option.id, -1);
-																}
-															}}
-														>
-															<Minus class="size-5" />
-														</button>
-														<span class="w-4 text-center">
-															{getOptionQuantity(optionGroup.id, option.id)}
-														</span>
-														<button
-															type="button"
-															class="flex size-8 items-center justify-center rounded-full border text-sm"
-															onclick={() => updateOptionQuantity(optionGroup.id, option.id, 1)}
-														>
-															<Plus class="size-5" />
-														</button>
-													</div>
+			<div class="px-4 pb-4 pt-2">
+				{#if optionGroups.length > 0}
+					<!-- Remove outer grid, add margin between groups -->
+					{#each optionGroups as group, i (group.id)}
+						<div class="grid gap-2 {i > 0 ? 'mt-4' : ''}">
+							<!-- Revert option group header styling -->
+							<div class="flex items-center justify-between">
+								<Label class="font-medium capitalize">{group.name}</Label>
+								{#if isRequired(group)}
+									<Badge variant="destructive" class="text-xs">Required</Badge>
+								{:else}
+									<Badge variant="secondary" class="text-xs">Optional</Badge>
+								{/if}
+							</div>
+							<p class="text-xs text-muted-foreground">
+								Select {#if group.minSelections > 0}at least {group.minSelections}{/if}
+								{#if group.maxSelections && group.maxSelections > 0}
+									up to {group.maxSelections}{/if}
+								option{#if group.maxSelections !== 1}s{/if}.
+								{#if getRemainingSelections(group) !== null}
+									<span class="font-medium text-primary">
+										({getRemainingSelections(group)} remaining)
+									</span>
+								{/if}
+							</p>
+							{#if optionGroupErrors[group.id]}
+								<Alert variant="destructive" class="p-2 text-xs">
+									<AlertCircle class="h-4 w-4" />
+									<AlertDescription>{optionGroupErrors[group.id]}</AlertDescription>
+								</Alert>
+							{/if}
+
+							{#if isMultipleSelect(group)}
+								<!-- Checkbox rendering (Multi-select) -->
+								<div class="grid gap-3">
+									{#each group.options as option (option.id)}
+										{@const isSelected = isOptionSelected(group.id, option.id)}
+										{@const currentQuantity = getOptionQuantity(group.id, option.id)}
+										{@const isDisabled = isOptionDisabled(group.id, option.id, group)}
+										{@const canIncrease = !(
+											group.maxSelections !== null &&
+											getTotalGroupQuantity(group.id) >= group.maxSelections
+										)}
+										{@const isOutOfStock = option.inStock === false}
+
+										<div class="flex items-center justify-between gap-2">
+											<!-- Checkbox, Label, Price -->
+											<Label
+												for={`option-${group.id}-${option.id}`}
+												class="flex flex-1 cursor-pointer items-center gap-2 {isDisabled &&
+												!isSelected
+													? 'cursor-not-allowed opacity-50'
+													: ''}"
+											>
+												<Checkbox
+													id={`option-${group.id}-${option.id}`}
+													checked={isSelected}
+													onCheckedChange={() => toggleOptionSelection(group.id, option.id, group)}
+													disabled={isDisabled && !isSelected}
+												/>
+												<span class="text-sm">{option.name}</span>
+												{#if isOutOfStock}
+													<Badge variant="outline" class="text-xs text-destructive"
+														>Out of Stock</Badge
+													>
 												{/if}
-												<span class="text-muted-foreground">
-													{option.price > 0 ? `+${formatCurrency(option.price)}` : 'Included'}
-												</span>
+											</Label>
+											{#if option.price > 0}
+												<span class="whitespace-nowrap text-sm font-medium"
+													>+{formatCurrency(option.price)}</span
+												>
+											{/if}
+
+											<!-- Quantity Controls -->
+											<!-- Show only if selected AND it has a price > 0 -->
+											{#if isSelected && option.price > 0}
+												<div class="flex items-center gap-1">
+													<Button
+														variant="outline"
+														size="icon"
+														class="h-6 w-6"
+														onclick={() => updateOptionQuantity(group.id, option.id, -1)}
+														disabled={currentQuantity <= 1}
+													>
+														<Minus class="h-3 w-3" />
+													</Button>
+													<span class="w-6 text-center text-sm font-medium">{currentQuantity}</span>
+													<Button
+														variant="outline"
+														size="icon"
+														class="h-6 w-6"
+														onclick={() => updateOptionQuantity(group.id, option.id, 1)}
+														disabled={!canIncrease || isOutOfStock}
+													>
+														<Plus class="h-3 w-3" />
+													</Button>
+												</div>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							{:else}
+								<!-- Radio Group rendering (Single-select) -->
+								<!-- Replace RadioGroup with custom radio buttons for better control -->
+								<div class="grid gap-3">
+									{#each group.options as option (option.id)}
+										{@const isDisabled = isOptionDisabled(group.id, option.id, group)}
+										{@const isSelected = isOptionSelected(group.id, option.id)}
+										<div class="flex items-center justify-between">
+											<!-- Wrap the whole radio button in a clickable area -->
+											<div
+												class="flex flex-1 cursor-pointer items-center justify-between {isDisabled
+													? 'cursor-not-allowed opacity-50'
+													: ''}"
+												onclick={() => {
+													if (isDisabled) return;
+
+													// If already selected and not required, deselect
+													if (isSelected && !isRequired(group)) {
+														handleRadioChange(group.id, undefined, group);
+													}
+													// If not selected or if required, select this option
+													else if (!isSelected) {
+														handleRadioChange(group.id, option.id, group);
+													}
+												}}
+												onkeydown={(e) => {
+													// Handle keyboard accessibility
+													if (e.key === 'Enter' || e.key === ' ') {
+														e.preventDefault();
+														if (isDisabled) return;
+
+														if (isSelected && !isRequired(group)) {
+															handleRadioChange(group.id, undefined, group);
+														} else if (!isSelected) {
+															handleRadioChange(group.id, option.id, group);
+														}
+													}
+												}}
+												tabindex={isDisabled ? -1 : 0}
+												role="button"
+												aria-pressed={isSelected}
+											>
+												<div class="flex items-center gap-2">
+													<!-- Custom radio button with visual indicator -->
+													<div
+														class="flex h-4 w-4 items-center justify-center rounded-full border border-primary text-primary ring-offset-background
+														{isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background'}"
+														role="radio"
+														aria-checked={isSelected}
+													>
+														{#if isSelected}
+															<div class="h-2 w-2 rounded-full bg-primary-foreground"></div>
+														{/if}
+													</div>
+													<span class="text-sm">{option.name}</span>
+												</div>
 											</div>
-										</label>
-									</div>
-								{/if}
-							{/each}
+											{#if option.price > 0}
+												<span class="text-sm font-medium">+{formatCurrency(option.price)}</span>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							{/if}
 						</div>
-					{:else}
-						<RadioGroup
-							value={selectedOptions[optionGroup.id]?.[0]?.id ?? ''}
-							class="space-y-3"
-							onValueChange={(value) => {
-								// If clicking the currently selected radio and group is not required, deselect it
-								if (
-									selectedOptions[optionGroup.id]?.[0]?.id === value &&
-									optionGroup.minSelections === 0
-								) {
-									selectedOptions[optionGroup.id] = [];
-								} else {
-									// Normal case: Switch to new selection
-									selectedOptions[optionGroup.id] = [{ id: value, quantity: 1 }];
-								}
-							}}
-						>
-							{#each optionGroup.optionsToOptionGroups as { option }}
-								{#if option.inStock !== false}
-									<div class="flex items-center space-x-2">
-										<RadioGroupItem value={option.id} id={`${optionGroup.id}-${option.id}`} />
-										<label
-											for={`${optionGroup.id}-${option.id}`}
-											class="flex flex-1 items-center justify-between font-medium"
-											onclick={(e) => {
-												// If this is already selected and not required, prevent default and deselect
-												if (
-													selectedOptions[optionGroup.id]?.[0]?.id === option.id &&
-													optionGroup.minSelections === 0
-												) {
-													e.preventDefault();
-													e.stopPropagation();
-													selectedOptions[optionGroup.id] = [];
-												}
-											}}
-										>
-											<span>{option.name}</span>
-											<span class="text-muted-foreground">
-												{option.price > 0 ? `+${formatCurrency(option.price)}` : 'Included'}
-											</span>
-										</label>
-									</div>
-								{/if}
-							{/each}
-						</RadioGroup>
-					{/if}
-				</div>
-				<Separator />
-			{/each}
-		{/if}
-
-		<Separator />
-
-		<div class="sticky bottom-0 z-10 w-full bg-white px-3 py-4">
-			<div class="mb-4 flex items-center justify-between">
-				<span class="font-medium">Quantity</span>
-				<div class="flex items-center gap-4">
-					<button
-						class="flex h-8 w-8 items-center justify-center rounded-full border transition-colors hover:border-primary hover:text-primary"
-						disabled={quantity <= 1}
-						onclick={() => quantity--}
-					>
-						<Minus class="h-4 w-4" />
-					</button>
-					<span class="w-4 text-center">{quantity}</span>
-					<button
-						onclick={() => quantity++}
-						class="flex h-8 w-8 items-center justify-center rounded-full border transition-colors hover:border-primary hover:text-primary"
-					>
-						<Plus class="h-4 w-4" />
-					</button>
-				</div>
+					{/each}
+				{/if}
 			</div>
-			<Button
-				class="w-full shadow-lg"
-				size="lg"
-				onclick={handleAddToCart}
-				disabled={Object.keys(optionGroupErrors).length > 0 || isLoading}
-			>
-				{isLoading ? 'Adding to Cart...' : `Add to Cart - ${getTotalPrice}`}
-			</Button>
-		</div>
+			<!-- Special Instructions -->
+			<div class="px-4 pb-4">
+				<Label for="special-instructions" class="mb-2 block text-sm font-medium"
+					>Special Instructions</Label
+				>
+				<Input
+					id="special-instructions"
+					placeholder="Any specific requests? (e.g., extra sauce)"
+					bind:value={specialInstructions}
+					autofocus={false}
+					tabindex="-1"
+				/>
+			</div>
+
+			<!-- Footer: Quantity and Add to Cart -->
+			<Dialog.Footer class="sticky bottom-0 mt-auto flex-shrink-0 border-t bg-background p-4">
+				<div class="flex w-full items-center justify-between gap-4">
+					<div class="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="icon"
+							onclick={() => (quantity = Math.max(1, quantity - 1))}
+							disabled={quantity <= 1}
+						>
+							<Minus class="h-4 w-4" />
+						</Button>
+						<span class="w-8 text-center text-lg font-medium">{quantity}</span>
+						<Button variant="outline" size="icon" onclick={() => (quantity += 1)}>
+							<Plus class="h-4 w-4" />
+						</Button>
+					</div>
+					<Button
+						class="flex-1"
+						onclick={handleAddToCart}
+						disabled={isLoading || Object.values(optionGroupErrors).some((e) => e)}
+					>
+						{#if isLoading}
+							<svg
+								class="-ml-1 mr-3 h-5 w-5 animate-spin text-white"
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
+							>
+								<circle
+									class="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									stroke-width="4"
+								></circle>
+								<path
+									class="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+								></path>
+							</svg>
+							{editContext ? 'Updating...' : 'Adding...'}
+						{:else}
+							{editContext ? 'Update Item' : 'Add to Cart'} - {getTotalPrice}
+						{/if}
+					</Button>
+				</div>
+			</Dialog.Footer>
+		{:else}
+			<!-- Optional: Show loading or error state if product is null -->
+			<div class="flex h-64 items-center justify-center p-4">
+				<p class="text-muted-foreground">Loading product details...</p>
+			</div>
+		{/if}
 	</Dialog.Content>
 </Dialog.Root>
