@@ -518,11 +518,11 @@
 				</div>
 			</div>
 
-			<div class="px-4 pb-4 pt-2">
+			<div class="px-4 pb-8 pt-2">
 				{#if optionGroups.length > 0}
 					<!-- Remove outer grid, add margin between groups -->
 					{#each optionGroups as group, i (group.id)}
-						<div class="grid gap-2 {i > 0 ? 'mt-4' : ''}">
+						<div class="grid gap-2 {i > 0 ? 'mt-10' : ''}">
 							<!-- Revert option group header styling -->
 							<div class="flex items-center justify-between">
 								<Label class="font-medium capitalize">{group.name}</Label>
@@ -552,7 +552,7 @@
 
 							{#if isMultipleSelect(group)}
 								<!-- Checkbox rendering (Multi-select) -->
-								<div class="grid gap-8">
+								<div class="grid gap-8 pt-4">
 									{#each group.options as option (option.id)}
 										{@const isSelected = isOptionSelected(group.id, option.id)}
 										{@const currentQuantity = getOptionQuantity(group.id, option.id)}
@@ -598,7 +598,7 @@
 													<Button
 														variant="outline"
 														size="icon"
-														class="h-6 w-6"
+														class="size-8"
 														onclick={() => updateOptionQuantity(group.id, option.id, -1)}
 														disabled={currentQuantity <= 1}
 													>
@@ -608,7 +608,7 @@
 													<Button
 														variant="outline"
 														size="icon"
-														class="h-6 w-6"
+														class="size-8"
 														onclick={() => updateOptionQuantity(group.id, option.id, 1)}
 														disabled={!canIncrease || isOutOfStock}
 													>
@@ -622,7 +622,7 @@
 							{:else}
 								<!-- Radio Group rendering (Single-select) -->
 								<!-- Replace RadioGroup with custom radio buttons for better control -->
-								<div class="grid gap-3">
+								<div class="grid gap-8 pt-4">
 									{#each group.options as option (option.id)}
 										{@const isDisabled = isOptionDisabled(group.id, option.id, group)}
 										{@const isSelected = isOptionSelected(group.id, option.id)}
