@@ -125,7 +125,6 @@
 			{#each optionGroups as group}
 				<Collapsible.Root class="border-b last:border-0">
 					<div class="flex items-center gap-2 p-4">
-						<GripVertical class="h-4 w-4 text-muted-foreground" />
 						<div class="flex-1">
 							<div class="flex items-center gap-2">
 								<span class="font-medium">{group.name}</span>
