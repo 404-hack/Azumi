@@ -208,7 +208,7 @@
 <CartSheet shopCart={data.shopCart} />
 
 <!-- Modern Immersive Redesign -->
-<main class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-4">
+<main class="mx-auto max-w-7xl px-2 py-4 sm:px-6 lg:px-4">
 	<div class="">
 		<div class="relative h-64 overflow-hidden rounded-lg">
 			<img src="/shop.avif" alt="Kebab Royal" class="absolute inset-0 h-full w-full object-cover" />
