@@ -129,7 +129,7 @@
 
 <div>
 	<!-- Filter tabs -->
-	<!-- <div class="mb-6 border-b">
+	<div class="mb-6 border-b">
 		<div class="scrollbar-hide flex overflow-x-auto">
 			{#each filters as filter}
 				<button
@@ -142,7 +142,7 @@
 				</button>
 			{/each}
 		</div>
-	</div> -->
+	</div>
 
 	<!-- Featured section with larger cards -->
 	<div class="mb-10" in:fade={{ duration: 300 }}>
