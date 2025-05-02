@@ -552,7 +552,7 @@
 
 							{#if isMultipleSelect(group)}
 								<!-- Checkbox rendering (Multi-select) -->
-								<div class="grid gap-3">
+								<div class="grid gap-8">
 									{#each group.options as option (option.id)}
 										{@const isSelected = isOptionSelected(group.id, option.id)}
 										{@const currentQuantity = getOptionQuantity(group.id, option.id)}
@@ -697,7 +697,6 @@
 					placeholder="Any specific requests? (e.g., extra sauce)"
 					bind:value={specialInstructions}
 					autofocus={false}
-					tabindex="-1"
 				/>
 			</div>
 

@@ -7,7 +7,6 @@
 	import { cubicOut } from 'svelte/easing';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import { onClickOutside } from 'runed';
 	import ProductModal from './modal/ProductModal.svelte';
 	import { productModalState, cartSheetState } from '$lib/states/modalState.svelte';
 	// Import the necessary types from the refactored modalState
@@ -164,131 +163,46 @@
 		easing: cubicOut,
 		fallback: (node) => scale(node, { start: 0.95, opacity: 0, duration: 150 })
 	});
-
-	let showControls = $state(false);
-
-	function toggleControls() {
-		showControls = !showControls;
-	}
-
-	// Handle clicks outside
-	let controlsRef = $state<HTMLDivElement>();
-	onClickOutside(
-		() => controlsRef,
-		() => {
-			if (showControls) showControls = false;
-		}
-	);
 </script>
 
-<div
-	class="relative flex gap-4 overflow-hidden p-4"
-	in:receive={{ key: id }}
-	out:send={{ key: id }}
->
-	<div class="relative">
-		<img
-			src={menuItem.image || 'https://placehold.co/400x300?text=No+Image'}
-			alt={menuItem.name}
-			transition:fade={{ duration: 200 }}
-			class="h-16 w-16 rounded-lg object-cover object-center"
-		/>
-	</div>
-	<!-- Only make the content area clickable, not the entire item -->
-	<div class="min-w-0 flex-1">
-		<div class="flex items-start justify-between">
-			<h3 class="truncate text-base font-medium">{menuItem.name}</h3>
-			<!-- Use menuItem.name -->
-			<p class="text-sm font-medium">{formatCurrency(totalPrice)}</p>
+<div class="overflow-hidden border-b p-4" in:receive={{ key: id }} out:send={{ key: id }}>
+	<div class="relative flex flex-col gap-4 sm:flex-row">
+		<div class="relative">
+			<img
+				src={menuItem.image || 'https://placehold.co/400x300?text=No+Image'}
+				alt={menuItem.name}
+				transition:fade={{ duration: 200 }}
+				class="h-16 w-16 rounded-lg object-cover object-center"
+			/>
 		</div>
-		<p class="text-sm text-gray-600">{formatCurrency(menuItem.price)} × {optimisticQuantity}</p>
-		<!-- Use menuItem.price -->
-
-		<!-- Show selected options with improved styling -->
-		{#if selectedOptions?.length > 0}
-			<!-- Use selectedOptions -->
-			<div class="mt-2 rounded-md bg-gray-50 p-2">
-				<div class="flex items-center justify-between">
-					<p class="text-xs font-medium text-gray-700">Selected Options:</p>
-					<button
-						class="text-xs font-medium text-primary hover:text-primary/80"
-						onclick={openProductModal}
-					>
-						Edit Options
-					</button>
-				</div>
-				<div class="mt-1 space-y-1.5">
-					{#each selectedOptions as { option, optionGroup, quantity }}
-						<!-- Use selectedOptions -->
-						<div class="flex items-center justify-between text-xs">
-							<div class="flex items-center gap-1">
-								{#if optionGroup?.name}<span class="text-primary-600 font-medium"
-										>{optionGroup.name}:</span
-									>{/if}
-								<span class="text-gray-700">{option.name}</span>
-								{#if quantity > 1}
-									<span class="text-gray-500">× {quantity}</span>
-								{/if}
-							</div>
-							{#if option.price > 0}
-								<span class="font-medium text-gray-700">
-									+{formatCurrency(option.price * quantity)}
-									<!-- Show total price for this option -->
-								</span>
-							{/if}
-						</div>
-					{/each}
-				</div>
+		<!-- Only make the content area clickable, not the entire item -->
+		<div class="min-w-0 flex-1">
+			<div class="flex items-start justify-between">
+				<h3 class="truncate text-base font-medium">{menuItem.name}</h3>
+				<!-- Use menuItem.name -->
+				<p class="text-sm font-medium">{formatCurrency(totalPrice)}</p>
 			</div>
-		{/if}
-
-		{#if specialInstructions}
-			<div class="mt-2 rounded-md bg-amber-50 p-2 text-xs">
-				<div class="flex items-center justify-between">
-					<p class="font-medium text-amber-700">Notes:</p>
-					<button
-						class="text-xs font-medium text-primary hover:text-primary/80"
-						onclick={openProductModal}
-					>
-						Edit Notes
-					</button>
-				</div>
-				<p class="text-amber-800">{specialInstructions}</p>
-			</div>
-		{/if}
-	</div>
-	<div class="items-cente flex gap-2">
-		<div
-			class="flex h-8 items-center rounded-md border bg-background transition-all duration-200"
-			class:w-8={!showControls}
-			class:w-32={showControls}
-			bind:this={controlsRef}
-		>
-			{#if showControls}
+			<p class="text-sm text-gray-600">{formatCurrency(menuItem.price)} × {optimisticQuantity}</p>
+			<!-- Use menuItem.price -->
+		</div>
+		<!-- Simplified controls container -->
+		<div class="flex items-center gap-2">
+			<!-- Always visible quantity controls -->
+			<div class="flex h-8 items-center rounded-md border bg-background">
 				<Button
 					variant="ghost"
 					size="icon"
-					class="h-8 w-8 rounded-r-none"
+					class="h-8 w-8 rounded-r-none border-r"
 					disabled={status !== 'idle' || optimisticQuantity <= 1}
 					onclick={() => debouncedUpdate(optimisticQuantity - 1)}
 				>
 					<Minus class="h-3.5 w-3.5" />
 				</Button>
-			{/if}
 
-			<button
-				class="grid cursor-pointer place-items-center transition-all"
-				class:w-8={!showControls}
-				class:w-16={showControls}
-				class:border-x={showControls}
-				onclick={toggleControls}
-			>
-				<span class="text-sm font-medium" class:px-2={showControls}>
+				<span class="grid h-8 w-10 place-items-center border-r text-sm font-medium">
 					{optimisticQuantity}
 				</span>
-			</button>
 
-			{#if showControls}
 				<Button
 					variant="ghost"
 					size="icon"
@@ -298,19 +212,75 @@
 				>
 					<Plus class="h-3.5 w-3.5" />
 				</Button>
-			{/if}
-		</div>
+			</div>
 
-		<Button
-			variant="destructive"
-			size="icon"
-			class="h-8 w-8"
-			disabled={status !== 'idle'}
-			onclick={handleRemove}
-		>
-			<Trash2 class="h-3.5 w-3.5" />
-		</Button>
+			<Button
+				variant="destructive"
+				size="icon"
+				class="ml-auto h-8 w-8"
+				disabled={status !== 'idle'}
+				onclick={handleRemove}
+			>
+				<Trash2 class="h-3.5 w-3.5" />
+			</Button>
+		</div>
 	</div>
+	<!-- Show selected options with improved styling -->
+	{#if selectedOptions?.length > 0}
+		<!-- Use selectedOptions -->
+		<div class="mt-2 rounded-md bg-gray-50 p-2">
+			<div class="flex items-center justify-between">
+				<p class="text-xs font-medium text-gray-700">Selected Options:</p>
+				<!-- Removed Edit Options button from here -->
+			</div>
+			<div class="mt-1 space-y-1.5">
+				{#each selectedOptions as { option, optionGroup, quantity }}
+					<!-- Use selectedOptions -->
+					<div class="flex items-center justify-between text-xs">
+						<div class="flex items-center gap-1">
+							{#if optionGroup?.name}<span class="text-primary-600 font-medium"
+									>{optionGroup.name}:</span
+								>{/if}
+							<span class="text-gray-700">{option.name}</span>
+							{#if quantity > 1}
+								<span class="text-gray-500">× {quantity}</span>
+							{/if}
+						</div>
+						{#if option.price > 0}
+							<span class="font-medium text-gray-700">
+								+{formatCurrency(option.price * quantity)}
+								<!-- Show total price for this option -->
+							</span>
+						{/if}
+					</div>
+				{/each}
+			</div>
+			<!-- Moved Edit Options button here -->
+			<button
+				class="mt-2 w-full rounded bg-primary/10 px-3 py-1.5 text-center text-xs font-medium text-primary hover:bg-primary/20"
+				onclick={openProductModal}
+			>
+				Edit Options
+			</button>
+		</div>
+	{/if}
+
+	{#if specialInstructions}
+		<div class="mt-2 rounded-md bg-amber-50 p-2 text-xs">
+			<div class="flex items-center justify-between">
+				<p class="font-medium text-amber-700">Notes:</p>
+				<!-- Removed Edit Notes button from here -->
+			</div>
+			<p class="mt-1 text-amber-800">{specialInstructions}</p>
+			<!-- Moved Edit Notes button here -->
+			<button
+				class="mt-2 w-full rounded bg-amber-100 px-3 py-1.5 text-center text-xs font-medium text-amber-700 hover:bg-amber-200"
+				onclick={openProductModal}
+			>
+				Edit Notes
+			</button>
+		</div>
+	{/if}
 </div>
 
 <ProductModal />
