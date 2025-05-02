@@ -41,7 +41,7 @@
 </script>
 
 <Sheet.Root bind:open={cartSheetState.value}>
-	<Sheet.Content class="w-[95vw] overflow-y-auto rounded-s-xl p-4 pt-10 sm:max-w-lg">
+	<Sheet.Content class="w-full overflow-y-auto rounded-s-xl p-4 pt-10 sm:max-w-lg">
 		<Sheet.Header>
 			<Sheet.Title class="flex items-center gap-2 text-xl font-semibold">
 				<ShoppingBag class="h-5 w-5" />
