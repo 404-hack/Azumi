@@ -151,6 +151,41 @@
 		}
 	});
 
+	// Initialize state when product or editContext changes
+	$effect(() => {
+		if (product) {
+			// Reset local state when product changes
+			quantity = editContext?.initialQuantity ?? 1;
+			specialInstructions = editContext?.initialSpecialInstructions ?? '';
+			optionGroupErrors = {}; // Clear errors
+
+			// Initialize selectedOptions from editContext or defaults
+			const initialSelections: Record<string, { id: string; quantity: number }[]> = {};
+			if (editContext?.initialSelectedOptions) {
+				editContext.initialSelectedOptions.forEach((selOpt) => {
+					const groupId = selOpt.optionGroup.id; // Use group ID from the selected option context
+					if (!initialSelections[groupId]) {
+						initialSelections[groupId] = [];
+					}
+					initialSelections[groupId].push({ id: selOpt.option.id, quantity: selOpt.quantity });
+				});
+			} else {
+				// Set defaults for required single-select groups if not editing
+				optionGroups.forEach((group) => {
+					if (isRequired(group) && !isMultipleSelect(group) && group.options.length > 0) {
+						// Pre-select the first option for required radio groups
+						// initialSelections[group.id] = [{ id: group.options[0].id, quantity: 1 }];
+						// Optional: Decide if pre-selection is desired UX
+					}
+				});
+			}
+			selectedOptions = initialSelections;
+
+			// Don't validate on initial mount
+			// validateAllOptionGroups();
+		}
+	});
+
 	// Use the product price or default to a fallback price
 	let basePrice = $derived(product?.price ?? 0); // Default to 0 or handle appropriately
 	let productName = $derived(product?.name ?? 'no name');
@@ -270,24 +305,31 @@
 
 		return false;
 	}
-	// Modify toggleOptionSelection to use updateOptionQuantity
+	// Modify toggleOptionSelection to use updateOptionQuantity (removed validation)
 	function toggleOptionSelection(groupId: string, optionId: string, group: OptionGroup) {
 		const currentQuantity = getOptionQuantity(groupId, optionId);
 		const isSelected = currentQuantity > 0;
 
 		if (isSelected) {
-			// Option exists, remove it (set quantity to 0)
 			updateOptionQuantity(groupId, optionId, -currentQuantity); // Use update function to set to 0
 		} else {
-			// Option doesn't exist, add it with quantity 1 (only if not disabled)
-			if (!isOptionDisabled(groupId, optionId, group)) {
-				updateOptionQuantity(groupId, optionId, 1); // Use update function to set to 1
+			updateOptionQuantity(groupId, optionId, 1); // Use update function to add 1
+		}
+
+		// Clear error for this group if it exists
+		if (optionGroupErrors[groupId]) {
+			// Check if this selection now satisfies the validation requirement
+			const error = validateOptionGroup(group);
+			if (!error) {
+				// Only clear this specific group's error
+				const updatedErrors = { ...optionGroupErrors };
+				delete updatedErrors[groupId];
+				optionGroupErrors = updatedErrors;
 			}
 		}
-		// No need to validate here, updateOptionQuantity does it
 	}
 
-	// Modify updateOptionQuantity (ensure validation is called)
+	// Modify updateOptionQuantity (remove validation call)
 	function updateOptionQuantity(groupId: string, optionId: string, delta: number) {
 		const currentSelections = selectedOptions[groupId] || [];
 		const existingIndex = currentSelections.findIndex((sel) => sel.id === optionId);
@@ -295,7 +337,7 @@
 
 		// Ensure group exists before proceeding
 		if (!group) {
-			console.error('Group not found for ID:', groupId);
+			console.error(`Group with ID ${groupId} not found`);
 			return;
 		}
 
@@ -314,33 +356,31 @@
 				group.maxSelections !== null &&
 				getTotalGroupQuantity(groupId) >= group.maxSelections
 			) {
-				toast.info(`Maximum selections (${group.maxSelections}) reached for this group.`);
-				return; // Stop update
+				toast.error(`You can select a maximum of ${group.maxSelections} options from this group.`);
+				return;
 			}
 
 			// Check stock before increasing quantity (only if delta is positive)
 			if (delta > 0 && option?.inStock === false) {
-				toast.info(`${option.name} is out of stock.`);
-				return; // Stop update
+				toast.error(`${option.name} is out of stock.`);
+				return;
 			}
 
 			if (newQuantity <= 0) {
-				// Remove the option if quantity drops to 0 or below
 				newSelections.splice(existingIndex, 1);
 			} else {
-				// Update the quantity
 				newSelections[existingIndex] = { ...newSelections[existingIndex], quantity: newQuantity };
 			}
 		} else if (delta > 0) {
 			// Option doesn't exist, and we are trying to increment (delta > 0)
 			// Add it with quantity 1, checking limits and stock first
 			if (group.maxSelections !== null && getTotalGroupQuantity(groupId) >= group.maxSelections) {
-				toast.info(`Maximum selections (${group.maxSelections}) reached for this group.`);
-				return; // Stop update
+				toast.error(`You can select a maximum of ${group.maxSelections} options from this group.`);
+				return;
 			}
 			if (option?.inStock === false) {
-				toast.info(`${option.name} is out of stock.`);
-				return; // Stop update
+				toast.error(`${option.name} is out of stock.`);
+				return;
 			}
 			// Add the new selection
 			newSelections.push({ id: optionId, quantity: 1 });
@@ -352,8 +392,16 @@
 		// Update the state
 		selectedOptions = { ...selectedOptions, [groupId]: newSelections };
 
-		// Validate after state change
-		validateAllOptionGroups();
+		// Clear error for this group if the change would resolve the validation issue
+		if (optionGroupErrors[groupId]) {
+			const error = validateOptionGroup(group);
+			if (!error) {
+				// Only clear this specific group's error
+				const updatedErrors = { ...optionGroupErrors };
+				delete updatedErrors[groupId];
+				optionGroupErrors = updatedErrors;
+			}
+		}
 	}
 
 	function isOptionSelected(groupId: string, optionId: string): boolean {
@@ -377,7 +425,7 @@
 		const selections = selectedOptions[groupId];
 		// For radio groups (single select), there should be at most one selection
 		return selections?.[0]?.id;
-	} // Handle radio button changes for single-select groups
+	} // Handle radio button changes for single-select groups (removed validation)
 	function handleRadioChange(groupId: string, newOptionId: string | undefined, group: OptionGroup) {
 		// Check if the option is already selected (clicked again) to allow deselection
 		const currentSelection = selectedOptions[groupId]?.[0]?.id;
@@ -393,11 +441,19 @@
 			selectedOptions = { ...selectedOptions, [groupId]: [] };
 		}
 
-		// Validate after change
-		validateAllOptionGroups();
+		// Clear error for this group if it exists and the change resolves the issue
+		if (optionGroupErrors[groupId]) {
+			const error = validateOptionGroup(group);
+			if (!error) {
+				// Only clear this specific group's error
+				const updatedErrors = { ...optionGroupErrors };
+				delete updatedErrors[groupId];
+				optionGroupErrors = updatedErrors;
+			}
+		}
 	}
 
-	// Handle add/update cart
+	// Handle add/update cart - only validate on submission
 	async function handleAddToCart() {
 		// Ensure product and product.id are available
 		if (!product?.id) {
@@ -405,9 +461,43 @@
 			return;
 		}
 
+		// Clear any previous errors first
+		optionGroupErrors = {};
+		
+		// Run validation at submission time
 		if (!validateAllOptionGroups()) {
 			// Show error message or handle invalid state
 			toast.error('Please check required options.');
+			
+			// Improved scroll to error functionality
+			// Wait for the DOM to update with the error
+			setTimeout(() => {
+				// Find the first group with an error
+				const firstErrorGroupId = Object.keys(optionGroupErrors).find(id => !!optionGroupErrors[id]);
+				
+				if (firstErrorGroupId) {
+					// Try to find and scroll to the group with the error
+					const errorGroupElement = document.querySelector(`[data-group-id="${firstErrorGroupId}"]`);
+					
+					if (errorGroupElement) {
+						// Scroll the group into view
+						errorGroupElement.scrollIntoView({ 
+							behavior: 'smooth', 
+							block: 'center'
+						});
+					} else {
+						// Fallback to alert element if group can't be found
+						const alertElement = document.querySelector('.alert-destructive');
+						if (alertElement) {
+							alertElement.scrollIntoView({ 
+								behavior: 'smooth', 
+								block: 'center' 
+							});
+						}
+					}
+				}
+			}, 100);
+			
 			return;
 		}
 
@@ -418,21 +508,27 @@
 			const formattedOptions = [];
 
 			for (const [groupId, selections] of Object.entries(selectedOptions)) {
-				for (const selection of selections) {
-					formattedOptions.push({
-						optionId: selection.id,
-						optionGroupId: groupId,
-						quantity: selection.quantity
-					});
+				const group = optionGroups.find((g) => g.id === groupId);
+				if (group) {
+					for (const selection of selections) {
+						const option = group.options.find((opt) => opt.id === selection.id);
+						if (option) {
+							// Format option according to the API schema
+							formattedOptions.push({
+								optionGroupId: group.id,
+								optionId: option.id,
+								quantity: selection.quantity
+							});
+						}
+					}
 				}
 			}
 
 			// Create request payload according to addCartItemSchema
-			// Remove shopId, ensure menuItemId is string
 			const cartData = {
 				menuItemId: product.id,
 				quantity: quantity,
-				specialInstructions: specialInstructions,
+				specialInstructions: specialInstructions || undefined, // Send undefined if empty
 				options: formattedOptions.length > 0 ? formattedOptions : undefined
 			};
 
@@ -449,9 +545,10 @@
 				});
 
 				if (!deleteResponse.ok) {
-					const errorData = await deleteResponse.json();
 					throw new Error(
-						(errorData as any).message || 'Failed to remove original item during update'
+						`Failed to remove old item before updating. ${
+							(await deleteResponse.json())?.message || ''
+						}`
 					);
 				}
 
@@ -522,7 +619,7 @@
 				{#if optionGroups.length > 0}
 					<!-- Remove outer grid, add margin between groups -->
 					{#each optionGroups as group, i (group.id)}
-						<div class="grid gap-2 {i > 0 ? 'mt-10' : ''}">
+						<div class="grid gap-2 {i > 0 ? 'mt-10' : ''}" data-group-id={group.id}>
 							<!-- Revert option group header styling -->
 							<div class="flex items-center justify-between">
 								<Label class="font-medium capitalize">{group.name}</Label>
@@ -697,6 +794,7 @@
 					placeholder="Any specific requests? (e.g., extra sauce)"
 					bind:value={specialInstructions}
 					autofocus={false}
+					tabindex={-1}
 				/>
 			</div>
 
@@ -717,11 +815,7 @@
 							<Plus class="h-4 w-4" />
 						</Button>
 					</div>
-					<Button
-						class="flex-1"
-						onclick={handleAddToCart}
-						disabled={isLoading || Object.values(optionGroupErrors).some((e) => e)}
-					>
+					<Button class="flex-1" onclick={handleAddToCart} disabled={isLoading}>
 						{#if isLoading}
 							<svg
 								class="-ml-1 mr-3 h-5 w-5 animate-spin text-white"

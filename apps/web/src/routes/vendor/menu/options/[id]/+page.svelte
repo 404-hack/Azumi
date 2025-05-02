@@ -16,7 +16,7 @@
 	import { Switch } from '$lib/components/ui/switch';
 
 	let { data } = $props();
-	$inspect(data.option)
+	$inspect(data.option);
 
 	const form = superForm(defaults({ ...data.option }, zod(updateOptionSchema)), {
 		validators: zod(updateOptionSchema),
@@ -38,7 +38,7 @@
 				}
 			}
 		},
-		resetForm:false,
+		resetForm: false
 	});
 	const { form: formData, enhance, delayed } = form;
 
@@ -68,12 +68,12 @@
 	}
 </script>
 
-<div class="container max-w-3xl py-10">
+<div class=" max-w-3xl py-10">
 	<div class="mb-8 flex flex-wrap items-center justify-between gap-4">
 		<div class="flex items-center gap-4">
-			<Button variant="ghost" size="icon" href="/vendor/menu?tabValue=options" class="h-8 w-8">
+			<!-- <Button variant="ghost" size="icon" href="/vendor/menu?tabValue=options" class="h-8 w-8">
 				<ArrowLeft class="h-4 w-4" />
-			</Button>
+			</Button> -->
 			<div>
 				<h1 class="text-2xl font-semibold">Edit Option</h1>
 				<p class="text-sm text-muted-foreground">Update option details</p>
@@ -88,12 +88,12 @@
 	</div>
 
 	<form use:enhance class="space-y-8">
-		<Card.Root>
-			<Card.Header>
+		<Card.Root class="border-none  sm:border">
+			<Card.Header class="px-0 sm:p-6">
 				<Card.Title>Option Details</Card.Title>
 				<Card.Description>Basic information about this option</Card.Description>
 			</Card.Header>
-			<Card.Content class="space-y-6">
+			<Card.Content class="space-y-6 px-0 sm:p-6">
 				<Form.Field {form} name="name">
 					<Form.Control>
 						{#snippet children({ props })}
@@ -152,8 +152,7 @@
 					</Button>
 					<Button type="submit" disabled={$delayed}>
 						{#if $delayed}
-							
-							<Loader2/>
+							<Loader2 />
 						{/if}
 						Save Changes
 					</Button>

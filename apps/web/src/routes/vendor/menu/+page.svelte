@@ -51,14 +51,12 @@
 	}}
 	class="space-y-4"
 >
-	<ScrollArea orientation="horizontal" class="w-full min-w-[300px] ">
-		<Tabs.List class="">
-			<Tabs.Trigger class="" value="meals">Meals</Tabs.Trigger>
-			<Tabs.Trigger class="" value="option-items">Option Items</Tabs.Trigger>
-			<Tabs.Trigger class="" value="option-groups">Option Groups</Tabs.Trigger>
-			<Tabs.Trigger class="" value="food-packs">Food Packs</Tabs.Trigger>
-		</Tabs.List>
-	</ScrollArea>
+	<Tabs.List class="grid h-full grid-cols-2 gap-4 sm:grid-cols-4">
+		<Tabs.Trigger class="" value="meals">Meals</Tabs.Trigger>
+		<Tabs.Trigger class="" value="option-items">Option Items</Tabs.Trigger>
+		<Tabs.Trigger class="" value="option-groups">Option Groups</Tabs.Trigger>
+		<Tabs.Trigger class="" value="food-packs">Food Packs</Tabs.Trigger>
+	</Tabs.List>
 
 	<Tabs.Content value="meals">
 		<Meals menuCategoryWithItems={menuData} />
