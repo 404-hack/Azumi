@@ -19,6 +19,7 @@
 	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	import type { TAddress } from '@repo/server/types';
 	import { onMount } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
 	import { activeLocation } from '$lib/states/locationState.svelte';
 	// import * as Menubar from '$lib/components/ui/menubar/index.js';
 	let isGettingLocation = $state(false);
@@ -33,6 +34,7 @@
 				lat: place.lat,
 				lng: place.lng
 			};
+			invalidateAll();
 			toast.success('Location obtained successfully');
 			addDeliveryAddressModalState.setFalse();
 		}

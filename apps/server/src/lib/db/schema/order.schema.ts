@@ -27,12 +27,12 @@ export const orderTable = sqliteTable("order", {
 
   // Delivery information
   addressName: text("address_name").notNull().default(""),
-  longitude: real("longitude").notNull().default(0.0),
-  latitude: real("latitude").notNull().default(0.0),
+  longitude: real("longitude").notNull(),
+  latitude: real("latitude").notNull(),
 
-  deliveryAddressId: text("delivery_address_id").references(
-    () => addressesTable.id
-  ),
+  // deliveryAddressId: text("delivery_address_id").references(
+  //   () => addressesTable.id
+  // ),
   deliveryNotes: text("delivery_notes"),
   vendorNotes: text("vendor_notes"),
   contactPhone: text("contact_phone").notNull(),

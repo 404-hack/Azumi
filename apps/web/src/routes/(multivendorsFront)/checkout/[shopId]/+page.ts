@@ -1,33 +1,34 @@
 import { client } from '$lib/hc.js';
 import { error } from '@sveltejs/kit';
+import { activeLocation } from '$lib/states/locationState.svelte.js';
 
-export const load = async ({ params }) => {
+export const load = async ({ params, fetch }) => {
+	// Removed url, added fetch back just in case client needs it
 	const { shopId } = params;
 
-	// Run both requests in parallel
-	const [cartResponse, addressResponse] = await Promise.all([
-		client.cart.shop[':shopId'].$get({
+	// Fetch cart data
+	const cartResponse = await client.cart.shop[':shopId'].$get(
+		{
 			param: {
 				shopId: shopId
+			},
+			query: {
+				latitude: activeLocation.current.lat,
+				longitude: activeLocation.current.lng
 			}
-		}),
-		client.address.default.$get() // Assuming this endpoint exists for default address
-	]);
+		},
+		{ fetch: fetch }
+	); // Pass fetch if needed by client setup
 
-	// Check responses
 	if (!cartResponse.ok) {
 		error(400, `Failed to load cart: ${cartResponse.statusText}`);
 	}
 
-	// Parse both responses in parallel
-	const [shopCart, defaultAddress] = await Promise.all([
-		cartResponse.json(),
-		addressResponse.json()
-	]);
+	const shopCart = await cartResponse.json();
+	console.log('🚀 ~ load ~ shopCart:', shopCart);
 
-	// Return all data
+	// Return only cart data
 	return {
-		cart: shopCart.data,
-		defaultAddress: defaultAddress.data
+		cart: shopCart.data
 	};
 };

@@ -6,17 +6,23 @@ import {
   orderItemTable,
   orderItemOptionTable,
   cartTable,
+  shopTable,
 } from "../lib/db/schema";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { createAuth } from "../lib/auth";
-// Remove Node.js crypto import
-// import crypto from 'node:crypto';
 import {
   createOrderSchema,
   updateOrderStatusSchema,
 } from "../lib/validation/order.validation";
+import { env } from "cloudflare:workers";
+import {
+  calculateDeliveryFee,
+  calculateHaversineDistance,
+  isShopCurrentlyOpen,
+} from "../lib/utils/shop.utils";
+import { DAYS_OF_WEEK } from "../lib/constant";
 
 const orderRoute = factory
   .createApp()
@@ -26,7 +32,7 @@ const orderRoute = factory
       const db = c.get("db");
       const session = c.get("session");
       const user = c.get("user");
-      const auth = await createAuth(db);
+      // const auth = await createAuth(db);
 
       if (!user) {
         return c.json({ error: "Unauthorized" }, 401);
@@ -156,22 +162,47 @@ const orderRoute = factory
         return c.json({ error: "Unauthorized" }, 401);
       }
 
-      // Retrieve cart data if cartId is provided
       if (!data.cartId) {
         return c.json({ error: "Cart ID is required" }, 400);
       }
 
+      // Fetch cart with items, menu item details (including inStock), options (including inStock), and shop details
       const cart = await db.query.cartTable.findFirst({
         where: eq(cartTable.id, data.cartId),
         with: {
           items: {
             with: {
-              menuItem: true,
-              options: {
-                with: {
-                  option: true,
+              menuItem: {
+                columns: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  inStock: true,
                 },
               },
+              options: {
+                with: {
+                  option: {
+                    columns: {
+                      id: true,
+                      name: true,
+                      inStock: true, // Fetch option inStock status
+                    },
+                  },
+                },
+              },
+            },
+          },
+          shop: {
+            columns: {
+              id: true,
+              latitude: true,
+              longitude: true,
+              active: true,
+              name: true,
+            },
+            with: {
+              operatingHours: true,
             },
           },
         },
@@ -196,71 +227,188 @@ const orderRoute = factory
         return c.json({ error: "Cart is empty" }, 400);
       }
 
-      // Calculate the total on the server side using cart data
+      if (!cart.shop) {
+        console.error(`Cart ${cart.id} is missing shop data.`);
+        return c.json({ error: "Shop data not found for this cart" }, 500);
+      }
+
+      // --- Pre-Order Validation ---
+
+      // 1. Check if Shop is Active
+      if (!cart.shop.active) {
+        return c.json(
+          {
+            error: `Sorry, the shop "${cart.shop.name}" is currently inactive and cannot accept orders. Please try again later.`,
+          },
+          400
+        );
+      }
+
+      // 2. Check if Shop is Open
+      const now = new Date();
+      const currentDay = now.getDay();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      const currentTimeMinutes = currentHour * 60 + currentMinute;
+      const dayMapping = {
+        0: "SUNDAY",
+        1: "MONDAY",
+        2: "TUESDAY",
+        3: "WEDNESDAY",
+        4: "THURSDAY",
+        5: "FRIDAY",
+        6: "SATURDAY",
+      };
+      const currentDayString =
+        dayMapping[currentDay as keyof typeof dayMapping];
+
+      const isOpen = isShopCurrentlyOpen(
+        cart.shop.operatingHours,
+        currentDayString,
+        currentTimeMinutes
+      );
+
+      if (!isOpen) {
+        return c.json(
+          {
+            error: `Sorry, the shop "${cart.shop.name}" is currently closed and cannot accept orders. Please check their opening hours.`,
+          },
+          400
+        );
+      }
+
+      // 3. Check Item and Option Availability (In Stock)
+      for (const item of cart.items) {
+        if (!item.menuItem) {
+          return c.json(
+            {
+              error: `Oops! We couldn't find the details for an item in your cart. Please try removing and re-adding it.`,
+            },
+            400
+          );
+        }
+        if (!item.menuItem.inStock) {
+          return c.json(
+            {
+              error: `Sorry, the item "${item.menuItem.name}" is currently out of stock. Please remove it from your cart to proceed.`,
+            },
+            400
+          );
+        }
+
+        // Check options stock
+        if (item.options && item.options.length > 0) {
+          for (const cartOption of item.options) {
+            if (!cartOption.option) {
+              return c.json(
+                {
+                  error: `Oops! We couldn't find the details for an option selected with "${item.menuItem.name}". Please try removing and re-adding the item.`,
+                },
+                400
+              );
+            }
+            if (!cartOption.option.inStock) {
+              return c.json(
+                {
+                  error: `Sorry, the option "${cartOption.option.name}" for the item "${item.menuItem.name}" is currently out of stock. Please remove or change the selection to proceed.`,
+                },
+                400
+              );
+            }
+          }
+        }
+      }
+
+      // --- End Pre-Order Validation ---
+
+      // --- Backend Calculation (already implemented) ---
       const subtotal = cart.items.reduce(
-        (sum, item) => sum + item.totalPrice,
+        (sum, item) => sum + Number(item.totalPrice || 0),
         0
       );
 
-      const total =
-        subtotal + data.deliveryFee + data.serviceFee - data.discount;
+      let deliveryFee = 0;
+      const shopLat = cart.shop?.latitude;
+      const shopLng = cart.shop?.longitude;
 
-      // Generate a unique order code
+      if (
+        shopLat !== null &&
+        shopLng !== null &&
+        shopLat !== undefined &&
+        shopLng !== undefined
+      ) {
+        const distance = calculateHaversineDistance(
+          data.userLatitude,
+          data.userLongitude,
+          shopLat,
+          shopLng
+        );
+        deliveryFee = calculateDeliveryFee(distance);
+      } else {
+        console.warn(
+          `Shop ${cart.shopId} missing coordinates. Using default delivery fee.`
+        );
+      }
+
+      const serviceFee = 5.0; // Example fee
+      const total = subtotal + deliveryFee + serviceFee - data.discount;
+
       const orderCode = `ORD-${nanoid(8).toUpperCase()}`;
 
-      // Create the order
+      // Create the order (only if validations passed)
       const order = await db
         .insert(orderTable)
         .values({
           code: orderCode,
           customerId: user.id,
-          shopId: cart.shopId, // Using cart's shopId instead of client-sent data
-          cartId: data.cartId, // Store cart ID in the order
-          deliveryAddressId: data.deliveryAddressId,
+          shopId: cart.shopId,
+          cartId: data.cartId,
           deliveryNotes: data.deliveryNotes,
           vendorNotes: data.vendorNotes,
           contactPhone: data.contactPhone,
           status: "PENDING",
           paymentStatus: "PENDING",
           subtotal,
-          deliveryFee: data.deliveryFee,
-          serviceFee: data.serviceFee,
+          deliveryFee,
+          serviceFee,
           discount: data.discount,
           total,
+          latitude: data.userLatitude,
+          longitude: data.userLongitude,
+          addressName: data.addressName,
         })
         .returning()
         .get();
 
-      // Create order items from cart items and get their IDs
+      // Create order items (only if validations passed)
       const orderItems = await Promise.all(
         cart.items.map(async (item) => {
+          // We already validated menuItem and options exist and are in stock above
           const orderItem = await db
             .insert(orderItemTable)
             .values({
               orderId: order.id,
-              menuItemId: item.menuItemId,
-              menuItemName: item.menuItem?.name || `Item (${item.menuItemId})`,
+              menuItemId: item.menuItemId!.id,
+              menuItemName:
+                item.menuItem!.name || `Item (${item.menuItemId!.id})`,
               quantity: item.quantity,
-              unitPrice: item.menuItem?.price || 0,
-              totalPrice: item.totalPrice,
+              unitPrice: Number(item.menuItem!.price) || 0,
+              totalPrice: Number(item.totalPrice) || 0,
               specialInstructions: item.specialInstructions || null,
             })
             .returning()
             .get();
 
-          // If there are options, save them to the orderItemOptionTable
           if (item.options && item.options.length > 0) {
             await db.insert(orderItemOptionTable).values(
               item.options.map((option) => ({
                 orderItemId: orderItem.id,
                 optionId: option.optionId,
                 optionGroupId: option.optionGroupId,
-                // Fix the TypeScript error by directly accessing name or using a fallback
                 optionName:
-                  option.option?.name || `Option (${option.optionId})`,
-
+                  option.option?.name || `Option (${option.optionId})`, // Use validated option name
                 quantity: option.quantity,
-                price: option.price,
+                price: Number(option.price) || 0,
               }))
             );
           }
@@ -288,25 +436,53 @@ const orderRoute = factory
           items: true,
         },
       });
-      // });
+
+      // Initialize Paystack payment with backend-calculated total
       const accessCodeRes = await fetch(
         "https://api.paystack.co/transaction/initialize",
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${c.env.PAYSTACK_SECRET_KEY}`,
+            Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            email: user.email,
-            amount: total * 100, // Amount in kobo
+            email: user.email || "customer@example.com",
+            amount: Math.round(total * 100),
             callback_url: "https://your-callback-url.com",
+            metadata: {
+              order_id: order.id,
+              cart_id: data.cartId,
+              customer_id: user.id,
+            },
+            reference: `ORD-${order.id}-${Date.now()}`,
           }),
         }
       );
+
+      if (!accessCodeRes.ok) {
+        const errorBody = await accessCodeRes.text();
+        console.error(
+          "Paystack initialization failed:",
+          accessCodeRes.status,
+          errorBody
+        );
+        await db.delete(orderTable).where(eq(orderTable.id, order.id));
+        return c.json(
+          { error: "Payment initialization failed", details: errorBody },
+          500
+        );
+      }
+
       const accessCodeData = await accessCodeRes.json();
       console.log("🚀 ~ .post ~ accessCodeData:", accessCodeData);
-      // update the order with the payment transaction ID
+
+      if (!accessCodeData.status || !accessCodeData.data?.access_code) {
+        console.error("Invalid Paystack response:", accessCodeData);
+        await db.delete(orderTable).where(eq(orderTable.id, order.id));
+        return c.json({ error: "Invalid payment provider response" }, 500);
+      }
+
       await db
         .update(orderTable)
         .set({
@@ -315,12 +491,18 @@ const orderRoute = factory
           paymentStatus: "PENDING",
         })
         .where(eq(orderTable.id, order.id));
-      // Return the access code for payment
+
       const accessCode = accessCodeData.data.access_code;
 
       return c.json({ data: { accessCode } });
     } catch (error) {
       console.error("Error creating order:", error);
+      if (error instanceof z.ZodError) {
+        return c.json(
+          { error: "Invalid input data", details: error.errors },
+          400
+        );
+      }
       return c.json({ error: "Internal server error" }, 500);
     }
   })
@@ -351,45 +533,81 @@ const orderRoute = factory
 
         // Check permissions
         const session = c.get("session");
-        const isVendor =
-          session?.activeOrganizationId === existingOrder.vendorId;
-        const isRider = user.id === existingOrder.riderId;
+        // Corrected: Use shopId from existingOrder
+        const isVendor = session?.activeOrganizationId === existingOrder.shopId;
+        const isRider = user.id === existingOrder.riderId; // Assuming riderId is stored
 
-        // Certain status changes require specific roles
-        if (["CONFIRMED", "PREPARING", "READY"].includes(status) && !isVendor) {
+        // Allow customer to cancel PENDING orders
+        const isCustomer = user.id === existingOrder.customerId;
+        if (
+          status === "CANCELLED" &&
+          isCustomer &&
+          existingOrder.status !== "PENDING"
+        ) {
           return c.json(
-            { error: "Only vendors can update to this status" },
+            { error: "Customers can only cancel pending orders" },
+            403
+          );
+        } else if (status === "CANCELLED" && !isCustomer && !isVendor) {
+          // Allow vendors to cancel at other stages (adjust logic as needed)
+          return c.json(
+            {
+              error:
+                "Only the customer (for pending orders) or vendor can cancel",
+            },
             403
           );
         }
 
-        if (["IN_TRANSIT", "DELIVERED"].includes(status) && !isRider) {
-          return c.json(
-            { error: "Only riders can update to this status" },
-            403
-          );
+        // Certain status changes require specific roles (excluding cancellation handled above)
+        if (status !== "CANCELLED") {
+          if (
+            ["CONFIRMED", "PREPARING", "READY"].includes(status) &&
+            !isVendor
+          ) {
+            return c.json(
+              { error: "Only vendors can update to this status" },
+              403
+            );
+          }
+
+          if (["IN_TRANSIT", "DELIVERED"].includes(status) && !isRider) {
+            // If no rider assigned yet, maybe vendor marks as ready for pickup? Adjust logic.
+            // For now, strictly enforce rider role for these statuses.
+            return c.json(
+              { error: "Only assigned riders can update to this status" },
+              403
+            );
+          }
         }
 
         // Prepare update data
-        const updateData: Record<string, any> = { status };
+        const updateData: Partial<typeof orderTable.$inferInsert> = { status };
 
         // Add timestamps based on status
+        const nowISO = new Date().toISOString();
         switch (status) {
           case "CONFIRMED":
-            updateData.acceptedAt = new Date().toISOString();
+            updateData.acceptedAt = nowISO;
             break;
           case "PREPARING":
-            updateData.preparedAt = new Date().toISOString();
+            updateData.preparedAt = nowISO;
             break;
+          // Add READY status handling if needed
+          // case "READY":
+          //   updateData.readyAt = nowISO;
+          //   break;
           case "IN_TRANSIT":
-            updateData.pickedUpAt = new Date().toISOString();
+            updateData.pickedUpAt = nowISO;
             break;
           case "DELIVERED":
-            updateData.deliveredAt = new Date().toISOString();
+            updateData.deliveredAt = nowISO;
+            // Potentially update payment status if cash on delivery, etc.
             break;
           case "CANCELLED":
-            updateData.canceledAt = new Date().toISOString();
+            updateData.canceledAt = nowISO;
             updateData.cancelReason = reason;
+            // Handle potential refunds or payment voiding here or via webhook
             break;
         }
 
@@ -401,9 +619,17 @@ const orderRoute = factory
           .returning()
           .get();
 
+        // TODO: Add logic to notify relevant parties (customer, vendor, rider) about the status change
+
         return c.json({ data: updatedOrder });
       } catch (error) {
         console.error("Error updating order status:", error);
+        if (error instanceof z.ZodError) {
+          return c.json(
+            { error: "Invalid input data", details: error.errors },
+            400
+          );
+        }
         return c.json({ error: "Internal server error" }, 500);
       }
     }

@@ -13,6 +13,7 @@ import cartRoute from "./routes/cart.route";
 import addressRoute from "./routes/address.route";
 import paystackWebhookRoute from "./routes/paystack-webhook.route";
 import favoriteRoute from "./routes/favorite.route";
+import deliveryFeeRoute from "./routes/fee.route";
 // Create app instance using factory
 const app = factory
   .createApp({ strict: false })
@@ -36,6 +37,7 @@ export const routes = app
   .route("/option", optionRoute)
   .route("/cart", cartRoute)
   .route("/address", addressRoute)
+  .route("/delivery-fee", deliveryFeeRoute)
   .route("/webhook/paystack", paystackWebhookRoute)
   .route("/", bucketRoute)
   .get("/love", (c) => {
