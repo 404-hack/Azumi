@@ -14,12 +14,13 @@ export const orderTable = sqliteTable("order", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
-  code: text("code").notNull(),
+  code: text("code"),
   customerId: text("customer_id").references(() => userTable.id),
   shopId: text()
     .references(() => shopTable.id)
     .notNull(),
   riderId: text("rider_id").references(() => userTable.id),
+  riderConfirmationCode: integer("rider_confirmation_code").notNull(), // Changed to integer
   status: text("status", { enum: ORDER_STATUS }).notNull(),
   cartId: text("cart_id")
     .references(() => cartTable.id)

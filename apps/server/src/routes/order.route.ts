@@ -112,7 +112,7 @@ const orderRoute = factory
   // Get order by ID
   .get("/:id", async (c) => {
     try {
-      const { id } = c.req.param();
+      const { id } = c.req.param(); // This 'id' is expected to be the order.paymentTransactionId
       const db = c.get("db");
       const user = c.get("user");
 
@@ -121,9 +121,20 @@ const orderRoute = factory
       }
 
       const order = await db.query.orderTable.findFirst({
-        where: eq(orderTable.id, id),
+        where: eq(orderTable.paymentTransactionId, id), // Query by paymentTransactionId
         with: {
-          items: true,
+          items: {
+            with: {
+              options: {
+                with: {
+                  optionGroup: true,
+                },
+              },
+            },
+          },
+          shop: true,
+          customer: true,
+          rider: true,
         },
       });
 
@@ -350,16 +361,18 @@ const orderRoute = factory
         );
       }
 
-      const serviceFee = 5.0; // Example fee
+      const serviceFee = 0; // Example fee
       const total = subtotal + deliveryFee + serviceFee - data.discount;
 
-      const orderCode = `ORD-${nanoid(8).toUpperCase()}`;
+      // orderCode generation and saving is intentionally omitted as per user request
+
+      const riderConfirmationCode = Math.floor(1000 + Math.random() * 9000);
 
       // Create the order (only if validations passed)
       const order = await db
         .insert(orderTable)
         .values({
-          code: orderCode,
+          // code: orderCode, // Omitted as per user request
           customerId: user.id,
           shopId: cart.shopId,
           cartId: data.cartId,
@@ -376,6 +389,7 @@ const orderRoute = factory
           latitude: data.userLatitude,
           longitude: data.userLongitude,
           addressName: data.addressName,
+          riderConfirmationCode, // Save the generated number
         })
         .returning()
         .get();
@@ -388,11 +402,10 @@ const orderRoute = factory
             .insert(orderItemTable)
             .values({
               orderId: order.id,
-              menuItemId: item.menuItemId!.id,
-              menuItemName:
-                item.menuItem!.name || `Item (${item.menuItemId!.id})`,
+              menuItemId: item.menuItem.id, // Corrected: Use ID from the resolved menuItem object
+              menuItemName: item.menuItem.name, // Corrected: Use name from the resolved menuItem object
               quantity: item.quantity,
-              unitPrice: Number(item.menuItem!.price) || 0,
+              unitPrice: Number(item.menuItem.price) || 0,
               totalPrice: Number(item.totalPrice) || 0,
               specialInstructions: item.specialInstructions || null,
             })
@@ -401,14 +414,14 @@ const orderRoute = factory
 
           if (item.options && item.options.length > 0) {
             await db.insert(orderItemOptionTable).values(
-              item.options.map((option) => ({
+              item.options.map((cartOption) => ({
+                // cartOption is a cartItemOption from cart.items.options
                 orderItemId: orderItem.id,
-                optionId: option.optionId,
-                optionGroupId: option.optionGroupId,
-                optionName:
-                  option.option?.name || `Option (${option.optionId})`, // Use validated option name
-                quantity: option.quantity,
-                price: Number(option.price) || 0,
+                optionId: cartOption.option.id, // Corrected: Use ID from the resolved option object within cartOption
+                optionGroupId: cartOption.optionGroupId,
+                optionName: cartOption.option.name, // Corrected: Use name from the resolved option object within cartOption
+                quantity: cartOption.quantity,
+                price: Number(cartOption.price) || 0,
               }))
             );
           }
@@ -438,24 +451,46 @@ const orderRoute = factory
       });
 
       // Initialize Paystack payment with backend-calculated total
+      const paystackSecretKey = env.PAYSTACK_SECRET_KEY;
+      if (!paystackSecretKey) {
+        console.error("Missing PAYSTACK_SECRET_KEY environment variable");
+        // Potentially delete the created order or mark it as failed immediately
+        await db.delete(orderTable).where(eq(orderTable.id, order.id));
+        return c.json({ error: "Server configuration error" }, 500);
+      }
+
+      // Define your frontend base URL (replace with actual URL or env variable)
+      const frontendBaseUrl = "http://localhost:5173"; // Example: Use env var in production
+      const callbackUrl = `${frontendBaseUrl}/checkout/callback`; // Redirect URL after payment attempt
+
+      const reference = `ORD-${order.id}-${nanoid(6)}`; // Generate unique reference
+
       const accessCodeRes = await fetch(
         "https://api.paystack.co/transaction/initialize",
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+            Authorization: `Bearer ${paystackSecretKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            email: user.email || "customer@example.com",
-            amount: Math.round(total * 100),
-            callback_url: "https://your-callback-url.com",
+            email: user.email || "customer@example.com", // Ensure user email exists or use a placeholder
+            amount: Math.round(total * 100), // Amount in kobo
+            callback_url: callbackUrl, // Add the callback URL
             metadata: {
               order_id: order.id,
               cart_id: data.cartId,
               customer_id: user.id,
+              custom_fields: [
+                // Optional: Add custom fields if needed
+                {
+                  display_name: "Order Code",
+                  variable_name: "order_code",
+                  value: order.code,
+                },
+              ],
             },
-            reference: `ORD-${order.id}-${Date.now()}`,
+            reference: reference, // Use the generated unique reference
           }),
         }
       );
@@ -486,8 +521,7 @@ const orderRoute = factory
       await db
         .update(orderTable)
         .set({
-          paymentTransactionId: accessCodeData.data.reference,
-          paymentMethod: "CARD",
+          paymentTransactionId: reference, // Store the reference used for initialization
           paymentStatus: "PENDING",
         })
         .where(eq(orderTable.id, order.id));
@@ -498,16 +532,63 @@ const orderRoute = factory
     } catch (error) {
       console.error("Error creating order:", error);
       if (error instanceof z.ZodError) {
-        return c.json(
-          { error: "Invalid input data", details: error.errors },
-          400
-        );
+        return c.json({ error: "Invalid input", details: error.errors }, 400);
       }
       return c.json({ error: "Internal server error" }, 500);
     }
   })
 
-  // Update order status
+  // Verify payment status using reference
+  .get("/verify-payment/:reference", async (c) => {
+    try {
+      const { reference } = c.req.param();
+      const db = c.get("db");
+      const user = c.get("user");
+
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      if (!reference) {
+        return c.json({ error: "Payment reference is required" }, 400);
+      }
+
+      // Find the order by the payment transaction reference
+      const order = await db.query.orderTable.findFirst({
+        where: eq(orderTable.paymentTransactionId, reference),
+        columns: {
+          id: true,
+          paymentStatus: true,
+          customerId: true,
+        },
+      });
+
+      if (!order) {
+        return c.json({ error: "Order not found for this reference" }, 404);
+      }
+
+      // Ensure the user requesting verification is the one who placed the order
+      if (order.customerId !== user.id) {
+        return c.json(
+          { error: "You do not have permission to view this order status" },
+          403
+        );
+      }
+
+      // Return the order ID and its current payment status
+      return c.json({
+        data: {
+          orderId: order.id,
+          paymentStatus: order.paymentStatus,
+        },
+      });
+    } catch (error) {
+      console.error("Error verifying payment status:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
+  // Update order status (for vendors/admins)
   .patch(
     "/:id/status",
     zValidator("json", updateOrderStatusSchema),

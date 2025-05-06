@@ -69,7 +69,7 @@
 					toast.success('Payment successful!');
 					if (status === 'success') {
 						console.log(`Order confirmed with reference: ${reference}`);
-						await goto(`./confirmation/${trxref}`);
+						await goto(`/checkout/${data.cart.shop.id}/confirmation/${trxref}`);
 					}
 				},
 				onCancel() {
