@@ -7,35 +7,11 @@
 	import ReadyOrders from './components/ready-orders.svelte';
 	import CompletedOrders from './components/completed-orders.svelte';
 	import CancelledOrders from './components/cancelled-orders.svelte';
-
 	let searchQuery = $state('');
-	import { authClient } from '$lib/auth-client';
-	import { onMount } from 'svelte';
 	let { data } = $props();
-	console.log('🚀 ~ data:', data);
-	const organizations = authClient.useListOrganizations();
-	const user = authClient.useSession();
-	// onMount(async () => {
-	// 	const session = await authClient.getSession({});
-	// 	console.log('🚀 ~ onMount ~ session:', session);
-	// });
-	// console.log('🚀 ~ user:', $user);
-	// const activeOrganization = authClient.useActiveOrganization();
-	// onMount(async () => {
-	// 	const organization = await authClient.organization.getFullOrganization({});
-	// 	console.log('🚀 ~ onMount ~ organization:', organization);
-	// });
-</script>
 
-<h1>Organizations</h1>
-<!-- {#if $activeOrganization.isPending}
-	<p>Loading...</p>
-{:else if $activeOrganization.data === null}
-	<p>No active organization found.</p>
-{:else}
-	<p>{$activeOrganization.data.name}</p>
-	<p>{$activeOrganization.data.name}</p>
-{/if} -->
+	let newOrders = $derived(data.newOrder || []);
+</script>
 
 <div class="container space-y-6 py-6">
 	<div class="flex items-center justify-between">
@@ -53,9 +29,8 @@
 			<Tabs.Trigger value="completed">Completed</Tabs.Trigger>
 			<Tabs.Trigger value="cancelled">Cancelled</Tabs.Trigger>
 		</Tabs.List>
-
 		<Tabs.Content value="new">
-			<NewOrders {searchQuery} />
+			<NewOrders {searchQuery} orders={newOrders} />
 		</Tabs.Content>
 
 		<Tabs.Content value="preparing">

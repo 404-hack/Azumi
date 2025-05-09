@@ -8,6 +8,7 @@ import {
   shopPaymentMethodTable,
 } from "../lib/db/schema"; // Import cartTable
 import { eq, sql } from "drizzle-orm"; // Import sql
+import { env } from "cloudflare:workers";
 
 const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
   try {
@@ -22,7 +23,7 @@ const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
     }
 
     // 2. Verify the webhook signature using Web Crypto API
-    const secret = c.env.PAYSTACK_SECRET_KEY;
+    const secret = env.PAYSTACK_SECRET_KEY;
     if (!secret) {
       console.error("Missing PAYSTACK_SECRET_KEY environment variable");
       return c.json({ error: "Server configuration error" }, 500);
@@ -173,6 +174,13 @@ async function handleSuccessfulPayment(
         })
         .where(eq(cartTable.id, order.cart.id));
     }
+
+    // --- Notify Vendor via Durable Object ---
+
+    const durableObjectId = env.ORDER_NOTIFICATION.idFromName(order.shopId);
+    const stub = env.ORDER_NOTIFICATION.get(durableObjectId);
+    stub.newOrder(order.shopId, order.id);
+    // --- End Notify Vendor ---
 
     // TODO: Add post-payment logic here (notifications, inventory, etc.)
     console.log(`Successfully processed charge.success for order ${order.id}`);

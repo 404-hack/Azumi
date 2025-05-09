@@ -43,4 +43,6 @@ export const routes = app
   .get("/love", (c) => {
     return c.json({ message: "Welcome to the API" });
   });
+export { OrderNotification } from "./durable-objects/order-notification.do";
+
 export default app;

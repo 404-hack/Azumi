@@ -108,7 +108,7 @@
 		<div class="flex flex-col gap-1">
 			<p class="mb-2 font-medium">Share this code with your rider</p>
 			<div class="flex gap-2">
-				{#each data.order.riderConfirmationCode as digit}
+				{#each data.order.riderConfirmationCode.toString().split('') as digit}
 					<div
 						class="flex h-12 w-10 items-center justify-center rounded-lg bg-gray-100 text-xl font-semibold"
 					>

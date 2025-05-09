@@ -13,7 +13,9 @@ declare namespace Cloudflare {
 		CLOUDFLARE_API_TOKEN: string;
 		CLOUDFLARE_ACCOUNT_ID: string;
 		CLOUDFLARE_DATABASE_ID: string;
-		DB: D1Database;
+    DB: D1Database;
+        ORDER_NOTIFICATION: DurableObjectNamespace<OrderNotification>;
+
 	}
 }
 interface Env extends Cloudflare.Env {}
@@ -6862,3 +6864,38 @@ declare abstract class WorkflowInstance {
    */
   public status(): Promise<InstanceStatus>;
 }
+
+   * Quality setting from 1-100 (useful values are in 60-90 range). Lower values
+   * make images look worse, but load faster. The default is 85. It applies only
+   * to JPEG and WebP images. It doesn’t have any effect on PNG.
+   */
+  quality?: number;
+  /**
+   * Output format to generate. It can be:
+   *  - avif: generate images in AVIF format.
+   *  - webp: generate images in Google WebP format. Set quality to 100 to get
+   *    the WebP-lossless format.
+   *  - json: instead of generating an image, outputs information about the
+   *    image, in JSON format. The JSON object will contain image size
+   *    (before and after resizing), source image’s MIME type, file size, etc.
+   * - jpeg: generate images in JPEG format.
+   * - png: generate images in PNG format.
+   */
+  format?: "avif" | "webp" | "json" | "jpeg" | "png";
+  /**
+   * Whether to preserve animation frames from input files. Default is true.
+   * Setting it to false reduces animations to still images. This setting is
+   * recommended when enlarging images or processing arbitrary user content,
+   * because large GIF animations can weigh tens or even hundreds of megabytes.
+   * It is also useful to set anim:false when using format:"json" to get the
+   * response quicker without the number of frames.
+   */
+  anim?: boolean;
+  /**
+   * What EXIF data should be preserved in the output image. Note that EXIF
+   * rotation and embedded color profiles are always applied ("baked in" into
+   * the image), and aren't affected by this option. Note that if the Polish
+   * feature is enabled, all metadata may have been removed already and this
+   * option may have no effect.
+   *  - keep: Preserve most of EXIF metadata, including GPS location if there's
+   *    any.
