@@ -22,7 +22,7 @@
 	// Ensure it includes all necessary fields for both product display and edit context
 	interface CartItemProps {
 		id: string; // Cart item ID
-		cartId: string;
+		cartId?: string;
 		menuItem: MenuItem; // The full menu item details, including available option groups
 		// Add availableOptionGroups prop
 		availableOptionGroups: OptionGroup[];
@@ -52,7 +52,7 @@
 	console.log(`CartItem [${id}] received selectedOptions:`, selectedOptions);
 
 	// Simplified state using a single status variable
-	let optimisticQuantity = $state(initialQuantity);
+	let optimisticQuantity = $derived(initialQuantity);
 	let status = $state<'idle' | 'updating' | 'removing'>('idle'); // 'idle', 'updating', 'removing'
 	let updateTimeout: NodeJS.Timeout;
 
@@ -78,9 +78,10 @@
 			initialSpecialInstructions: specialInstructions,
 			initialSelectedOptions: selectedOptions // Pass the selected options directly
 		};
-
-		// Call the new openModal method with both product data and edit context
-		productModalState.openModal(productDataForModal, editContextForModal);
+		setTimeout(() => {
+			// Call the new openModal method with both product data and edit context
+			productModalState.openModal(productDataForModal, editContextForModal);
+		}, 0); // Delay in milliseconds (e.g., 150ms)
 	}
 
 	// Calculate total price including options
@@ -282,5 +283,4 @@
 		</div>
 	{/if}
 </div>
-
-<ProductModal />
+<!-- <ProductModal /> -->

@@ -55,5 +55,6 @@ export const ALLOWED_ORIGINS = [
   "https://staging.azumi.pages.dev",
   "https://azumi-server-staging.sphade012.workers.dev",
   "https://azumi.pages.dev",
+  "https://azumi.com.ng/",
   // Add your production origins here
 ];

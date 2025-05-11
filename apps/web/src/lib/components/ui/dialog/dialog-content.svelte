@@ -48,7 +48,7 @@
 						</div>
 					</ScrollArea>
 					<DialogPrimitive.Close
-						class="absolute right-4 top-4 rounded-sm border border-black bg-white p-1  ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+						class="absolute right-4 top-4 z-50 rounded-sm border border-black bg-white p-1  ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
 					>
 						<X class="size-4" />
 

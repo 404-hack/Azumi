@@ -84,7 +84,7 @@
 					</div>
 
 					<Sheet.Close>
-						<Button class="w-full" href="/checkout">Proceed to Checkout</Button>
+						<Button class="w-full" href="/checkout/{shopCart.shop.id}">Proceed to Checkout</Button>
 					</Sheet.Close>
 				</div>
 			{:else}

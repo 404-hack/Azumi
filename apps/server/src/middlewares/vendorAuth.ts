@@ -7,6 +7,13 @@ import { factory } from "../lib/factory";
  * Stores the orgId in context for easy access in route handlers
  */
 const vendorAuthMiddleware = factory.createMiddleware(async (c, next) => {
+  const upgradeHeader = c.req.header("Upgrade");
+
+  // Allow WebSocket upgrade requests to pass through without auth
+  // if (upgradeHeader?.toLowerCase() === "websocket") {
+  //   return next();
+  // }
+
   const session = c.get("session");
   const orgId = session?.activeOrganizationId;
 

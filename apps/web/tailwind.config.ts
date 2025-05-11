@@ -26,8 +26,8 @@ const config: Config = {
 					foreground: 'hsl(var(--primary-foreground) / <alpha-value>)'
 				},
 				secondary: {
-					DEFAULT: 'hsl(var(--secondary) / <alpha-value>)',
-					foreground: 'hsl(var(--secondary-foreground) / <alpha-value>)'
+					DEFAULT: 'hsl(var(--secondary) / <alpha-value>)', // Use CSS variable
+					foreground: 'hsl(var(--secondary-foreground) / <alpha-value>)' // Use CSS variable
 				},
 				destructive: {
 					DEFAULT: 'hsl(var(--destructive) / <alpha-value>)',

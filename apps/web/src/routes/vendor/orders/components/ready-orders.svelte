@@ -1,6 +1,8 @@
 <script lang="ts">
 	import OrderTable from './order-table.svelte';
 	import type { Order } from '../types';
+	import { onMount } from 'svelte';
+	import { client } from '$lib/hc';
 
 	const { searchQuery } = $props();
 
@@ -69,9 +71,40 @@
 			);
 		})
 	);
+
+	// connect to the websocket server
+	// and add the credentials to the request
+	// const socket = new WebSocket('ws://localhost:8787/api/vendor/orders');
+
+	onMount(() => {
+		const socket = new WebSocket('ws://localhost:8787/api/ws', []);
+
+		socket.addEventListener('open', () => {
+			console.log('Connected to WebSocket server');
+		});
+
+		socket.addEventListener('message', (event) => {
+			const data = JSON.parse(event.data);
+			// alert the browser
+			alert('New order received: ' + JSON.stringify(data));
+		});
+
+		// return () => {
+		// 	socket.close();
+		// };
+		// const ws = client.ws.$ws();
+		// ws.addEventListener('open', () => {
+		// 	console.log('Connected to WebSocket server');
+		// });
+		// ws.addEventListener('message', (event) => {
+		// 	const data = JSON.parse(event.data);
+		// 	// alert the browser
+		// 	alert('New order received: ' + JSON.stringify(data));
+		// });
+	});
 </script>
 
-<div class="space-y-6">
+<!-- <div class="space-y-6">
 	{#if filteredOrders.length === 0}
 		<div class="flex min-h-[400px] items-center justify-center rounded-lg border border-dashed">
 			<div class="text-center">
@@ -82,4 +115,5 @@
 	{:else}
 		<OrderTable orders={filteredOrders} onStatusChange={handleStatusChange} showActions={true} />
 	{/if}
-</div>
+</div> -->
+love

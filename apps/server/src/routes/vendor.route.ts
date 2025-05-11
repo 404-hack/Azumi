@@ -17,7 +17,6 @@ import {
 } from "../lib/db/schema/menu.schema";
 import { eq, and, sql } from "drizzle-orm";
 import { createAuth } from "../lib/auth";
-import vendorAuthMiddleware from "../middlewares/vendorAuth";
 import {
   optionGroupTable,
   optionTable,
@@ -38,10 +37,11 @@ import {
   shopTodoTable,
 } from "../lib/db/schema";
 import { ShopTodoService } from "../services/shopTodo.service";
-import { z } from "zod";
 import { dayScheduleSchema } from "../lib/validation/shop.validation";
 import { nanoid } from "nanoid";
-
+import { ORDER_STATUS } from "../lib/constant";
+import vendorAuthMiddleware from "../middlewares/vendorAuth";
+import { z } from "zod";
 const todoService = new ShopTodoService();
 
 const vendorRoute = factory
@@ -896,6 +896,98 @@ const vendorRoute = factory
       return c.json({ message: "Internal server error" }, 500);
     }
   })
+  // Get vendor orders with status filter
+  .get(
+    "/orders",
+    zValidator(
+      "query",
+      z.object({
+        status: z.enum(ORDER_STATUS).optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        if (c.req.header("upgrade") !== "websocket") {
+          return c.text("Not a websocket request", 426);
+        }
+        const db = c.get("db");
+        const orgId = c.get("orgId");
+        console.log("🚀 ~ orgId:", orgId);
+        const { status } = c.req.valid("query");
+        const id = env.ORDER_NOTIFICATION.idFromName(orgId);
+        const stub = env.ORDER_NOTIFICATION.get(id);
+        const response = await stub.fetch(c.req.raw);
+        return new Response(null, {
+          status: response.status,
+          headers: response.headers,
+          webSocket: response.webSocket,
+        });
+        // let query = db.query.orderTable.findMany({
+        //   where: (orders, { eq, and }) => {
+        //     const conditions = [eq(orders.shopId, orgId)];
+        //     if (status) {
+        //       conditions.push(eq(orders.status, status));
+        //     }
+        //     return and(...conditions);
+        //   },
+        //   columns: {
+        //     id: true,
+        //     code: true,
+        //     status: true,
+        //     customerId: true,
+        //     riderId: true,
+        //     riderConfirmationCode: true,
+        //     cartId: true,
+        //     contactPhone: true,
+        //     paymentMethod: true,
+        //     paymentStatus: true,
+        //     paymentTransactionId: true,
+        //     subtotal: true,
+        //     deliveryFee: true,
+        //     serviceFee: true,
+        //     discount: true,
+        //     total: true,
+        //     acceptedAt: true,
+        //     preparedAt: true,
+        //     pickedUpAt: true,
+        //     deliveredAt: true,
+        //     canceledAt: true,
+        //     cancelReason: true,
+        //     createdAt: true,
+        //     updatedAt: true,
+        //   },
+        //   with: {
+        //     customer: true,
+        //     items: {
+        //       columns: {
+        //         id: true,
+        //         menuItemId: true,
+        //         menuItemName: true,
+        //         quantity: true,
+        //         unitPrice: true,
+        //         totalPrice: true,
+        //         specialInstructions: true,
+        //       },
+        //       with: {
+        //         options: true,
+        //       },
+        //     },
+        //     rider: true,
+        //   },
+        // });
+
+        // const orders = await query;
+
+        // return c.json({
+        //   message: "success",
+        //   data: orders,
+        // });
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        return c.json({ message: "Internal server error" }, 500);
+      }
+    }
+  )
   // Operating hours
   .patch("/", zValidator("json", updateShopSchema), async (c) => {
     try {
