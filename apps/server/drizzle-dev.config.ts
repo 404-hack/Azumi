@@ -5,7 +5,7 @@ export default defineConfig({
   verbose: true,
   strict: false,
   dialect: "sqlite",
-  out: "./dev-migrations",
+  out: "./drizzle/dev-migrations",
   breakpoints: true,
   casing: "snake_case",
   dbCredentials: {

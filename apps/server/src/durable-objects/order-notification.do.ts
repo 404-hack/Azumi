@@ -1,4 +1,4 @@
-import { DurableObject, DurableObjectState } from "cloudflare:workers";
+import { DurableObject } from "cloudflare:workers";
 
 interface Env {
   // Define any bindings this Durable Object might need from wrangler.toml
@@ -15,21 +15,28 @@ export class OrderNotification extends DurableObject {
   }
 
   async newOrder(vendorId: string, orderId: string): Promise<void> {
-    console.log(
-      `DURABLE_OBJECT (Vendor ID: ${vendorId}): New order (Order ID: ${orderId}) received. Logging: 'order made'`
-    );
-    // In a full implementation, you would use this.ctx.getWebSockets() or similar
-    // to send this information to a connected vendor client via WebSockets.
+    for (const connection of this.ctx.getWebSockets()) {
+      connection.send(JSON.stringify("notification"));
+    }
   }
+  async fetch(request: Request): Promise<Response> {
+    const webSocketPair = new WebSocketPair();
+    const [client, server] = Object.values(webSocketPair);
+    this.ctx.acceptWebSocket(server);
+    const response = new Response(null, {
+      status: 101,
+      webSocket: client,
+    });
 
-  // To enable WebSocket connections, you would also implement a 'fetch' handler:
-  // async fetch(request: Request) {
-  //   const url = new URL(request.url);
-  //   if (url.pathname === '/websocket' && request.headers.get("Upgrade") === "websocket") {
-  //     const pair = new WebSocketPair();
-  //     this.ctx.acceptWebSocket(pair[1]); // Accept and manage the WebSocket
-  //     return new Response(null, { status: 101, webSocket: pair[0] });
-  //   }
-  //   return new Response("Not found", { status: 404 });
-  // }
+    return response;
+  }
+  async webSocketClose(
+    ws: WebSocket,
+    code: number,
+    reason: string,
+    wasClean: boolean
+  ) {
+    // If the client closes the connection, the runtime will invoke the webSocketClose() handler.
+    ws.close(code, "Durable Object is closing WebSocket");
+  }
 }

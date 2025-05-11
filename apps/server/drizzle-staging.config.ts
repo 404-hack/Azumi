@@ -10,12 +10,12 @@ export default defineConfig({
   dbCredentials: {
     accountId: env.CLOUDFLARE_ACCOUNT_ID!,
     token: env.CLOUDFLARE_API_TOKEN!,
-    databaseId: env.CLOUDFLARE_DATABASE_ID!,
+    databaseId: env.CLOUDFLARE_STAGING_DATABASE_ID!,
   },
   verbose: true,
   strict: true,
   dialect: "sqlite",
-  out: "./drizzle/migrations",
+  out: "./drizzle/staging-migrations",
   driver: "d1-http",
   casing: "snake_case",
 });

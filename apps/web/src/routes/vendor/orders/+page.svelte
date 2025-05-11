@@ -10,7 +10,7 @@
 	let searchQuery = $state('');
 	let { data } = $props();
 
-	let newOrders = $derived(data.newOrder || []);
+	// let newOrders = $derived(data.newOrder || []);
 </script>
 
 <div class="container space-y-6 py-6">
@@ -30,7 +30,7 @@
 			<Tabs.Trigger value="cancelled">Cancelled</Tabs.Trigger>
 		</Tabs.List>
 		<Tabs.Content value="new">
-			<NewOrders {searchQuery} orders={newOrders} />
+			<!-- <NewOrders {searchQuery} orders={newOrders} /> -->
 		</Tabs.Content>
 
 		<Tabs.Content value="preparing">

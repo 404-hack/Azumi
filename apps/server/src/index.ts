@@ -14,6 +14,7 @@ import addressRoute from "./routes/address.route";
 import paystackWebhookRoute from "./routes/paystack-webhook.route";
 import favoriteRoute from "./routes/favorite.route";
 import deliveryFeeRoute from "./routes/fee.route";
+import wsRoute from "./routes/ws.route";
 // Create app instance using factory
 const app = factory
   .createApp({ strict: false })
@@ -40,6 +41,7 @@ export const routes = app
   .route("/delivery-fee", deliveryFeeRoute)
   .route("/webhook/paystack", paystackWebhookRoute)
   .route("/", bucketRoute)
+  .route("/ws", wsRoute)
   .get("/love", (c) => {
     return c.json({ message: "Welcome to the API" });
   });
