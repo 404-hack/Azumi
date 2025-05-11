@@ -27,7 +27,7 @@
 	console.log('🚀 ~ user:', user);
 </script>
 
-<div class="container mx-auto max-w-5xl space-y-8 py-8">
+<div class=" mx-auto max-w-5xl space-y-8 py-8">
 	<div class="space-y-8">
 		<!-- Profile Section -->
 		<div class="flex items-start gap-4">

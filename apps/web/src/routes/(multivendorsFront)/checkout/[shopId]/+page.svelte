@@ -39,7 +39,7 @@
 	let shippingMethodId = 'standard-shipping';
 	let couponCode = '';
 	let { data } = $props();
-	let deliveryAddressId = $state(data.defaultAddress.id);
+	let deliveryAddressId = $state(1);
 	let deliveryNotes = $state('');
 	let vendorNotes = $state('');
 	console.log('🚀 ~ data:', data.cart);
@@ -140,9 +140,7 @@
 			/>
 		</div>
 		<h1 class="mt-4 text-3xl font-bold">Check out of {data.cart.shop.name}</h1>
-		<p class="mt-2 text-gray-600">
-			{data.cart.shop.description}
-		</p>
+
 		<div class="mt-4 flex items-center text-xs">
 			<span class="text-yellow-500">★</span>
 			<span class="ml-1">4.8</span>
@@ -181,7 +179,7 @@
 							<div class="flex items-center gap-2">
 								<MapPin class="size-5" />
 								<span>Other</span>
-								<span class="text-sm text-muted-foreground">{data.defaultAddress.address}</span>
+								<span class="text-sm text-muted-foreground">{'data.defaultAddress.address'}</span>
 							</div>
 							<ChevronRight class="size-5" />
 						</button>
@@ -204,18 +202,6 @@
 		class="m-auto my-0 flex h-full w-full max-w-6xl flex-col gap-5 px-2 py-5 sm:px-4 md:px-10 md:py-20 lg:flex-row lg:justify-between xl:px-0"
 	>
 		<div class="flex w-full flex-col gap-10 md:gap-10 lg:gap-20">
-			<RadioGroup.Root bind:value={shippingMethodId} class="gap-5 md:gap-10">
-				{#each shippingMethods as method}
-					<div class="flex items-center space-x-2">
-						<RadioGroup.Item value={method.id} id={method.id} />
-						<Label for={method.id}>
-							{method.name}
-							<span class="text-muted-foreground">{formatCurrency(method.price)}</span>
-						</Label>
-					</div>
-				{/each}
-			</RadioGroup.Root>
-
 			<div class="flex h-[auto] w-full flex-col gap-4 py-4 lg:max-w-[600px]">
 				<h4 class="font-display text-lg font-semibold tracking-wide md:text-2xl lg:text-3xl">
 					Selected items
@@ -223,10 +209,11 @@
 				<div>
 					{#each data.cart.items as item}
 						<CartItem
-							image="/shop.avif"
-							id={item.menuItemId}
-							name={item?.menuItem.name}
-							price={item?.menuItem.price}
+							image={item.menuItem.image}
+							id={item.id}
+							cartId={data.cart.id}
+							name={item.menuItem.name}
+							price={item.menuItem.price}
 							quantity={item.quantity}
 						/>
 					{/each}

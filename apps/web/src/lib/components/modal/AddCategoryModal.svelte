@@ -16,7 +16,7 @@
 	import type { TMenuCategory } from '@repo/server/types';
 
 	type Props = {
-		afterSubmit?: (category: TMenuCategory) => void
+		afterSubmit?: (category: TMenuCategory) => void;
 	};
 
 	let { afterSubmit }: Props = $props();

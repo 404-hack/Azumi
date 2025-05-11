@@ -13,7 +13,7 @@
 	} from '$lib/states/modalState.svelte';
 </script>
 
-<div class="m-auto flex w-full max-w-[900px] flex-col gap-5 px-2 md:px-10">
+<div class="m-auto flex w-full max-w-[900px] flex-col gap-5  md:px-10">
 	<div class="flex w-full justify-between gap-5 border-b pb-3">
 		<p class="text-base font-semibold md:text-lg">Email</p>
 		<Button

@@ -62,7 +62,7 @@
 
 <AddCategoryModal />
 
-<div class="container mx-auto space-y-6 p-4">
+<div class=" p- mx-auto space-y-6">
 	<div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 		<h1 class="text-3xl font-bold">Menu Categories</h1>
 		<Button onclick={() => addCategoryModalState.setTrue()}>
@@ -71,15 +71,15 @@
 		</Button>
 	</div>
 
-	<Card.Root>
-		<Card.Header>
+	<Card.Root class="border-none sm:border">
+		<Card.Header class="px-0 sm:p-6">
 			<Card.Title>Your Categories</Card.Title>
 			<Card.Description>
 				Manage your menu categories. Organize your menu items by categories for better customer
 				experience.
 			</Card.Description>
 		</Card.Header>
-		<Card.Content>
+		<Card.Content class="px-0 sm:p-6">
 			<div class="space-y-4">
 				<!-- Search and Filter -->
 				<div class="relative">
@@ -141,7 +141,7 @@
 							</Table.Header>
 							<Table.Body>
 								{#each filteredCategories as category}
-									<Table.Row>
+									<Table.Row onclick={() => viewCategory(category.id)}>
 										<Table.Cell class="font-medium">{category.name}</Table.Cell>
 										<Table.Cell>
 											<Badge variant={category.published ? 'default' : 'secondary'}>

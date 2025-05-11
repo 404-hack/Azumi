@@ -1,62 +1,37 @@
-import type { MenuItem } from './menu';
-
-export interface CartOption {
+export interface CartMenuItem {
 	id: string;
-	cartItemId: string;
-	optionId: string;
-	optionGroupId: string;
-	quantity: number;
+	name: string;
 	price: number;
-	option?: {
-		id: string;
-		name: string;
-		price: number;
-	};
+	image: string | null;
 }
 
 export interface CartItem {
 	id: string;
 	cartId: string;
 	menuItemId: string;
+	menuItem: CartMenuItem;
 	quantity: number;
-	specialInstructions?: string | null;
+	specialInstructions: string;
 	totalPrice: number;
-	options?: CartOption[];
-	menuItem?: MenuItem;
 	createdAt: string;
 	updatedAt: string;
-}
-
-export interface Restaurant {
-	id: string;
-	name: string;
-	logo?: string | null;
 }
 
 export interface Cart {
 	id: string;
 	customerId: string;
-	restaurantId: string;
-	status: 'active' | 'abandoned' | 'converted';
-	items?: CartItem[];
-	restaurant?: Restaurant;
-	totalItems?: number;
-	subtotal?: number;
+	shopId: string;
+	items: CartItem[];
+	shop: {
+		id: string;
+		name: string;
+		slug: string;
+		logo: string | null;
+		coverImage: string | null;
+	};
+	status: string;
+	subtotal: number;
+	totalItems: number;
 	createdAt: string;
 	updatedAt: string;
-}
-
-export interface CartAddItemRequest {
-	menuItemId: string;
-	quantity: number;
-	specialInstructions?: string;
-	options?: {
-		optionId: string;
-		optionGroupId: string;
-		quantity: number;
-	}[];
-}
-
-export interface CartUpdateItemRequest {
-	quantity: number;
 }

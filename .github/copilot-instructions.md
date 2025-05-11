@@ -1,2 +1,4 @@
 always use typescript
-always use svelte 5 for fomented
+don't use any comments i don't need them
+use the latest version of typescript
+use the latest version of tailwindcss

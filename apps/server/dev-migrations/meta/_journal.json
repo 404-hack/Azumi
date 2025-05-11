@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1744608315942,
+      "tag": "0000_spotty_colleen_wing",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1744614123099,
+      "tag": "0001_eminent_shockwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1744990131208,
+      "tag": "0002_dusty_peter_parker",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1744991466590,
+      "tag": "0003_quick_ulik",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1745309639793,
+      "tag": "0004_aberrant_major_mapleleaf",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1745595917878,
+      "tag": "0005_chilly_marvel_boy",
+      "breakpoints": true
+    }
+  ]
+}

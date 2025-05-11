@@ -4,9 +4,11 @@
 	import {
 		loginModalState,
 		cartsSheetStore,
-		registerModalState
+		registerModalState,
+		addDeliveryAddressModalState
 	} from '$lib/states/modalState.svelte';
-	import CartSheet from './modal/CartSheet.svelte';
+	import ResponsiveDropdown from '$lib/components/ResponsiveDropdown.svelte';
+
 	import CartsSheet from './modal/CartsSheet.svelte';
 	import {
 		MapPin,
@@ -15,7 +17,11 @@
 		ChevronDown,
 		Menu,
 		ShoppingCart,
-		Store
+		Store,
+		User,
+		Heart,
+		Settings,
+		Package
 	} from 'lucide-svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Avatar, AvatarFallback, AvatarImage } from '$lib/components/ui/avatar';
@@ -25,6 +31,11 @@
 	import { authClient } from '$lib/auth-client';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Badge } from '$lib/components/ui/badge';
+	import type { Place } from '$lib/types/places';
+	import AddDeliveryAddress from './modal/AddDeliveryAddress.svelte';
+	import { activeLocation } from '$lib/states/locationState.svelte';
+	import Label from './ui/label/label.svelte';
+	import Separator from './ui/separator/separator.svelte';
 
 	let location = 'Nairobi, Kenya';
 	let searchQuery = '';
@@ -35,7 +46,7 @@
 </script>
 
 <header
-	class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur transition-all duration-200 supports-[backdrop-filter]:bg-background/60"
+	class=" top-0 z-50 w-full border-b bg-background/95 backdrop-blur transition-all duration-200 supports-[backdrop-filter]:bg-background/60"
 >
 	<div class="container flex h-16 w-full items-center justify-between gap-4">
 		<!-- Logo and Locatio`n -->
@@ -43,16 +54,25 @@
 			<a href="/" class="flex items-center space-x-2">
 				<span class="text-xl font-bold text-primary">Azumi</span>
 			</a>
-
-			<button
-				class="group hidden items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary md:flex"
-				aria-label="Change location"
-			>
-				<MapPin class="h-4 w-4" />
-				<span>{location}</span>
-				<ChevronDown class="h-4 w-4 transition-transform group-hover:rotate-180" />
-			</button>
+			{#if activeLocation.current.lat != 0 && activeLocation.current.lng != 0}
+				<button
+					class="group flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+					aria-label="Change location"
+					onclick={() => {
+						addDeliveryAddressModalState.setTrue();
+					}}
+				>
+					<MapPin class="h-4 w-4" />
+					<span class="max-w-[200px] truncate border border-red-600"
+						>{activeLocation.current.name}</span
+					>
+					<ChevronDown class="h-4 w-4 transition-transform group-hover:rotate-180" />
+				</button>
+			{/if}
 		</div>
+		<LoginModal />
+		<RegisterModal />
+		<AddDeliveryAddress />
 
 		<!-- Search -->
 		<!-- <div class="hidden max-w-xl flex-1 px-4 md:flex">
@@ -92,8 +112,6 @@
 
 			{#if user}
 				<nav class="flex items-center gap-3">
-					<CartSheet />
-
 					<DropdownMenu.Root>
 						<DropdownMenu.Trigger>
 							<Button
@@ -163,6 +181,79 @@
 							</DropdownMenu.Item>
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
+					<!-- <ResponsiveDropdown>
+						{#snippet trigger()}
+							<Button
+								variant="ghost"
+								class="relative h-9 w-9 rounded-full p-0 hover:bg-muted/80"
+								aria-label="User menu"
+							>
+								<Avatar class="h-9 w-9">
+									<AvatarImage src={user.image} alt={user.name || 'User'} />
+									<AvatarFallback>
+										{user?.name
+											?.split(' ')
+											.map((n) => n.charAt(0))
+											.join('')
+											.toUpperCase() ?? ''}
+									</AvatarFallback>
+								</Avatar>
+							</Button>
+						{/snippet}
+						{#snippet children()}
+							<div>
+								<div class="dropdown-menu-label">My Account</div>
+								<Separator />
+								<a class="dropdown-menu-item" href="/me/personal-info"
+									><User class="mr-2 h-4 w-4" />Profile</a
+								>
+								<a href="/me/orders" class="dropdown-menu-item"
+									><Package class="mr-2 h-4 w-4" />Orders</a
+								>
+								<a href="/me/favorites" class="dropdown-menu-item"
+									><Heart class="mr-2 h-4 w-4" />Favorites</a
+								>
+								<a href="/me/settings" class="dropdown-menu-item"
+									><Settings class="mr-2 h-4 w-4" />Settings</a
+								>
+								<Separator />
+
+								{#if $organizations.isPending}
+									<p>Loading...</p>
+								{:else if $organizations.data === null}
+									<span class="sr-only">no organizations</span>
+								{:else}
+									{#each $organizations.data as organization}
+										<button
+											type="button"
+											class="dropdown-menu-item"
+											onclick={() => {
+												authClient.organization.setActive({
+													organizationSlug: organization.slug
+												});
+												goto('/vendor/menu');
+											}}
+										>
+											<Store class="mr-2 h-4 w-4" />
+											{organization.name}
+										</button>
+									{/each}
+								{/if}
+
+								<Separator />
+								<button
+									class="dropdown-menu-item text-red-500"
+									onclick={async () => {
+										authClient.signOut();
+										await invalidateAll();
+									}}
+									type="button"
+								>
+									Sign out
+								</button>
+							</div>
+						{/snippet}
+					</ResponsiveDropdown> -->
 				</nav>
 			{:else}
 				<div class="hidden items-center gap-2 md:flex">
@@ -226,6 +317,3 @@
 		</div>
 	{/if}
 </header>
-
-<LoginModal />
-<RegisterModal />

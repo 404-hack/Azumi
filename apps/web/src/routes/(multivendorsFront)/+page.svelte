@@ -1,78 +1,168 @@
 <script lang="ts">
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
-	import { MapPin, ArrowRight } from 'lucide-svelte';
+	import { MapPin, ArrowRight, Search, ShoppingBag, Bike } from 'lucide-svelte';
 	import RestaurantList from '$lib/components/RestaurantList.svelte';
 	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
+	import { activeLocation } from '$lib/states/locationState.svelte';
+	import { goto } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
 
-	const categories = [
-		{ name: 'All', icon: '🌟' },
-		{ name: 'Fast Food', icon: '🍔' },
-		{ name: 'Pizza', icon: '🍕' },
-		{ name: 'Sushi', icon: '🍱' },
-		{ name: 'Italian', icon: '🍝' },
-		{ name: 'Mexican', icon: '🌮' },
-		{ name: 'Vegetarian', icon: '🥗' }
-	];
+	// function searchLocation() {
+	// 	if (
+	// 		activeLocation.current.address &&
+	// 		activeLocation.current.lat &&
+	// 		activeLocation.current.lng
+	// 	) {
+	// 		goto('/explore');
+	// 	} else {
+	// 		toast.error('Please select a valid address from the suggestions.');
+	// 	}
+	// }
 
-	let selectedCategory = $state('All');
+	// $effect(() => {
+	// 	if (activeLocation.current.address) {
+	// 		goto('/explore');
+	// 	}
+	// });
 </script>
 
-<div class="min-h-screen bg-background">
+<div
+	class="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 text-foreground"
+>
 	<!-- Hero Section -->
-	<div class="relative">
-		<div class="absolute inset-0 overflow-hidden">
-			<img src="/hero-1.png" alt="Food banner" class="h-full w-full object-cover object-top" />
-			<div class="absolute inset-0 bg-gradient-to-b from-background/30 to-background" />
-		</div>
+	<div class="relative isolate overflow-hidden pt-14">
+		<!-- Background Image and Darker Overlay -->
+		<img
+			src="/hero-2.png"
+			alt="Diverse food options background"
+			class="absolute inset-0 -z-10 h-full w-full object-cover opacity-50"
+		/>
+		<div class="absolute inset-0 -z-10 bg-black/40" aria-hidden="true" />
 
-		<div class="relative mx-auto max-w-7xl px-4 py-52 sm:px-6 lg:px-8">
+		<!-- Content -->
+		<div class="mx-auto max-w-3xl px-4 py-36 sm:py-48 lg:py-56">
 			<div class="text-center">
-				<h1 class=" font-bold tracking-tight text-foreground sm:text-xl md:text-5xl">
-					Discover restaurants and more near you.
+				<h1
+					class="text-4xl font-extrabold tracking-tight text-white drop-shadow-lg sm:text-5xl lg:text-6xl"
+				>
+					Your City's Flavors, Delivered.
 				</h1>
+				<p class="mt-6 text-lg leading-8 text-gray-200 drop-shadow">
+					Discover local restaurants, markets, and shops near you. Enter your address to begin.
+				</p>
 
 				<!-- Search Section -->
-				<div class="mx-auto mt-10 max-w-md">
-					<div
-						class="relative flex items-center gap-2 rounded-lg bg-white px-3 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2"
+				<div class="mx-auto mt-10 max-w-xl">
+					<form
+						onsubmit={(e) => {
+							e.preventDefault();
+						}}
+						class="flex items-center gap-2 rounded-full bg-white/90 p-2 shadow-xl backdrop-blur-sm focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 focus-within:ring-offset-background/50"
 					>
-						<MapPin class="h-5 w-5 text-muted-foreground" />
-						<input
-							type="text"
-							placeholder="Enter your delivery address"
-							class="h-14 flex-1 border-none outline-none"
+						<MapPin class="ml-2 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+						<PlacesInput
+							class="h-12 flex-1 border-none bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground/80"
+							placeholder="Enter delivery address or zip code"
+							onPlaceSelect={(p) => {
+								activeLocation.current = {
+									name: p.name,
+									address: p.address,
+									lat: p.lat,
+									lng: p.lng
+								};
+								goto('/explore');
+							}}
 						/>
-						<Button size="icon" class="shadow-md">
+						<Button
+							type="submit"
+							size="icon"
+							class="flex-shrink-0 rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+							aria-label="Search for locations"
+						>
 							<ArrowRight class="size-5" />
 						</Button>
-					</div>
+					</form>
 				</div>
-				<PlacesInput />
 			</div>
 		</div>
 	</div>
 
-	<!-- Main Content -->
-	<div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-		<!-- Categories -->
-		<div class="mb-12">
-			<h2 class="mb-6 text-2xl font-semibold tracking-tight">Popular Categories</h2>
-			<div class="flex flex-wrap gap-4">
-				{#each categories as { name, icon }}
-					<Button
-						variant={selectedCategory === name ? 'default' : 'outline'}
-						class="flex items-center gap-2 rounded-full px-6"
-						onclick={() => (selectedCategory = name)}
+	<!-- How It Works Section -->
+	<div class="bg-gradient-to-b from-muted/30 via-background to-background py-20 sm:py-28">
+		<div class="mx-auto max-w-7xl px-6 lg:px-8">
+			<div class="mx-auto max-w-2xl lg:text-center">
+				<h2 class="text-base font-semibold leading-7 text-primary">Simple Steps</h2>
+				<p class="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+					Everything you need, just a few clicks away
+				</p>
+				<p class="mt-6 text-lg leading-8 text-muted-foreground">
+					Follow these easy steps to get started with finding local vendors and getting deliveries.
+				</p>
+			</div>
+			<div class="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
+				<dl class="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-3">
+					<!-- Step 1 -->
+					<div
+						class="flex flex-col rounded-lg bg-card p-6 shadow-lg transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-xl hover:shadow-primary/20"
 					>
-						<span class="text-xl">{icon}</span>
-						<span>{name}</span>
-					</Button>
-				{/each}
+						<dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-foreground">
+							<div
+								class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"
+							>
+								<Search class="h-6 w-6" aria-hidden="true" />
+							</div>
+							Find Vendors Nearby
+						</dt>
+						<dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-muted-foreground">
+							<p class="flex-auto">
+								Enter your address or zip code above to discover a wide variety of restaurants,
+								local markets, and shops available in your area.
+							</p>
+						</dd>
+					</div>
+
+					<!-- Step 2 -->
+					<div
+						class="flex flex-col rounded-lg bg-card p-6 shadow-lg transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-xl hover:shadow-primary/20"
+					>
+						<dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-foreground">
+							<div
+								class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"
+							>
+								<ShoppingBag class="h-6 w-6" aria-hidden="true" />
+							</div>
+							Browse & Order
+						</dt>
+						<dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-muted-foreground">
+							<p class="flex-auto">
+								Explore menus and product lists. Add items to your cart and proceed to checkout
+								securely when you're ready.
+							</p>
+						</dd>
+					</div>
+
+					<!-- Step 3 -->
+					<div
+						class="flex flex-col rounded-lg bg-card p-6 shadow-lg transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-xl hover:shadow-primary/20"
+					>
+						<dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-foreground">
+							<div
+								class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"
+							>
+								<Bike class="h-6 w-6" aria-hidden="true" />
+							</div>
+							Fast Delivery
+						</dt>
+						<dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-muted-foreground">
+							<p class="flex-auto">
+								Sit back and relax! Your order will be prepared and delivered straight to your
+								doorstep quickly and efficiently.
+							</p>
+						</dd>
+					</div>
+				</dl>
 			</div>
 		</div>
-
-		<!-- Restaurant List -->
-		<!-- <RestaurantList {searchTerm} restaurants={data.restaurants} category={selectedCategory} /> -->
 	</div>
 </div>

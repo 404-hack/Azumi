@@ -938,7 +938,7 @@ const vendorRoute = factory
     try {
       const db = c.get("db");
       const orgId = c.get("orgId");
-      const includeTodo = c.req.query("includeTodo") === "true";
+      // const includeTodo = c.req.query("includeTodo") === "true";
 
       const shop = await db.query.shopTable.findFirst({
         where: eq(shopTable.id, orgId),
@@ -1215,7 +1215,6 @@ const vendorRoute = factory
           data: paymentMethod,
         });
       } catch (error) {
-        console.error("Error creating payment method:", error);
         return c.json(
           {
             success: false,

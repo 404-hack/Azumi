@@ -19,10 +19,6 @@ export const load = async ({ params }) => {
 		error(400, `Failed to load cart: ${cartResponse.statusText}`);
 	}
 
-	if (!addressResponse.ok) {
-		error(400, `Failed to load default address: ${addressResponse.statusText}`);
-	}
-
 	// Parse both responses in parallel
 	const [shopCart, defaultAddress] = await Promise.all([
 		cartResponse.json(),

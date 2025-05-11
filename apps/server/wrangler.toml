@@ -18,13 +18,17 @@ enabled = true
 [placement]
 mode = "smart"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "azumi-db"
+database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18"
 
 [env.staging]
    
     vars = {  CLIENT_URL =  'http://localhost:5173/'}
    
      
-    d1_databases = [ { binding = "DB", database_name = "azumi-db-staging", database_id = "f61b1aa2-0166-44ad-8a1a-38574ea0fb7f" } ]
+    d1_databases = [ { binding = "DB", database_name = "azumi-db-staging", database_id = "86c0adbb-631d-4416-a1e9-6f83e680c12e" } ]
 
 
 [env.production]

@@ -73,7 +73,6 @@
 		isStoreOpen = !isStoreOpen;
 	}
 	const activeOrganization = authClient.useActiveOrganization();
-	console.log('🚀 ~ activeOrganization:', $activeOrganization.data);
 
 	const member = authClient.organization.getActiveMember();
 	const organizations = authClient.useListOrganizations();
@@ -102,7 +101,7 @@
 					<Store class="h-4 w-4" />
 					<span class="text-sm font-medium">Store Status</span>
 				</div>
-				<Switch checked={$activeOrganization.data?.metadata.active} />
+				<!-- <Switch checked={$activeOrganization.data?.metadata.active} /> -->
 			</div>
 		</div>
 		<div class="px-3">
@@ -138,6 +137,14 @@
 		</div>
 		<div class="px-3">
 			<div class="space-y-1">
+				<Button
+					variant="ghost"
+					href="/restaurant/{$activeOrganization.data?.slug}"
+					class="w-full justify-start"
+				>
+					<Store class="mr-2 h-4 w-4" />
+					Store front
+				</Button>
 				<Button variant="ghost" class="w-full justify-start">
 					<HelpCircle class="mr-2 h-4 w-4" />
 					Help & Support

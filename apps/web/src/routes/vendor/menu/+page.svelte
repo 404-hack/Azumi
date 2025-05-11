@@ -9,6 +9,7 @@
 	import { slide } from 'svelte/transition';
 	import { queryParam, ssp } from 'sveltekit-search-params';
 	import AddOptionModal from '$lib/components/modal/AddOptionModal.svelte';
+	import { ScrollArea } from '$lib/components/ui/scroll-area/index.js';
 	let { data } = $props();
 	let menuData = $derived(data.menuCategoryWithItems);
 	let showSearch = $state(false);
@@ -50,11 +51,11 @@
 	}}
 	class="space-y-4"
 >
-	<Tabs.List class="w-full overflow-x-auto">
-		<Tabs.Trigger value="meals">Meals</Tabs.Trigger>
-		<Tabs.Trigger value="option-items">Option Items</Tabs.Trigger>
-		<Tabs.Trigger value="option-groups">Option Groups</Tabs.Trigger>
-		<Tabs.Trigger value="food-packs">Food Packs</Tabs.Trigger>
+	<Tabs.List class="grid h-full grid-cols-2 gap-4 sm:grid-cols-4">
+		<Tabs.Trigger class="" value="meals">Meals</Tabs.Trigger>
+		<Tabs.Trigger class="" value="option-items">Option Items</Tabs.Trigger>
+		<Tabs.Trigger class="" value="option-groups">Option Groups</Tabs.Trigger>
+		<Tabs.Trigger class="" value="food-packs">Food Packs</Tabs.Trigger>
 	</Tabs.List>
 
 	<Tabs.Content value="meals">
