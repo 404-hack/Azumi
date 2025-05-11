@@ -1,28 +1,33 @@
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { z } from "zod";
-import { eq, and, desc, inArray } from "drizzle-orm";
-import {
-  menuItemTable,
-  menuItemOptionGroups,
-} from "../lib/db/schema/menu.schema";
-import {
-  optionTable,
-  optionGroupTable,
-  optionToOptionGroupTable,
-} from "../lib/db/schema/option.schema";
 import { nanoid } from "nanoid";
+import { z } from "zod";
+
 import { factory } from "../lib/factory";
-import {
-  addCartItemSchema,
-  updateCartItemSchema,
-} from "../lib/validation/cart.validation";
 import {
   cartItems,
   cartTable,
   cartItemOptions,
 } from "../lib/db/schema/cart.schema";
-import type { Context } from "../lib/types";
+import {
+  addCartItemSchema,
+  updateCartItemSchema,
+} from "../lib/validation/cart.validation";
+import { menuItemTable } from "../lib/db/schema/menu.schema";
+import { optionTable } from "../lib/db/schema/option.schema";
+
+import {
+  menuItemOptionGroups,
+  optionGroupTable,
+  optionToOptionGroupTable,
+} from "../lib/db/schema"; // Assuming these are correctly exported from schema index
+import {
+  calculateDeliveryFee,
+  calculateHaversineDistance,
+  estimateTravelTime,
+  isShopCurrentlyOpen,
+} from "../lib/utils/shop.utils"; // Import shop utilities
 
 // Helper function to calculate totals
 const calculateCartTotals = (
@@ -231,211 +236,311 @@ const cartRoute = factory
       );
     }
   })
-  .get("/shop/:shopId", async (c) => {
-    try {
-      const db = c.get("db");
-      const user = c.get("user");
-      const { shopId } = c.req.param();
+  .get(
+    "/shop/:shopId",
+    zValidator(
+      "query",
+      z.object({
+        latitude: z
+          .string()
+          .optional()
+          .refine(
+            (val) => {
+              if (val === undefined) return true; // Allow undefined
+              const num = Number(val);
+              return !isNaN(num) && num >= -90 && num <= 90;
+            },
+            { message: "Latitude must be a number between -90 and 90" }
+          )
+          .transform((val) => (val !== undefined ? Number(val) : undefined)),
+        longitude: z
+          .string()
+          .optional()
+          .refine(
+            (val) => {
+              if (val === undefined) return true; // Allow undefined
+              const num = Number(val);
+              return !isNaN(num) && num >= -180 && num <= 180;
+            },
+            { message: "Longitude must be a number between -180 and 180" }
+          )
+          .transform((val) => (val !== undefined ? Number(val) : undefined)),
+      })
+    ),
+    async (c) => {
+      try {
+        const db = c.get("db");
+        const user = c.get("user");
+        const { shopId } = c.req.param();
+        const { latitude: userLat, longitude: userLng } = c.req.valid("query"); // Get optional user coords
 
-      if (!user) {
-        return c.json(
-          { error: "Unauthorized", message: "User not authenticated" },
-          401
-        );
-      }
+        if (!user) {
+          return c.json(
+            { error: "Unauthorized", message: "User not authenticated" },
+            401
+          );
+        }
 
-      // First, fetch the cart with its basic items
-      const cartData = await db.query.cartTable.findFirst({
-        where: and(
-          eq(cartTable.customerId, user.id),
-          eq(cartTable.shopId, shopId),
-          eq(cartTable.status, "ACTIVE")
-        ),
-        with: {
-          items: {
-            with: {
-              menuItem: {
-                columns: {
-                  id: true,
-                  name: true,
-                  price: true,
-                  image: true,
-                  description: true,
-                  priceDescription: true,
+        // First, fetch the cart with its basic items and shop operating hours
+        const cartData = await db.query.cartTable.findFirst({
+          where: and(
+            eq(cartTable.customerId, user.id),
+            eq(cartTable.shopId, shopId),
+            eq(cartTable.status, "ACTIVE")
+          ),
+          with: {
+            items: {
+              with: {
+                menuItem: {
+                  columns: {
+                    id: true,
+                    name: true,
+                    price: true,
+                    image: true,
+                    description: true,
+                    priceDescription: true,
+                  },
+                },
+                options: {
+                  with: {
+                    option: true,
+                    optionGroup: true,
+                  },
                 },
               },
-              options: {
-                with: {
-                  option: true,
-                  optionGroup: true,
-                },
+              columns: {
+                id: true,
+                quantity: true,
+                specialInstructions: true,
+                totalPrice: true,
               },
             },
-            columns: {
-              id: true,
-              quantity: true,
-              specialInstructions: true,
-              totalPrice: true,
-            },
-          },
-          shop: {
-            columns: {
-              id: true,
-              name: true,
-              logo: true,
-              slug: true,
-              coverImage: true,
-            },
-          },
-        },
-        columns: {
-          id: true,
-        },
-      });
-
-      if (!cartData) {
-        return c.json(
-          { data: null, message: "No active cart found for this shop." },
-          404
-        );
-      }
-
-      if (!cartData.shop) {
-        console.error(`Cart ${cartData.id} is missing shop data.`);
-        return c.json(
-          {
-            error: "Internal Server Error",
-            message: "Cart data is incomplete (missing shop)",
-          },
-          500
-        );
-      }
-
-      // For each menu item, fetch its available option groups and options separately
-      const menuItemIds = cartData.items
-        .map((item) => item.menuItem?.id)
-        .filter(Boolean);
-
-      // Fetch all option groups and their options for these menu items
-      const availableOptionsMap = new Map();
-
-      if (menuItemIds.length > 0) {
-        for (const menuItemId of menuItemIds) {
-          // Replace the menuItemOptionGroups query with direct table query
-          const optionGroups = await db
-            .select({
-              menuItemId: menuItemOptionGroups.menuItemId,
-              optionGroupId: menuItemOptionGroups.optionGroupId,
-            })
-            .from(menuItemOptionGroups)
-            .where(eq(menuItemOptionGroups.menuItemId, menuItemId));
-
-          const optionGroupIds = optionGroups.map((g) => g.optionGroupId);
-
-          const availableOptions = [];
-
-          for (const optionGroupId of optionGroupIds) {
-            const optionGroup = await db.query.optionGroupTable.findFirst({
-              where: eq(optionGroupTable.id, optionGroupId),
+            shop: {
               columns: {
                 id: true,
                 name: true,
-                minSelections: true,
-                maxSelections: true,
+                logo: true,
+                slug: true,
+                coverImage: true,
+                latitude: true,
+                longitude: true,
+                addressName: true,
+                address: true,
               },
-            });
+              with: {
+                operatingHours: true, // Fetch operating hours
+              },
+            },
+          },
+          columns: {
+            id: true,
+          },
+        });
 
-            if (optionGroup) {
-              const options = await db.query.optionToOptionGroupTable.findMany({
-                where: eq(
-                  optionToOptionGroupTable.optionGroupId,
-                  optionGroupId
-                ),
-                with: {
-                  option: {
-                    columns: {
-                      id: true,
-                      name: true,
-                      price: true,
-                    },
-                  },
+        if (!cartData) {
+          return c.json(
+            { data: null, message: "No active cart found for this shop." },
+            404
+          );
+        }
+
+        if (!cartData.shop) {
+          console.error(`Cart ${cartData.id} is missing shop data.`);
+          return c.json(
+            {
+              error: "Internal Server Error",
+              message: "Cart data is incomplete (missing shop)",
+            },
+            500
+          );
+        }
+
+        // --- Calculate Shop Status and Delivery Info ---
+        const now = new Date();
+        const currentDay = now.getDay();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentTimeMinutes = currentHour * 60 + currentMinute;
+        const dayMapping = {
+          0: "SUNDAY",
+          1: "MONDAY",
+          2: "TUESDAY",
+          3: "WEDNESDAY",
+          4: "THURSDAY",
+          5: "FRIDAY",
+          6: "SATURDAY",
+        };
+        const currentDayString =
+          dayMapping[currentDay as keyof typeof dayMapping];
+
+        const isOpen = isShopCurrentlyOpen(
+          cartData.shop.operatingHours,
+          currentDayString,
+          currentTimeMinutes
+        );
+
+        let distance: number | undefined = undefined;
+        let deliveryFee: number | undefined = undefined;
+        let estimatedTime: string | undefined = undefined;
+
+        const shopLat = cartData.shop.latitude;
+        const shopLng = cartData.shop.longitude;
+
+        if (
+          userLat !== undefined &&
+          userLng !== undefined &&
+          shopLat !== null &&
+          shopLng !== null &&
+          shopLat !== undefined &&
+          shopLng !== undefined
+        ) {
+          distance = parseFloat(
+            calculateHaversineDistance(
+              userLat,
+              userLng,
+              shopLat,
+              shopLng
+            ).toFixed(2)
+          );
+          deliveryFee = calculateDeliveryFee(distance);
+          estimatedTime = estimateTravelTime(distance);
+        }
+        // --- End Calculation ---
+
+        // For each menu item, fetch its available option groups and options separately
+        const menuItemIds = cartData.items
+          .map((item) => item.menuItem?.id)
+          .filter(Boolean);
+
+        // Fetch all option groups and their options for these menu items
+        const availableOptionsMap = new Map();
+
+        if (menuItemIds.length > 0) {
+          for (const menuItemId of menuItemIds) {
+            // Replace the menuItemOptionGroups query with direct table query
+            const optionGroups = await db
+              .select({
+                menuItemId: menuItemOptionGroups.menuItemId,
+                optionGroupId: menuItemOptionGroups.optionGroupId,
+              })
+              .from(menuItemOptionGroups)
+              .where(eq(menuItemOptionGroups.menuItemId, menuItemId));
+
+            const optionGroupIds = optionGroups.map((g) => g.optionGroupId);
+
+            const availableOptions = [];
+
+            for (const optionGroupId of optionGroupIds) {
+              const optionGroup = await db.query.optionGroupTable.findFirst({
+                where: eq(optionGroupTable.id, optionGroupId),
+                columns: {
+                  id: true,
+                  name: true,
+                  minSelections: true,
+                  maxSelections: true,
                 },
               });
 
-              availableOptions.push({
-                ...optionGroup,
-                options: options.map((opt) => opt.option).filter(Boolean),
-              });
+              if (optionGroup) {
+                const options =
+                  await db.query.optionToOptionGroupTable.findMany({
+                    where: eq(
+                      optionToOptionGroupTable.optionGroupId,
+                      optionGroupId
+                    ),
+                    with: {
+                      option: {
+                        columns: {
+                          id: true,
+                          name: true,
+                          price: true,
+                        },
+                      },
+                    },
+                  });
+
+                availableOptions.push({
+                  ...optionGroup,
+                  options: options.map((opt) => opt.option).filter(Boolean),
+                });
+              }
             }
+
+            availableOptionsMap.set(menuItemId, availableOptions);
           }
-
-          availableOptionsMap.set(menuItemId, availableOptions);
         }
-      }
 
-      // Map the cart data with both selected and available options
-      const mappedCart = {
-        id: cartData.id,
-        shop: {
-          id: cartData.shop.id,
-          name: cartData.shop.name,
-          slug: cartData.shop.slug,
-          logo: cartData.shop.logo,
-          coverImage: cartData.shop.coverImage,
-        },
-        items: cartData.items.map((item) => {
-          if (!item.menuItem) {
-            console.error(`Cart item ${item.id} is missing menu item data.`);
+        // Map the cart data with both selected and available options
+        const mappedCart = {
+          id: cartData.id,
+          shop: {
+            ...cartData.shop,
+            isOpen, // Add calculated status
+            // Conditionally add distance, fee, and time
+            ...(distance !== undefined && { distance }),
+            ...(deliveryFee !== undefined && { deliveryFee }),
+            ...(estimatedTime !== undefined && { estimatedTime }),
+          },
+          items: cartData.items.map((item) => {
+            if (!item.menuItem) {
+              console.error(`Cart item ${item.id} is missing menu item data.`);
+              return {
+                id: item.id,
+                quantity: item.quantity,
+                specialInstructions: item.specialInstructions,
+                totalPrice: Number(item.totalPrice) || 0,
+                menuItem: {
+                  id: "unknown",
+                  name: "Unknown Item",
+                  price: 0,
+                  image: null,
+                },
+                selectedOptions: [],
+                availableOptionGroups: [],
+              };
+            }
+
+            const selectedOptions = item.options
+              .map(mapSelectedOption)
+              .filter((opt): opt is NonNullable<typeof opt> => opt !== null);
+
             return {
               id: item.id,
               quantity: item.quantity,
               specialInstructions: item.specialInstructions,
               totalPrice: Number(item.totalPrice) || 0,
               menuItem: {
-                id: "unknown",
-                name: "Unknown Item",
-                price: 0,
-                image: null,
+                ...item.menuItem,
               },
-              selectedOptions: [],
-              availableOptionGroups: [],
+              selectedOptions,
+              availableOptionGroups:
+                availableOptionsMap.get(item.menuItem.id) || [],
             };
-          }
+          }),
+          ...calculateCartTotals(cartData),
+        };
 
-          const selectedOptions = item.options
-            .map(mapSelectedOption)
-            .filter((opt): opt is NonNullable<typeof opt> => opt !== null);
-
-          return {
-            id: item.id,
-            quantity: item.quantity,
-            specialInstructions: item.specialInstructions,
-            totalPrice: Number(item.totalPrice) || 0,
-            menuItem: {
-              ...item.menuItem,
-            },
-            selectedOptions,
-            availableOptionGroups:
-              availableOptionsMap.get(item.menuItem.id) || [],
-          };
-        }),
-        ...calculateCartTotals(cartData),
-      };
-
-      return c.json({
-        data: mappedCart,
-      });
-    } catch (error: any) {
-      console.error("Error fetching cart by shop:", error);
-      return c.json(
-        {
-          error: "Internal server error",
-          message: error?.message || "Failed to fetch cart for shop",
-        },
-        500
-      );
+        return c.json({
+          data: mappedCart,
+        });
+      } catch (error: any) {
+        console.error("Error fetching cart by shop:", error);
+        if (error instanceof z.ZodError) {
+          return c.json(
+            { error: "Invalid query parameters", details: error.errors },
+            400
+          );
+        }
+        return c.json(
+          {
+            error: "Internal server error",
+            message: error?.message || "Failed to fetch cart for shop",
+          },
+          500
+        );
+      }
     }
-  })
+  )
 
   .post("/", zValidator("json", addCartItemSchema), async (c) => {
     const db = c.get("db");

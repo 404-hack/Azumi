@@ -1,15 +1,15 @@
-import { ORDER_STATUS, PAYMENT_METHODS } from "../constant";
+import { ORDER_STATUS } from "../constant";
 import { z } from "zod";
 
 export const createOrderSchema = z.object({
-  cartId: z.string(), // Now required
-  deliveryAddressId: z.string(),
+  cartId: z.string().min(1, "Cart ID is required"),
   deliveryNotes: z.string().optional(),
   vendorNotes: z.string().optional(),
-  contactPhone: z.string().optional(),
-  deliveryFee: z.number().default(0),
-  serviceFee: z.number().default(0),
-  discount: z.number().default(0),
+  contactPhone: z.string().min(1, "Contact phone is required"),
+  discount: z.number().nonnegative("Discount cannot be negative").default(0),
+  userLatitude: z.number().min(-90).max(90),
+  userLongitude: z.number().min(-180).max(180),
+  addressName: z.string().min(1),
 });
 
 export const updateOrderStatusSchema = z.object({

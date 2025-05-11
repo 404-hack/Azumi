@@ -14,12 +14,13 @@ export const orderTable = sqliteTable("order", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
-  code: text("code").notNull(),
+  code: text("code"),
   customerId: text("customer_id").references(() => userTable.id),
   shopId: text()
     .references(() => shopTable.id)
     .notNull(),
   riderId: text("rider_id").references(() => userTable.id),
+  riderConfirmationCode: integer("rider_confirmation_code").notNull(), // Changed to integer
   status: text("status", { enum: ORDER_STATUS }).notNull(),
   cartId: text("cart_id")
     .references(() => cartTable.id)
@@ -27,12 +28,12 @@ export const orderTable = sqliteTable("order", {
 
   // Delivery information
   addressName: text("address_name").notNull().default(""),
-  longitude: real("longitude").notNull().default(0.0),
-  latitude: real("latitude").notNull().default(0.0),
+  longitude: real("longitude").notNull(),
+  latitude: real("latitude").notNull(),
 
-  deliveryAddressId: text("delivery_address_id").references(
-    () => addressesTable.id
-  ),
+  // deliveryAddressId: text("delivery_address_id").references(
+  //   () => addressesTable.id
+  // ),
   deliveryNotes: text("delivery_notes"),
   vendorNotes: text("vendor_notes"),
   contactPhone: text("contact_phone").notNull(),

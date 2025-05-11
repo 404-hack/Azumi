@@ -10,8 +10,8 @@ const customCors = factory.createMiddleware(async (c, next) => {
   const corsMiddlewareHandler = cors({
     origin: ALLOWED_ORIGINS, // Use specific origin instead of wildcard
     allowMethods: ["POST", "GET", "OPTIONS", "PUT", "DELETE", "PATCH"],
-    allowHeaders: ["Content-Type", "Authorization"], // Allow needed headers
-    exposeHeaders: ["Content-Length"],
+    allowHeaders: ["Content-Type", "Authorization", "Cookie"],
+    exposeHeaders: ["Content-Length", "Set-Cookie"],
     maxAge: 600,
     credentials: true, // Enable credentials support
   });

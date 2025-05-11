@@ -5,7 +5,7 @@ import * as schema from "./db/schema";
 
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { Variables } from "./types";
-import { openAPI, organization } from "better-auth/plugins";
+import { openAPI, organization, phoneNumber } from "better-auth/plugins";
 import { env } from "cloudflare:workers";
 // export type Environment = {
 //   Bindings: CloudflareBindings;
@@ -120,6 +120,7 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
         },
       }),
       openAPI(),
+      phoneNumber(),
     ],
   });
 };
