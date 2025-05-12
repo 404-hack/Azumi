@@ -1,5 +1,4 @@
 <script lang="ts">
-	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Form from '$lib/components/ui/form';
 	import { loginSchema } from '$lib/formSchema';
 	import { Loader2 } from 'lucide-svelte';
@@ -10,35 +9,39 @@
 
 	import {
 		loginModalState,
-		registerModalState,
-		requestPasswordResetModalState
+		verifyOtpModalState,
+		profileSetupModalState
 	} from '$lib/states/modalState.svelte';
 	import ResponsiveDialog from '../ResponsiveDialog.svelte';
-	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 	import { toast } from 'svelte-sonner';
+	import VerifyOtpModal from './VerifyOtpModal.svelte';
+
 	type Props = {
 		title?: string;
 	};
 	let { title }: Props = $props();
+	let phoneNumber = $state('');
+
 	const form = superForm(defaults(zod(loginSchema)), {
 		SPA: true,
 		validators: zod(loginSchema),
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
-				await authClient.signIn.email(
+				phoneNumber = form.data.phoneNumber;
+				await authClient.phoneNumber.sendOtp(
 					{
-						email: form.data.email,
-						password: form.data.password
+						phoneNumber: form.data.phoneNumber
 					},
 					{
-						onSuccess: async (data) => {
-							console.log('Login successful:', data);
+						async onSuccess() {
+							toast.success('OTP code sent successfully');
 							loginModalState.setFalse();
-							toast.success('Login successful');
+							setTimeout(() => {
+								verifyOtpModalState.setTrue();
+							}, 100);
 						},
-						onError: (error) => {
-							console.error('Login error:', error);
-							toast.error('Login failed. Please check your credentials.');
+						onError(ctx) {
+							toast.error(ctx.error.message || 'Failed to send OTP code');
 						}
 					}
 				);
@@ -50,28 +53,22 @@
 	const { form: formData, enhance, delayed } = form;
 </script>
 
-<ResponsiveDialog title={title || 'Login to your account'} bind:open={loginModalState.value}>
+<ResponsiveDialog
+	title={title || 'Continue with phone number'}
+	description="Enter your phone number to sign in or create an account."
+	bind:open={loginModalState.value}
+>
 	<form method="post" class="p-1" use:enhance>
-		<Form.Field {form} name="email">
+		<Form.Field {form} name="phoneNumber">
 			<Form.Control>
 				{#snippet children({ props })}
-					<Form.Label>Email</Form.Label>
-					<Input {...props} bind:value={$formData.email} />
+					<Form.Label>Phone number</Form.Label>
+					<Input {...props} bind:value={$formData.phoneNumber} />
 				{/snippet}
 			</Form.Control>
-			<Form.Description>This is your email.</Form.Description>
 			<Form.FieldErrors />
 		</Form.Field>
-		<Form.Field {form} name="password">
-			<Form.Control>
-				{#snippet children({ props })}
-					<Form.Label>Password</Form.Label>
-					<Input {...props} bind:value={$formData.password} type="password" />
-				{/snippet}
-			</Form.Control>
-			<Form.Description>Input your password here</Form.Description>
-			<Form.FieldErrors />
-		</Form.Field>
+
 		<!-- <button
 			onclick={() => {
 				loginModalState.setFalse();
@@ -81,7 +78,7 @@
 		>
 			or create an account
 		</button> -->
-		<button
+		<!-- <button
 			onclick={() => {
 				loginModalState.setFalse();
 				requestPasswordResetModalState.setTrue();
@@ -89,14 +86,15 @@
 			}}
 			class="text-sm text-primary"
 			type="button">Forgot Your password?</button
-		>
-
+		> -->
 		<Form.Button class="mt-2 w-full" type="submit"
 			>{#if $delayed}
 				<Loader2 class="size-6 animate-spin " />
 			{:else}
-				Login
+				Continue
 			{/if}</Form.Button
 		>
 	</form>
 </ResponsiveDialog>
+
+<VerifyOtpModal title="Verify your phone number" {phoneNumber} />

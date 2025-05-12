@@ -6,42 +6,62 @@
 	import { zod } from 'sveltekit-superforms/adapters';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { registerSchema } from '$lib/formSchema';
-	import { loginModalState, registerModalState } from '$lib/states/modalState.svelte';
+	import {
+		loginModalState,
+		registerModalState,
+		verifyOtpModalState
+	} from '$lib/states/modalState.svelte';
 	import ResponsiveDialog from '../ResponsiveDialog.svelte';
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 	import { authClient } from '$lib/auth-client';
+	import { toast } from 'svelte-sonner';
+	import VerifyOtpModal from './VerifyOtpModal.svelte';
 
 	type Props = {
 		title?: string;
 	};
+
 	let { title }: Props = $props();
+	let registrationData = $state<{
+		email: string;
+		firstName: string;
+		lastName: string;
+		phoneNumber: string;
+	} | null>(null);
 
 	const form = superForm(defaults(zod(registerSchema)), {
 		validators: zod(registerSchema),
 		SPA: true,
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
-				const { confirmPassword, email, firstName, lastName, password } = form.data;
-
-				const response = await authClient.signUp.email(
-					{
+				const { email, firstName, lastName, phoneNumber } = form.data;
+				try {
+					registrationData = {
 						email,
-						password,
-						name: `${firstName} ${lastName}`,
-						tokens: 0, // Required property
-						credits: 0 // Required property
-					},
-					{
-						onSuccess: () => {
-							registerModalState.setFalse();
-							loginModalState.setTrue(); // Un-commented line to open the login modal
+						firstName,
+						lastName,
+						phoneNumber
+					};
+					await authClient.phoneNumber.sendOtp(
+						{
+							phoneNumber: phoneNumber
 						},
-						onError: (error) => {
-							console.error('Error during registration:', error);
-							// Handle error (e.g., show a toast notification)
+						{
+							async onSuccess() {
+								registerModalState.setFalse();
+								verifyOtpModalState.setTrue();
+								toast.success('OTP code sent successfully');
+							},
+							onError(ctx) {
+								console.error('Failed to send OTP:', ctx.error);
+								toast.error(ctx.error.message || 'Failed to send OTP code');
+							}
 						}
-					}
-				);
+					);
+				} catch (error) {
+					console.error('Unexpected error:', error);
+					toast.error('An unexpected error occurred');
+				}
 			}
 		}
 	});
@@ -85,7 +105,16 @@
 			</Form.Control>
 			<Form.FieldErrors />
 		</Form.Field>
-		<Form.Field {form} name="password">
+		<Form.Field {form} name="phoneNumber">
+			<Form.Control>
+				{#snippet children({ props })}
+					<Form.Label>Phone number</Form.Label>
+					<Input {...props} bind:value={$formData.phoneNumber} />
+				{/snippet}
+			</Form.Control>
+			<Form.FieldErrors />
+		</Form.Field>
+		<!-- <Form.Field {form} name="password">
 			<Form.Control>
 				{#snippet children({ props })}
 					<Form.Label>Password</Form.Label>
@@ -102,7 +131,7 @@
 				{/snippet}
 			</Form.Control>
 			<Form.FieldErrors />
-		</Form.Field>
+		</Form.Field> -->
 
 		<!-- <p class="text-sm text-muted-foreground">
 			Already have an account? <button
@@ -123,3 +152,10 @@
 		</Form.Button>
 	</form>
 </ResponsiveDialog>
+<VerifyOtpModal
+	title="Verify your phone number"
+	phoneNumber={registrationData?.phoneNumber}
+	email={registrationData?.email}
+	firstName={registrationData?.firstName}
+	lastName={registrationData?.lastName}
+/>

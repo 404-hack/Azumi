@@ -6,6 +6,8 @@ export const userTable = sqliteTable("user_table", {
   email: text("email").notNull().unique(),
   emailVerified: integer("email_verified", { mode: "boolean" }).notNull(),
   image: text("image"),
+  phoneNumber: text(),
+  phoneNumberVerified: integer({ mode: "boolean" }),
   tokens: integer("tokens"),
   credits: integer("credits"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
