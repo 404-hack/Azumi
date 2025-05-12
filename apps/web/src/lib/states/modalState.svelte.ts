@@ -40,7 +40,7 @@ export interface OptionGroup {
 export interface MenuItem {
 	id: string;
 	name: string;
-	description: string;
+	description?: string;
 	image: string | null;
 	price: number;
 	priceDescription?: string;
@@ -194,6 +194,8 @@ export const deliveryAddressModalState = new ModalState(false);
 export const addDeliveryAddressModalState = new ModalState(false);
 export const loginModalState = new ModalState(false);
 export const registerModalState = new ModalState(false);
+export const verifyOtpModalState = new ModalState(false);
+export const profileSetupModalState = new ModalState(false);
 export const requestPasswordResetModalState = new ModalState(false);
 export const confirmEmailModalState = new ModalState(false);
 export const deleteModalState = new ModalState(false);

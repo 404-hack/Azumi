@@ -173,6 +173,9 @@ importers:
       '@internationalized/date':
         specifier: ^3.7.0
         version: 3.7.0
+      '@lucide/svelte':
+        specifier: ^0.509.0
+        version: 0.509.0(svelte@5.27.0)
       '@sveltejs/adapter-auto':
         specifier: ^3.0.0
         version: 3.3.1(@sveltejs/kit@2.17.2(@sveltejs/vite-plugin-svelte@4.0.4(svelte@5.27.0)(vite@5.4.14(@types/node@22.13.14)))(svelte@5.27.0)(vite@5.4.14(@types/node@22.13.14)))
@@ -1515,6 +1518,11 @@ packages:
     resolution: {integrity: sha512-7pJzOWzPm6oJUxml+PCDRzYQ4A1hTMHAciTAHfFK4fkbDZX33nWPVG7Y3vqdKtslcwAzwmrNDc6sXy2nwWnbiw==}
     cpu: [x64]
     os: [win32]
+
+  '@lucide/svelte@0.509.0':
+    resolution: {integrity: sha512-rG/oNz5HiuG+9xZawNxD08x5sIgvfIcFVDx7J2YAOHNK9+zDAro/DAhWLOdmE0eag5CYzxwAWh8LVowXpZvW/g==}
+    peerDependencies:
+      svelte: ^5
 
   '@mapbox/geojson-rewind@0.5.2':
     resolution: {integrity: sha512-tJaT+RbYGJYStt7wI3cq4Nl4SXxG8W7JDG5DMJu97V25RnbNg3QtQtf+KD+VLjNpWKYsRvXDNmNrBgEETr1ifA==}
@@ -5673,6 +5681,10 @@ snapshots:
 
   '@libsql/win32-x64-msvc@0.4.7':
     optional: true
+
+  '@lucide/svelte@0.509.0(svelte@5.27.0)':
+    dependencies:
+      svelte: 5.27.0
 
   '@mapbox/geojson-rewind@0.5.2':
     dependencies:
