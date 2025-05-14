@@ -111,8 +111,8 @@
 			<button
 				type="button"
 				onclick={() => {
-					profileSetupModalState.setFalse();
 					toast.info('You can complete your profile later in your account settings.');
+					profileSetupModalState.setFalse();
 				}}
 				class="text-sm text-muted-foreground hover:text-primary hover:underline"
 			>

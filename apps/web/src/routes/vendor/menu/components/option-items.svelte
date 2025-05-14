@@ -5,7 +5,6 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import type { TOption } from '@repo/server/types';
 	import { deleteModalState } from '$lib/states/modalState.svelte';
-	import DeleteConfirmModal from '$lib/components/modal/DeleteConfirmModal.svelte';
 	import { client } from '$lib/hc';
 	import { toast } from 'svelte-sonner';
 	import { goto, invalidateAll } from '$app/navigation';
@@ -138,8 +137,3 @@
 		</div>
 	{/if}
 </div>
-<DeleteConfirmModal
-	itemName={optionToDelete?.name}
-	loading={!!deletingId}
-	handleConfirm={handleConfirmDelete}
-/>

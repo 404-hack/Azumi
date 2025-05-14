@@ -30,7 +30,7 @@ export const menuItemTable = sqliteTable("menuItem", {
     .$defaultFn(() => nanoid()),
   name: text("name").notNull(),
   description: text("description").notNull(),
-  image: text("image"),
+  imageUrl: text("image_url"),
   price: integer("price").notNull(),
   priceDescription: text("price_description"),
   inStock: integer("in_stock", { mode: "boolean" }).default(true),

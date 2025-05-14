@@ -3,16 +3,10 @@
 	import { AlertTriangle, Loader2, Trash2 } from 'lucide-svelte';
 	import ResponsiveDialog from '../ResponsiveDialog.svelte';
 	import Button from '../ui/button/button.svelte';
-	type Props = {
-		itemName?: string;
-		loading?: boolean;
-		handleConfirm: () => void;
-	};
-	let { itemName, loading, handleConfirm }: Props = $props();
 </script>
 
 <ResponsiveDialog
-	title="Delete {itemName || 'Item'}"
+	title="Delete {deleteModalState.itemName || 'Item'}"
 	description=""
 	bind:open={deleteModalState.value}
 >
@@ -25,21 +19,21 @@
 		</div>
 
 		<p class="text-center text-base text-foreground/80">
-			Are you sure you want to delete {itemName || 'this item'}? This action cannot be undone.
+			Are you sure you want to delete {deleteModalState.itemName || 'this item'}? This action cannot be undone.
 		</p>
 
 		<div class="flex w-full justify-end gap-3 pt-4">
-			<Button variant="outline" class="h-9 px-4" onclick={() => deleteModalState.setFalse()}>
+			<Button variant="outline" class="h-9 px-4" onclick={() => deleteModalState.close()}>
 				Cancel
 			</Button>
 			<Button
 				variant="destructive"
 				type="button"
 				class="h-9 bg-destructive px-4 hover:bg-destructive/90"
-				onclick={handleConfirm}
-				disabled={loading}
+				onclick={() => deleteModalState.handleConfirm?.()}
+				disabled={deleteModalState.loading}
 			>
-				{#if loading}
+				{#if deleteModalState.loading}
 					<Loader2 class="mr-2 size-4 animate-spin" />
 					Deleting...
 				{:else}

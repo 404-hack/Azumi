@@ -6,12 +6,13 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Form from '$lib/components/ui/form';
-	import SuperDebug, { defaults, filesProxy, superForm } from 'sveltekit-superforms';
+	import SuperDebug, { defaults, superForm } from 'sveltekit-superforms';
 	import { zod, zodClient } from 'sveltekit-superforms/adapters';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import * as Select from '$lib/components/ui/select';
 	import { createMenuSchema } from '@repo/server/validations';
 	import AddCategoryModal from '$lib/components/modal/AddCategoryModal.svelte';
+	import { toast } from "svelte-sonner"
 	import {
 		addCategoryModalState,
 		addOptionGroupModalState,
@@ -24,10 +25,20 @@
 	import { client } from '$lib/hc';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
+	import { onDestroy } from 'svelte';
 
-	let imagePreview: string | null = $state(null);
-	let fileInput: HTMLInputElement;
+	let fileInput: HTMLInputElement = $state();
 	let { data } = $props();
+
+	// State for image preview
+	let imagePreview: string | null = $state(null);
+
+	// Cleanup function to prevent memory leaks
+	onDestroy(() => {
+		if (imagePreview) {
+			URL.revokeObjectURL(imagePreview);
+		}
+	});
 
 	function getCategoryName(categoryId: string) {
 		const category = data.categories.find((cat) => cat.id === categoryId);
@@ -39,22 +50,45 @@
 		const file = target.files?.[0];
 
 		if (file) {
-			// Create preview URL
-			imagePreview = URL.createObjectURL(file);
-			$formData.image = file;
-			// Clean up the old preview URL when component unmounts
-			return () => {
-				if (imagePreview) {
-					URL.revokeObjectURL(imagePreview);
+			// Check file size (max 2MB)
+			const maxSizeInBytes = 2 * 1024 * 1024; // 2MB
+			if (file.size > maxSizeInBytes) {
+				alert('Image size exceeds the maximum limit of 2MB. Please choose a smaller image.');
+				// Reset the file input
+				if (fileInput) {
+					fileInput.value = '';
 				}
-			};
+				removeImage();
+				return;
+			}
+
+			// Set the file directly in the form
+			$formData.image = file;
+
+			// Create preview URL
+			if (imagePreview) {
+				URL.revokeObjectURL(imagePreview);
+			}
+			imagePreview = URL.createObjectURL(file);
+		} else {
+			// If no file is selected (e.g., user canceled), clean up
+			removeImage();
 		}
 	}
 
 	function removeImage() {
+		// Revoke object URL to prevent memory leaks
+		if (imagePreview) {
+			URL.revokeObjectURL(imagePreview);
+		}
+
+		// Reset the preview
 		imagePreview = null;
+
+		// Clear the file input and the form data
 		if (fileInput) {
 			fileInput.value = '';
+			$formData.image = null;
 		}
 	}
 
@@ -64,15 +98,48 @@
 		onUpdate: async ({ form }) => {
 			if (form.valid) {
 				try {
+					const formData = new FormData();
+
+					// Handle image file separately
+					if (form.data.image instanceof File) {
+						formData.append('image', form.data.image);
+					}
+
+					// Add rest of the fields with explicit type conversion
+					if (form.data.name) formData.append('name', form.data.name);
+					if (form.data.description) formData.append('description', form.data.description);
+					if (form.data.price !== undefined) formData.append('price', form.data.price.toString());
+					if (form.data.priceDescription)
+						formData.append('priceDescription', form.data.priceDescription);
+					if (form.data.inStock !== undefined)
+						formData.append('inStock', form.data.inStock.toString());
+					if (form.data.categoryId) formData.append('categoryId', form.data.categoryId);
+
+					// Handle optional fields
+					if (form.data.packId) formData.append('packId', form.data.packId);
+
+					// Handle array fields
+					if (form.data.optionGroupId && Array.isArray(form.data.optionGroupId)) {
+						form.data.optionGroupId.forEach((id) => {
+							formData.append('optionGroupId[]', id);
+						});
+					}
+
 					const res = await client.vendor.menu.$post({
-						json: {
-							...form.data
-						}
+						form: form.data
 					});
+					
+
 					if (res.ok) {
 						const data = await res.json();
 						await invalidateAll();
 						goto('/vendor/menu/');
+						// Show toast here
+						toast.success('Menu Item Created', {
+							description: 'Your menu item has been created successfully.',
+
+						});
+
 					}
 				} catch (error) {
 					console.error('Failed to create menu item', error);
@@ -80,7 +147,8 @@
 			}
 		}
 	});
-	const { form: formData, enhance, delayed } = form;
+
+	const { form: formData, enhance, delayed, errors } = form;
 </script>
 
 <AddCategoryModal
@@ -104,7 +172,7 @@
 	<div class="sticky top-0 z-10 border-b bg-white shadow-sm">
 		<div class=" mx-auto">
 			<div class="flex h-16 items-center gap-4">
-				<Button variant="ghost" size="icon" class="shrink-0">
+				<Button variant="ghost" size="icon" class="shrink-0" onclick={() => history.back()}>
 					<ArrowLeft class="h-5 w-5" />
 				</Button>
 				<h1 class="text-xl font-semibold">Add New Menu Item</h1>
@@ -151,7 +219,7 @@
 									<Button
 										variant="link"
 										class="h-auto p-0"
-										onclick={() => addCategoryModalState.setTrue()}
+										on:click={() => addCategoryModalState.setTrue()}
 									>
 										+ Add new category
 									</Button>
@@ -216,84 +284,97 @@
 			</Card.Root>
 
 			<!-- Image Upload Section -->
-			<!-- <Card.Root>
-				<Card.Header>
+			<Card.Root class="border-none sm:border">
+				<Card.Header class="px-0 sm:p-6">
 					<Card.Title>Item Image</Card.Title>
 					<Card.Description>Upload a photo of your menu item</Card.Description>
 				</Card.Header>
-				<Card.Content>
-					<div class="flex flex-col items-center gap-6">
-						{#if imagePreview}
-							<div class="relative">
-								<img
-									src={imagePreview}
-									alt="Preview"
-									class="h-64 w-64 rounded-lg object-cover shadow-md"
-								/>
-								<button
-									type="button"
-									class="absolute right-2 top-2 rounded-full bg-red-500 p-2 text-white hover:bg-red-600"
-									onclick={removeImage}
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="h-5 w-5"
-										viewBox="0 0 20 20"
-										fill="currentColor"
-									>
-										<path
-											fill-rule="evenodd"
-											d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-											clip-rule="evenodd"
-										/>
-									</svg>
-								</button>
-							</div>
-						{:else}
-							<label
-								class="flex h-64 w-64 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"
-							>
-								<div class="flex flex-col items-center justify-center pb-6 pt-5">
-									<svg
-										class="mb-4 h-8 w-8 text-gray-500"
-										aria-hidden="true"
-										xmlns="http://www.w3.org/2000/svg"
-										fill="none"
-										viewBox="0 0 20 16"
-									>
-										<path
-											stroke="currentColor"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"
-										/>
-									</svg>
-									<p class="mb-2 text-sm text-gray-500">
-										<span class="font-semibold">Click to upload</span>
-										or drag and drop
-									</p>
-									<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 2MB)</p>
+				<Card.Content class="space-y-6 px-0 sm:p-6">
+					<Form.Field {form} name="image">
+						<Form.Control>
+							{#snippet children({ props })}
+								<div class="flex flex-col items-center gap-6">
+									{#if imagePreview}
+										<div class="group relative">
+											<img
+												src={imagePreview}
+												alt="Menu item preview"
+												class="h-64 w-full rounded-lg object-cover shadow-md sm:w-96"
+											/>
+											<div
+												class="absolute inset-0 flex items-center justify-center rounded-lg opacity-0 transition-all duration-200 group-hover:bg-black/40 group-hover:opacity-100"
+											>
+												<Button
+													variant="destructive"
+													size="icon"
+													onclick={removeImage}
+													type="button"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														class="h-5 w-5"
+														viewBox="0 0 20 20"
+														fill="currentColor"
+													>
+														<path
+															fill-rule="evenodd"
+															d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+															clip-rule="evenodd"
+														/>
+													</svg>
+												</Button>
+											</div>
+										</div>
+									{:else}
+										<div class="flex w-full justify-center">
+											<label
+												for="dropzone-file"
+												class="flex h-64 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 transition-colors duration-200 hover:bg-gray-100 sm:w-96"
+											>
+												<div class="flex flex-col items-center justify-center pb-6 pt-5">
+													<Camera class="mb-3 h-10 w-10 text-gray-400" />
+													<p class="mb-2 text-sm text-gray-500">
+														<span class="font-semibold">Click to upload</span>
+														or drag and drop
+													</p>
+													<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 2MB)</p>
+												</div>
+												<input
+													id="dropzone-file"
+													bind:this={fileInput}
+													type="file"
+													class="hidden"
+													name="image"
+													accept="image/png, image/jpeg, image/webp"
+													onchange={(event) => handleImagePick(event)}
+													{...props}
+												/>
+											</label>
+										</div>
+									{/if}
+
+									<div class="mt-2 flex flex-col items-center gap-2">
+										<Button
+											variant="outline"
+											type="button"
+											class="relative"
+											onclick={(e) => {
+												e.preventDefault();
+												if (fileInput) fileInput.click();
+											}}
+										>
+											<Upload class="mr-2 h-4 w-4" />
+											{imagePreview ? 'Change Image' : 'Choose Image'}
+										</Button>
+										<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 2MB)</p>
+									</div>
 								</div>
-								<input
-									bind:this={fileInput}
-									type="file"
-									class="hidden"
-									accept="image/png, image/jpeg, image/webp"
-									onchange={handleImagePick}
-								/>
-							</label>
-						{/if}
-					</div>
-					<div class="text-center">
-						<Button variant="outline" class="relative">
-							<Upload class="mr-2 h-4 w-4" />
-							Choose Image
-						</Button>
-						<p class="mt-2 text-sm text-gray-500">JPG or PNG, max 1MB</p>
-					</div>
+							{/snippet}
+						</Form.Control>
+						<Form.FieldErrors />
+					</Form.Field>
 				</Card.Content>
-			</Card.Root> -->
+			</Card.Root>
 
 			<!-- Additional Options -->
 			<Card.Root class="border-none sm:border">
@@ -343,9 +424,7 @@
 										<div class="flex gap-2">
 											<Button
 												variant="link"
-												onclick={() => {
-													addOptionGroupModalState.setTrue();
-												}}
+												onclick={() => addOptionGroupModalState.setTrue()}
 												class="h-auto p-0 text-primary">+ Quick Add Group</Button
 											>
 										</div>

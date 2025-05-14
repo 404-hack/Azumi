@@ -177,11 +177,20 @@ const vendorRoute = factory
   })
 
   // Create a menu item
-  .post("/menu", zValidator("json", createMenuSchema), async (c) => {
+  .post("/menu", zValidator("form", createMenuSchema), async (c) => {
     try {
-      const data = c.req.valid("json");
+      const data = c.req.valid("form");
       const db = c.get("db");
       const orgId = c.get("orgId");
+      let imageUrl = null;
+      if (data.image) {
+        const imageBuffer = await data.image.arrayBuffer();
+        const filename = `${orgId}-${Date.now()}-${data.image.name}`;
+        const b = await env.BUCKET.put(filename, imageBuffer, {
+          httpMetadata: { contentType: data.image.type },
+        });
+        imageUrl = `${env.R2_PUBLIC_URL}/${filename}`;
+      }
 
       // Verify category exists and belongs to shop
       const category = await db.query.menuCategoryTable.findFirst({
@@ -203,6 +212,7 @@ const vendorRoute = factory
           inStock: data.inStock,
           categoryId: data.categoryId,
           shopId: orgId,
+          imageUrl: imageUrl, // Add imageUrl here
         })
         .returning()
         .get();
@@ -262,6 +272,61 @@ const vendorRoute = factory
       });
     } catch (error) {
       console.error("Error updating menu item:", error);
+      return c.json({ message: "Internal server error" }, 500);
+    }
+  })
+  // Delete a menu item
+  .delete("/menu/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+
+      // Verify the menu item belongs to this vendor
+      const menuItem = await db.query.menuItemTable.findFirst({
+        where: (table, { and, eq }) =>
+          and(eq(table.id, id), eq(table.shopId, orgId)),
+      });
+
+      if (!menuItem) {
+        return c.json(
+          {
+            message:
+              "Menu item not found or you don't have permission to delete it",
+          },
+          404
+        );
+      }
+
+      // Delete image from bucket if it exists
+      if (menuItem.imageUrl) {
+        try {
+          // Extract filename from the full URL
+          const imageUrl = menuItem.imageUrl;
+          const filename = imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
+
+          // Delete from R2 bucket
+          await env.BUCKET.delete(filename);
+        } catch (imageError) {
+          // Log error but continue with deletion process
+          console.error("Error deleting image from bucket:", imageError);
+        }
+      }
+
+      // Delete menu item option groups associations first
+      await db
+        .delete(menuItemOptionGroups)
+        .where(eq(menuItemOptionGroups.menuItemId, id));
+
+      // Delete the menu item
+      await db.delete(menuItemTable).where(eq(menuItemTable.id, id));
+
+      return c.json({
+        success: true,
+        message: "Menu item deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting menu item:", error);
       return c.json({ message: "Internal server error" }, 500);
     }
   })

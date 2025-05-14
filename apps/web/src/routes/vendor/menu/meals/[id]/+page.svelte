@@ -12,7 +12,6 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { updateMenuSchema } from '@repo/server/validations';
-	import DeleteConfirmModal from '$lib/components/modal/DeleteConfirmModal.svelte';
 	import { deleteModalState } from '$lib/states/modalState.svelte';
 
 	export let data;
@@ -212,8 +211,3 @@
 	</form>
 </div>
 
-<DeleteConfirmModal
-	itemName={data.menuItem.name}
-	loading={isDeleting}
-	handleConfirm={handleDelete}
-/> -->
