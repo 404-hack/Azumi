@@ -29,7 +29,6 @@
 	import { buttonVariants } from '$lib/components/ui/button';
 	import type { TOption, TOptionGroupWithOptions } from '@repo/server/types';
 	import { addOptionModalState, deleteModalState } from '$lib/states/modalState.svelte';
-	import DeleteConfirmModal from '$lib/components/modal/DeleteConfirmModal.svelte';
 	import { client } from '$lib/hc';
 	const isDesktop = new MediaQuery('(min-width: 768px)');
 	type Props = {
@@ -299,11 +298,7 @@
 
 <!-- Add the option modal with the current group ID -->
 <AddOptionModal optionGroupId={currentOptionGroupId} />
-<DeleteConfirmModal
-	itemName={optionToDelete?.name}
-	loading={!!deletingId}
-	handleConfirm={handleConfirmDelete}
-/>
+
 
 <style>
 	@keyframes collapsible-down {

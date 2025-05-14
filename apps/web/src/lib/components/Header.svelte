@@ -257,9 +257,7 @@
 			{:else}
 				<div class="hidden items-center gap-2 md:flex">
 					<Button onclick={() => loginModalState.setTrue()} variant="ghost" size="sm">Login</Button>
-					<Button onclick={() => verifyOtpModalState.setTrue()} variant="ghost" size="sm"
-						>Verify OTP</Button
-					>
+				
 				</div>
 			{/if}
 

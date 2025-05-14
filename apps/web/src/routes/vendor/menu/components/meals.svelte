@@ -22,19 +22,51 @@
 	import * as Select from '$lib/components/ui/select';
 	import type { TMenuCategoryWithItems } from '@repo/server/types';
 	import { goto } from '$app/navigation';
+	import { deleteModalState } from '$lib/states/modalState.svelte';
+	import { toast } from 'svelte-sonner';
+	import { invalidateAll } from '$app/navigation';
+	import { client } from '$lib/hc';
 	import { formatCurrency } from '$lib/utils';
 
 	// Enhanced meal type for food delivery platform
 	type Props = {
 		menuCategoryWithItems: TMenuCategoryWithItems[];
 	};
-
 	let selectedCategory = $state('all');
 	let searchQuery = $state('');
 
 	let activeCategory = $state('');
 	let { menuCategoryWithItems }: Props = $props();
-	console.log('🚀 ~ menuCategoryWithItems:', menuCategoryWithItems);
+		async function deleteMenuItem(id: string, name: string) {
+		deleteModalState.openDelete({
+			itemName: name,
+			loading: false,
+			handleConfirm: async () => {
+				try {
+					// Set loading state
+					deleteModalState.setLoading(true);
+					
+					// Call API to delete the menu item
+					const res = await client.vendor.menu[':id'].$delete({
+						param: { id }
+					});
+					
+					if (res.ok) {
+						toast.success('Menu item deleted successfully');
+						await invalidateAll();
+						deleteModalState.close();
+					} else {
+						toast.error('Failed to delete menu item');
+						deleteModalState.setLoading(false);
+					}
+				} catch (error) {
+					console.error('Error deleting menu item:', error);
+					toast.error('Something went wrong while deleting the menu item');
+					deleteModalState.setLoading(false);
+				}
+			}
+		});
+	}
 </script>
 
 <div class="space-y-6">
@@ -128,9 +160,9 @@
 														<div
 															class="flex h-12 w-12 items-center justify-center rounded-md bg-muted"
 														>
-															{#if meal.image}
+															{#if meal.imageUrl}
 																<img
-																	src={meal.image}
+																	src={meal.imageUrl}
 																	alt={meal.name}
 																	class="h-full w-full rounded-md object-cover"
 																/>
@@ -179,7 +211,10 @@
 																View Analytics
 															</button>
 															<div class="dropdown-menu-separator" />
-															<button class="dropdown-menu-item text-destructive">
+															<button
+																class="dropdown-menu-item text-destructive"
+																onclick={() => deleteMenuItem(meal.id, meal.name)}
+															>
 																<Trash class="mr-2 h-4 w-4" />
 																Delete Item
 															</button>
@@ -230,8 +265,7 @@
 						{:else}
 							<div class="grid grid-cols-1 gap-4">
 								{#each category.menus as meal}
-									<div class="rounded-lg border p-4">
-										<div class="flex items-center justify-between">
+									<div class="rounded-lg border p-4">										<div class="flex items-center justify-between">
 											<div class="flex items-center gap-3">
 												<div class="flex h-16 w-16 items-center justify-center rounded-md bg-muted">
 													{#if meal.image}
@@ -253,6 +287,19 @@
 											</div>
 											<div class="flex flex-col items-end gap-2">
 												<span class="text-lg font-semibold">{formatCurrency(meal.price)}</span>
+												<div class="flex gap-2">
+													<Button variant="ghost" size="sm" onclick={() => goto(`/vendor/menu/${meal.id}/`)}>
+														<Pencil class="h-4 w-4" />
+													</Button>
+													<Button 
+														variant="ghost" 
+														size="sm" 
+														class="text-destructive"
+														onclick={() => deleteMenuItem(meal.id, meal.name)}
+													>
+														<Trash class="h-4 w-4" />
+													</Button>
+												</div>
 											</div>
 										</div>
 									</div>
@@ -276,3 +323,5 @@
 		display: none;
 	}
 </style>
+
+

@@ -14,7 +14,8 @@ declare namespace Cloudflare {
 		CLOUDFLARE_ACCOUNT_ID: string;
 		CLOUDFLARE_STAGING_DATABASE_ID: string;
 		CLOUDFLARE_DATABASE_ID: string;
-		DB: D1Database;
+    DB: D1Database;
+    BUCKET: R2Bucket;
 	}
 }
 interface Env extends Cloudflare.Env {}

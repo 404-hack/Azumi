@@ -15,7 +15,6 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { updateOptionGroupSchema } from '@repo/server/validations';
-	import DeleteConfirmModal from '$lib/components/modal/DeleteConfirmModal.svelte';
 	import { deleteModalState, addOptionModalState } from '$lib/states/modalState.svelte';
 	import AddOptionModal from '$lib/components/modal/AddOptionModal.svelte';
 
@@ -306,8 +305,3 @@
 	</form>
 </div>
 
-<DeleteConfirmModal
-	itemName={data.optionGroup.name}
-	loading={isDeleting}
-	handleConfirm={handleDelete}
-/>

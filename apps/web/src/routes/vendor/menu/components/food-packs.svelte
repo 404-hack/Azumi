@@ -8,7 +8,6 @@
 	import { toast } from 'svelte-sonner';
 	import { Input } from '$lib/components/ui/input';
 	import { onMount } from 'svelte';
-	import DeleteConfirmModal from '$lib/components/modal/DeleteConfirmModal.svelte';
 	import { deleteModalState } from '$lib/states/modalState.svelte';
 	import ResponsiveDropdown from '$lib/components/ResponsiveDropdown.svelte';
 	import { cn } from '$lib/utils';
@@ -202,8 +201,3 @@
 	{/if}
 </div>
 
-<DeleteConfirmModal
-	itemName={packToDelete?.name}
-	loading={!!deletingId}
-	handleConfirm={handleConfirmDelete}
-/>
