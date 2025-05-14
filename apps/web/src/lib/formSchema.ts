@@ -1,5 +1,21 @@
 import { z } from 'zod';
 
+export const nigerianPhoneSchema = z
+	.string()
+	.min(1, { message: 'Phone number is required' })
+	.regex(/^(?:\+?234|0)[789][01]\d{8}$/, {
+		message: 'Please enter a valid Nigerian phone number'
+	});
+// .transform((val) => {
+// 	if (val.startsWith('0')) {
+// 		return '+234' + val.slice(1);
+// 	}
+// 	if (val.startsWith('234')) {
+// 		return '+' + val;
+// 	}
+// 	return val;
+// });
+
 // Helper schema for phone number validation
 const phoneRegex = /^\+?[1-9]\d{1,14}$/;
 export const addMealSchema = z.object({
@@ -33,7 +49,7 @@ export const createStoreSchema = z.object({
 	// New fields from the image
 	shopType: z.string().min(1, { message: 'Business type is required' }),
 	address: z.string().min(1, { message: 'Street address is required' }),
-	phoneNumber: z.string().regex(phoneRegex, { message: 'Invalid phone number format' }),
+	phoneNumber: nigerianPhoneSchema,
 	email: z.string().email({ message: 'Invalid email format' })
 });
 export const productSchema = z.object({
@@ -147,9 +163,7 @@ export const updatePasswordSchema = z
 		path: ['confirmNewPassword']
 	});
 export const updateNumberSchema = z.object({
-	number: z.string().refine(isValidPhoneNumber, {
-		message: 'Please enter a valid phone number'
-	})
+	number: nigerianPhoneSchema
 });
 export const updateNameSchema = z.object({
 	firstName: z.string().min(3),
@@ -165,19 +179,16 @@ export const requestPasswordResetSchema = z.object({
 export type CreateStoreInput = z.infer<typeof createStoreSchema>;
 
 export const loginSchema = z.object({
-	email: z.string().email(),
-	password: z.string().min(8).max(100)
+	phoneNumber: nigerianPhoneSchema
 });
 
-export const registerSchema = z
-	.object({
-		email: z.string().email(),
-		firstName: z.string().min(3).max(20),
-		lastName: z.string().min(3).max(20),
-		password: z.string().min(8).max(100),
-		confirmPassword: z.string().min(8).max(100)
-	})
-	.refine((data) => data.password === data.confirmPassword, {
-		message: 'Passwords do not match',
-		path: ['confirmPassword']
-	});
+export const registerSchema = z.object({
+	email: z.string().email(),
+	firstName: z.string().min(3).max(20),
+	lastName: z.string().min(3).max(20),
+	phoneNumber: nigerianPhoneSchema
+});
+// .refine((data) => data.password === data.confirmPassword, {
+// 	message: 'Passwords do not match',
+// 	path: ['confirmPassword']
+// });

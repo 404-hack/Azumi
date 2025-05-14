@@ -15,6 +15,34 @@ class ModalState {
 	}
 }
 
+// New DeleteModalState class with additional properties
+class DeleteModalState extends ModalState {
+	public itemName = $state<string | undefined>(undefined);
+	public loading = $state<boolean>(false);
+	public handleConfirm = $state<(() => void) | undefined>(undefined);
+
+	// Open modal with specified parameters
+	openDelete(params: { itemName?: string; loading?: boolean; handleConfirm: () => void }) {
+		this.itemName = params.itemName;
+		this.loading = params.loading || false;
+		this.handleConfirm = params.handleConfirm;
+		this.setTrue();
+	}
+
+	// Reset state when closing
+	close() {
+		this.itemName = undefined;
+		this.loading = false;
+		this.handleConfirm = undefined;
+		this.setFalse();
+	}
+
+	// Update loading state
+	setLoading(isLoading: boolean) {
+		this.loading = isLoading;
+	}
+}
+
 // Create interfaces that match our mapped database schema
 export interface OptionItem {
 	id: string;
@@ -40,7 +68,7 @@ export interface OptionGroup {
 export interface MenuItem {
 	id: string;
 	name: string;
-	description: string;
+	description?: string;
 	image: string | null;
 	price: number;
 	priceDescription?: string;
@@ -194,7 +222,9 @@ export const deliveryAddressModalState = new ModalState(false);
 export const addDeliveryAddressModalState = new ModalState(false);
 export const loginModalState = new ModalState(false);
 export const registerModalState = new ModalState(false);
+export const verifyOtpModalState = new ModalState(false);
+export const profileSetupModalState = new ModalState(false);
 export const requestPasswordResetModalState = new ModalState(false);
 export const confirmEmailModalState = new ModalState(false);
-export const deleteModalState = new ModalState(false);
+export const deleteModalState = new DeleteModalState(false);
 export const inviteUserModalState = new ModalState(false);

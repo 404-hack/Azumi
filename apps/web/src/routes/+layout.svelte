@@ -7,6 +7,7 @@
 	import { Toaster } from '$lib/components/ui/sonner/index.js';
 	import { afterNavigate, beforeNavigate } from '$app/navigation';
 	import NProgress from 'nprogress';
+	import DeleteConfirmModal from '$lib/components/modal/DeleteConfirmModal.svelte';
 	let { children, data } = $props();
 	beforeNavigate(() => {
 		NProgress.start();
@@ -29,4 +30,5 @@
 {:else}
 	<Toaster richColors closeButton theme="light" />
 {/if}
+<DeleteConfirmModal />
 <!-- data-vaul-drawer-wrapper -->

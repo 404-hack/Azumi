@@ -11,15 +11,22 @@
 		open?: boolean;
 		title: string;
 		description?: string;
+		interactOutsideBehavior?: any;
 		children: Snippet;
 	};
-	let { children, open = $bindable(), title, description }: Props = $props();
+	let {
+		children,
+		open = $bindable(),
+		title,
+		description,
+		interactOutsideBehavior
+	}: Props = $props();
 	const isDesktop = new MediaQuery('(min-width: 768px)');
 	let activeSnapPoint = $state(148);
 </script>
 
 <Dialog.Root bind:open>
-	<Dialog.Content class=" pt-7 sm:max-w-[425px]  ">
+	<Dialog.Content class=" pt-7 sm:max-w-[425px]  " {interactOutsideBehavior}>
 		<Dialog.Header class="sticky left-0 top-0 bg-white">
 			<Dialog.Title>{title}</Dialog.Title>
 			<Dialog.Description>

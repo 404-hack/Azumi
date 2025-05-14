@@ -87,7 +87,7 @@
 					{#snippet children({ props })}
 						<Form.Label>Additional Price</Form.Label>
 						<div class="relative">
-							<span class="absolute left-3 top-2.5 text-muted-foreground">$</span>
+							<span class="absolute left-3 top-2.5 text-muted-foreground">₦</span>
 							<Input
 								{...props}
 								type="number"

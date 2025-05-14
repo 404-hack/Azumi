@@ -5,7 +5,8 @@
 		loginModalState,
 		cartsSheetStore,
 		registerModalState,
-		addDeliveryAddressModalState
+		addDeliveryAddressModalState,
+		verifyOtpModalState
 	} from '$lib/states/modalState.svelte';
 	import ResponsiveDropdown from '$lib/components/ResponsiveDropdown.svelte';
 
@@ -26,7 +27,6 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Avatar, AvatarFallback, AvatarImage } from '$lib/components/ui/avatar';
 	import LoginModal from './modal/LoginModal.svelte';
-	import RegisterModal from './modal/RegisterModal.svelte';
 	import { page } from '$app/state';
 	import { authClient } from '$lib/auth-client';
 	import { goto, invalidateAll } from '$app/navigation';
@@ -71,7 +71,6 @@
 			{/if}
 		</div>
 		<LoginModal />
-		<RegisterModal />
 		<AddDeliveryAddress />
 
 		<!-- Search -->
@@ -258,9 +257,7 @@
 			{:else}
 				<div class="hidden items-center gap-2 md:flex">
 					<Button onclick={() => loginModalState.setTrue()} variant="ghost" size="sm">Login</Button>
-					<Button onclick={() => registerModalState.setTrue()} variant="default" size="sm"
-						>Register</Button
-					>
+				
 				</div>
 			{/if}
 

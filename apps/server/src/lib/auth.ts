@@ -120,7 +120,27 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
         },
       }),
       openAPI(),
-      phoneNumber(),
+      phoneNumber({
+        sendOTP: ({ phoneNumber, code }, request) => {
+          console.log("🚀 ~ createAuth ~ request:", request);
+          console.log("🚀 ~ createAuth ~ code:", code);
+          console.log("🚀 ~ createAuth ~ phoneNumber:", phoneNumber);
+          // Implement sending OTP code via SMS
+        },
+        signUpOnVerification: {
+          getTempEmail: (phoneNumber) => {
+            return `${phoneNumber}@my-site.com`;
+          },
+          //optionally, you can also pass `getTempName` function to generate a temporary name for the user
+          getTempName: (phoneNumber) => {
+            return phoneNumber; //by default, it will use the phone number as the name
+          },
+        },
+        callbackOnVerification(data, request) {
+          console.log("🚀 ~ createAuth ~ request:", request);
+          // Implement your logic after phone number verification
+        },
+      }),
     ],
   });
 };
