@@ -4,6 +4,7 @@
 	import ProductModal from '$lib/components/modal/ProductModal.svelte';
 	import ProductCard from '$lib/components/ProductCard.svelte';
 	import Ticket from '$lib/components/Ticket.svelte';
+	import SEO from '$lib/components/SEO.svelte';
 	import {
 		Bike,
 		Search,
@@ -202,7 +203,62 @@
 	function clearSearch() {
 		searchQuery = '';
 	}
+
+	// Prepare structured data for the restaurant
+	const structuredData = {
+		'@context': 'https://schema.org',
+		'@type': 'Restaurant',
+		name: data.restaurant.name,
+		image: [data.restaurant.coverImage, data.restaurant.logo].filter(Boolean),
+		'@id': `https://azumi.com.ng/restaurant/${data.restaurant.slug}`,
+		url: `https://azumi.com.ng/restaurant/${data.restaurant.slug}`,
+		telephone: data.restaurant.phoneNumber,
+		address: {
+			'@type': 'PostalAddress',
+			streetAddress: data.restaurant.address,
+			addressLocality: 'Lagos',
+			addressCountry: 'NG'
+		},
+		geo:
+			data.restaurant.latitude && data.restaurant.longitude
+				? {
+						'@type': 'GeoCoordinates',
+						latitude: data.restaurant.latitude,
+						longitude: data.restaurant.longitude
+					}
+				: undefined,
+		servesCuisine: data.restaurant.tags,
+		priceRange: '₦₦',
+		openingHoursSpecification: data.restaurant.operatingHours?.map((hour) => ({
+			'@type': 'OpeningHoursSpecification',
+			dayOfWeek: hour.day,
+			opens: hour.openTime,
+			closes: hour.closeTime
+		})),
+		menu: `https://azumi.com.ng/restaurant/${data.restaurant.slug}#menu`,
+		acceptsReservations: false,
+		delivery: {
+			'@type': 'DeliveryMode',
+			hasDeliveryMethod: 'http://schema.org/Door2Door'
+		}
+	};
 </script>
+
+<SEO
+	title={`${data.restaurant.name} | Order Food Delivery from Azumi`}
+	description={`Order food online from ${data.restaurant.name}. ${data.restaurant.description || ''} Delivery time: ${data.restaurant.estimatedTime || 'Varies'}.`}
+	keywords={[
+		...(data.restaurant.tags || []),
+		'food delivery',
+		'restaurant',
+		'online ordering',
+		'Lagos food'
+	].join(', ')}
+	ogType="restaurant"
+	path={`/restaurant/${data.restaurant.slug}`}
+	ogImage={data.restaurant.coverImage || data.restaurant.logo || 'https://azumi.com.ng/logo.png'}
+	jsonLd={structuredData}
+/>
 
 <svelte:window on:scroll={handleScroll} />
 <CartSheet shopCart={data.shopCart} />

@@ -14,8 +14,25 @@ const protectedPaths = [
 
 const preloadFonts: Handle = async ({ event, resolve }) => {
 	const response = await resolve(event, {
-		preload: ({ type }) => type === 'font'
+		preload: ({ type }) => type === 'font',
+		transformPageChunk: ({ html }) => {
+			return html
+				.replace(/<div class="container/g, '<main class="container')
+				.replace(/<div class="flex flex-col/g, '<section class="flex flex-col')
+				.replace(/<div class="grid/g, '<section class="grid');
+		}
 	});
+
+	if (event.request.headers.get('accept')?.includes('text/html')) {
+		response.headers.set('X-Frame-Options', 'DENY');
+		response.headers.set('X-Content-Type-Options', 'nosniff');
+		response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+		response.headers.set(
+			'Permissions-Policy',
+			'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
+		);
+	}
+
 	return response;
 };
 

@@ -7,6 +7,10 @@
 	import { activeLocation } from '$lib/states/locationState.svelte';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
+	import SEO from '$lib/components/SEO.svelte';
+	import { siteConfig } from '$lib/config/site.js';
+
+	let { data } = $props();
 
 	// function searchLocation() {
 	// 	if (
@@ -25,7 +29,43 @@
 	// 		goto('/explore');
 	// 	}
 	// });
+
+	// Prepare structured data for organization
+	const structuredData = {
+		'@context': 'https://schema.org',
+		'@type': 'Organization',
+		name: siteConfig.twitterUrl,
+		url: siteConfig.url,
+		logo: siteConfig.logo,
+		description: siteConfig.description,
+		address: {
+			'@type': 'PostalAddress',
+			addressCountry: 'NG',
+			addressLocality: 'Lagos'
+		},
+		contactPoint: {
+			'@type': 'ContactPoint',
+			telephone: siteConfig.number,
+			contactType: 'customer service',
+			areaServed: 'NG',
+			availableLanguage: ['en']
+		},
+		sameAs: [
+			'https://facebook.com/azuminigeria',
+			'https://twitter.com/azuminigeria',
+			'https://instagram.com/azuminigeria'
+		]
+	};
 </script>
+
+<SEO
+	title={siteConfig.title}
+	description={siteConfig.description}
+	keywords={siteConfig.keywords}
+	ogType="website"
+	path="/"
+	jsonLd={structuredData}
+/>
 
 <div
 	class="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 text-foreground"
@@ -34,14 +74,14 @@
 	<div class="relative isolate overflow-hidden pt-14">
 		<!-- Background Image and Darker Overlay -->
 		<img
-			src="/hero-2.png"
+			src="/hero-1.jpeg"
 			alt="Diverse food options background"
-			class="absolute inset-0 -z-10 h-full w-full object-cover opacity-50"
+			class="absolute inset-0 -z-10 h-full w-full object-cover opacity-70"
 		/>
-		<div class="absolute inset-0 -z-10 bg-black/40" aria-hidden="true" />
+		<div class="absolute inset-0 -z-10 bg-black/10" aria-hidden="true" />
 
 		<!-- Content -->
-		<div class="mx-auto max-w-3xl px-4 py-36 sm:py-48 lg:py-56">
+		<div class="mx-auto max-w-3xl px-4 py-24 lg:py-32">
 			<div class="text-center">
 				<h1
 					class="text-4xl font-extrabold tracking-tight text-white drop-shadow-lg sm:text-5xl lg:text-6xl"
@@ -52,7 +92,6 @@
 					Discover local restaurants, markets, and shops near you. Enter your address to begin.
 				</p>
 
-				<!-- Search Section -->
 				<div class="mx-auto mt-10 max-w-xl">
 					<form
 						onsubmit={(e) => {
