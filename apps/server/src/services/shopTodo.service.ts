@@ -70,7 +70,8 @@ export class ShopTodoService {
       shop.email &&
       shop.phoneNumber &&
       shop.address &&
-      shop.description
+      shop.description &&
+      shop.coverImage
     );
 
     // Create todo object with computed values

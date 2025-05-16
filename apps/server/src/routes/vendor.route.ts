@@ -1793,6 +1793,101 @@ const vendorRoute = factory
       }
     }
   )
+  .post("/request-activation", async (c) => {
+    try {
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+      const user = c.get("user");
+
+      if (!user) {
+        return c.json(
+          {
+            success: false,
+            message: "User not authenticated",
+          },
+          401
+        );
+      }
+
+      // Use ShopTodoService to dynamically check completion status
+      const todoService = new ShopTodoService();
+      const todoStatus = await todoService.getComputedTodos(orgId, db);
+
+      if (!todoStatus) {
+        return c.json(
+          {
+            success: false,
+            message: "Shop not found",
+          },
+          404
+        );
+      }
+
+      const { todo } = todoStatus;
+      const allTasksComplete =
+        todo.storeInformationComplete &&
+        todo.uploadAtLeastOneMenu &&
+        todo.setUpPaymentMethod &&
+        todo.reviewTermsAndConditions &&
+        todo.setUpOperatingHours;
+
+      if (!allTasksComplete) {
+        return c.json(
+          {
+            success: false,
+            message:
+              "Please complete all setup tasks before requesting activation.",
+            data: todo,
+          },
+          400
+        );
+      }
+
+      // Get current shop status
+      const currentShop = await db.query.shopTable.findFirst({
+        where: (table, { eq }) => eq(table.id, orgId),
+        columns: { status: true },
+      });
+
+      if (!currentShop) {
+        return c.json(
+          {
+            success: false,
+            message: "Shop not found",
+          },
+          404
+        );
+      }
+
+      if (currentShop.status === "APPROVED") {
+        return c.json({
+          success: true,
+          message: "Shop is already approved and active.",
+        });
+      }
+
+      // Update shop status to PENDING for review
+      await db
+        .update(shopTable)
+        .set({ status: "PENDING" })
+        .where(eq(shopTable.id, orgId));
+
+      return c.json({
+        success: true,
+        message:
+          "Activation request submitted successfully. Your shop is now pending review.",
+      });
+    } catch (error) {
+      console.error("Error requesting activation:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to request shop activation.",
+        },
+        500
+      );
+    }
+  })
   .post("/cover-image", zValidator("form", bannerImageSchema), async (c) => {
     try {
       const { file } = c.req.valid("form");
