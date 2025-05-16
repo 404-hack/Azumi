@@ -37,7 +37,10 @@ import {
   shopTodoTable,
 } from "../lib/db/schema";
 import { ShopTodoService } from "../services/shopTodo.service";
-import { dayScheduleSchema } from "../lib/validation/shop.validation";
+import {
+  bannerImageSchema,
+  dayScheduleSchema,
+} from "../lib/validation/shop.validation";
 import { nanoid } from "nanoid";
 import { ORDER_STATUS } from "../lib/constant";
 import vendorAuthMiddleware from "../middlewares/vendorAuth";
@@ -244,15 +247,99 @@ const vendorRoute = factory
       return c.json({ message: "Internal server error" }, 500);
     }
   })
+  // get menu by id
+  .get("/menu/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+      const menuItem = await db.query.menuItemTable.findFirst({
+        where: (table, { and, eq }) =>
+          and(eq(table.id, id), eq(table.shopId, orgId)),
+        with: {
+          category: true,
+          menuItemOptionGroups: {
+            with: {
+              optionGroup: true,
+            },
+          },
+          pack: true,
+        },
+      });
+
+      if (!menuItem) {
+        return c.json(
+          {
+            message:
+              "Menu item not found or you don't have permission to access it",
+          },
+          404
+        );
+      }
+
+      return c.json({
+        data: menuItem,
+      });
+    } catch (error) {
+      console.error("Error fetching menu item:", error);
+      return c.json({ message: "Internal server error" }, 500);
+    }
+  })
 
   // Update a menu item
-  .put("/menu/update/:id", zValidator("json", updateMenuSchema), async (c) => {
+  .put("/menu/:id", zValidator("form", updateMenuSchema), async (c) => {
     try {
-      const data = c.req.valid("json");
+      const data = c.req.valid("form");
       const db = c.get("db");
       const orgId = c.get("orgId");
       const id = c.req.param("id");
 
+      // Verify menu item exists and belongs to shop
+      const existingMenuItem = await db.query.menuItemTable.findFirst({
+        where: (table, { and, eq }) =>
+          and(eq(table.id, id), eq(table.shopId, orgId)),
+      });
+
+      if (!existingMenuItem) {
+        return c.json(
+          {
+            message:
+              "Menu item not found or you don't have permission to update it",
+          },
+          404
+        );
+      }
+
+      let imageUrl = existingMenuItem.imageUrl; // Handle image update if provided
+      if (data.image instanceof File) {
+        // Delete old image if exists
+        if (existingMenuItem.imageUrl) {
+          try {
+            const oldFilename = existingMenuItem.imageUrl.substring(
+              existingMenuItem.imageUrl.lastIndexOf("/") + 1
+            );
+            await env.BUCKET.delete(oldFilename);
+          } catch (imageError) {
+            console.error("Error deleting old image:", imageError);
+          }
+        }
+
+        // Check if data.image is a File object
+        if (data.image instanceof File) {
+          // Upload new image
+          const imageBuffer = await data.image.arrayBuffer();
+          const filename = `${orgId}-${Date.now()}-${data.image.name}`;
+          await env.BUCKET.put(filename, imageBuffer, {
+            httpMetadata: { contentType: data.image.type },
+          });
+          imageUrl = `${env.R2_PUBLIC_URL}/${filename}`;
+        } else if (typeof data.image === "string") {
+          // If it's a string URL, use it directly
+          imageUrl = data.image;
+        }
+      }
+
+      // Update menu item basic info
       const updatedMenu = await db
         .update(menuItemTable)
         .set({
@@ -262,9 +349,27 @@ const vendorRoute = factory
           priceDescription: data.priceDescription,
           inStock: data.inStock,
           categoryId: data.categoryId,
+          imageUrl: imageUrl,
+          packId: data.packId || null,
         })
         .where(and(eq(menuItemTable.id, id), eq(menuItemTable.shopId, orgId)))
-        .returning();
+        .returning()
+        .get();
+
+      // Update option groups
+      await db
+        .delete(menuItemOptionGroups)
+        .where(eq(menuItemOptionGroups.menuItemId, id));
+
+      if (data.optionGroupId && data.optionGroupId.length > 0) {
+        const optionGroupEntries = data.optionGroupId.map((groupId, index) => ({
+          menuItemId: id,
+          optionGroupId: groupId,
+          sortOrder: index,
+        }));
+
+        await db.insert(menuItemOptionGroups).values(optionGroupEntries);
+      }
 
       return c.json({
         message: "Menu item updated successfully",
@@ -1687,6 +1792,116 @@ const vendorRoute = factory
         );
       }
     }
-  );
+  )
+  .post("/cover-image", zValidator("form", bannerImageSchema), async (c) => {
+    try {
+      const { file } = c.req.valid("form");
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+
+      // Delete existing banner image if it exists
+      const shop = await db.query.shopTable.findFirst({
+        where: (shops) => eq(shops.id, orgId),
+      });
+
+      if (shop?.coverImage) {
+        try {
+          const oldFilename = shop.coverImage.substring(
+            shop.coverImage.lastIndexOf("/") + 1
+          );
+          await env.BUCKET.delete(oldFilename);
+        } catch (error) {
+          console.error("Error deleting old banner:", error);
+        }
+      }
+
+      // Upload new banner image
+      const imageBuffer = await file.arrayBuffer();
+      const filename = `${orgId}-banner-${Date.now()}-${file.name}`;
+      await env.BUCKET.put(filename, imageBuffer, {
+        httpMetadata: { contentType: file.type },
+      });
+
+      const imageUrl = `${env.R2_PUBLIC_URL}/${filename}`;
+
+      // Update shop record with new banner URL
+      const updatedShop = await db
+        .update(shopTable)
+        .set({ coverImage: imageUrl })
+        .where(eq(shopTable.id, orgId))
+        .returning()
+        .get();
+
+      return c.json({
+        success: true,
+        message: "Banner uploaded successfully",
+        data: { url: imageUrl },
+      });
+    } catch (error) {
+      console.error("Error uploading banner:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to upload banner image",
+        },
+        500
+      );
+    }
+  })
+  .delete("/cover-image", async (c) => {
+    try {
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+
+      // Get current shop record
+      const shop = await db.query.shopTable.findFirst({
+        where: (table, { eq }) => eq(table.id, orgId),
+      });
+
+      if (!shop?.coverImage) {
+        return c.json(
+          {
+            success: false,
+            message: "No banner image found",
+          },
+          404
+        );
+      }
+
+      try {
+        // Extract filename from the full URL
+        const filename = shop.coverImage.substring(
+          shop.coverImage.lastIndexOf("/") + 1
+        );
+        // Delete from R2 bucket
+        await env.BUCKET.delete(filename);
+      } catch (error) {
+        console.error("Error deleting banner from bucket:", error);
+      }
+
+      // Update shop record to remove banner URL
+      const updatedShop = await db
+        .update(shopTable)
+        .set({ coverImage: null })
+        .where(eq(shopTable.id, orgId))
+        .returning()
+        .get();
+
+      return c.json({
+        success: true,
+        message: "Banner deleted successfully",
+        data: updatedShop,
+      });
+    } catch (error) {
+      console.error("Error deleting banner:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to delete banner image",
+        },
+        500
+      );
+    }
+  });
 
 export default vendorRoute;

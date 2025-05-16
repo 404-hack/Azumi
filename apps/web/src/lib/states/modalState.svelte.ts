@@ -69,7 +69,7 @@ export interface MenuItem {
 	id: string;
 	name: string;
 	description?: string;
-	image: string | null;
+	imageUrl: string | null;
 	price: number;
 	priceDescription?: string;
 	inStock?: boolean;

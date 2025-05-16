@@ -49,6 +49,7 @@ export const load: PageLoad = async ({ url }) => {
 
 	const { data } = await response.json();
 
+	console.log('🚀 ~ constload:PageLoad= ~ data:', data);
 	return {
 		userLocation: data.userLocation,
 		shops: data.shops

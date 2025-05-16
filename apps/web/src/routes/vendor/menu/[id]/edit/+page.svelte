@@ -1,154 +1,138 @@
 <script lang="ts">
-	import { ArrowLeft, Camera, HelpCircle, Loader2, Upload } from 'lucide-svelte';
-	import * as Card from '$lib/components/ui/card';
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
-	import { Textarea } from '$lib/components/ui/textarea';
-	import * as Form from '$lib/components/ui/form';
-	import SuperDebug, { defaults, superForm } from 'sveltekit-superforms';
-	import { zod, zodClient } from 'sveltekit-superforms/adapters';
-	import * as Tooltip from '$lib/components/ui/tooltip';
-	import * as Select from '$lib/components/ui/select';
-	import { createMenuSchema } from '@repo/server/validations';
-	import AddCategoryModal from '$lib/components/modal/AddCategoryModal.svelte';
-	import { toast } from "svelte-sonner"
-	import {
-		addCategoryModalState,
-		addOptionGroupModalState,
-		addPackModalState
-	} from '$lib/states/modalState.svelte';
-	import { Switch } from '$lib/components/ui/switch';
-	import { Badge } from '$lib/components/ui/badge';
-	import AddPackModal from '$lib/components/modal/AddPackModal.svelte';
-	import AddOptionGroupModal from '$lib/components/modal/AddOptionGroupModal.svelte';
-	import { client } from '$lib/hc';
-	import { goto, invalidateAll } from '$app/navigation';
-	import { PUBLIC_API_BASE_URL } from '$env/static/public';
-	import { onDestroy } from 'svelte';
+import { ArrowLeft, Camera, Loader2, Upload } from 'lucide-svelte';
+import * as Card from '$lib/components/ui/card';
+import { Button } from '$lib/components/ui/button';
+import { Input } from '$lib/components/ui/input';
+import { Textarea } from '$lib/components/ui/textarea';
+import * as Form from '$lib/components/ui/form';
+import SuperDebug, { defaults, superForm } from 'sveltekit-superforms';
+import { zod, zodClient } from 'sveltekit-superforms/adapters';
+import * as Select from '$lib/components/ui/select';
+import { createMenuSchema, updateMenuSchema } from '@repo/server/validations';
+import AddCategoryModal from '$lib/components/modal/AddCategoryModal.svelte';
+import { toast } from "svelte-sonner"
+import {
+	addCategoryModalState,
+	addOptionGroupModalState,
+	addPackModalState
+} from '$lib/states/modalState.svelte';
+import { Switch } from '$lib/components/ui/switch';
+import { Badge } from '$lib/components/ui/badge';
+import AddPackModal from '$lib/components/modal/AddPackModal.svelte';
+import AddOptionGroupModal from '$lib/components/modal/AddOptionGroupModal.svelte';
+import { client } from '$lib/hc';
+import { goto, invalidateAll } from '$app/navigation';
+import { onDestroy } from 'svelte';
 
-	let fileInput: HTMLInputElement = $state();
-	let { data } = $props();
+let fileInput: HTMLInputElement = $state();
+let { data } = $props();
 
-	// State for image preview
-	let imagePreview: string | null = $state(null);
+let imagePreview: string | null = $state(data.menu.imageUrl || null);
 
-	// Cleanup function to prevent memory leaks
-	onDestroy(() => {
-		if (imagePreview) {
-			URL.revokeObjectURL(imagePreview);
-		}
-	});
-
-	function getCategoryName(categoryId: string) {
-		const category = data.categories.find((cat) => cat.id === categoryId);
-		return category?.name || 'Unknown Category';
+onDestroy(() => {
+	if (imagePreview && !imagePreview.startsWith('http')) {
+		URL.revokeObjectURL(imagePreview);
 	}
+});
 
-	function handleImagePick(event: Event) {
-		const target = event.target as HTMLInputElement;
-		const file = target.files?.[0];
+function getCategoryName(categoryId: string) {
+	const category = data.categories.find((cat) => cat.id === categoryId);
+	return category?.name || 'Unknown Category';
+}
 
-		if (file) {
-			// Check file size (max 5MB)
-			const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
-			if (file.size > maxSizeInBytes) {
-				alert('Image size exceeds the maximum limit of 5MB. Please choose a smaller image.');
-				// Reset the file input
-				if (fileInput) {
-					fileInput.value = '';
-				}
-				removeImage();
-				return;
+function handleImagePick(event: Event) {
+	const target = event.target as HTMLInputElement;
+	const file = target.files?.[0];
+
+	if (file) {
+		const maxSizeInBytes = 5 * 1024 * 1024;
+		if (file.size > maxSizeInBytes) {
+			alert('Image size exceeds the maximum limit of 2MB. Please choose a smaller image.');
+			if (fileInput) {
+				fileInput.value = '';
 			}
-
-			// Set the file directly in the form
-			$formData.image = file;
-
-			// Create preview URL
-			if (imagePreview) {
-				URL.revokeObjectURL(imagePreview);
-			}
-			imagePreview = URL.createObjectURL(file);
-		} else {
-			// If no file is selected (e.g., user canceled), clean up
 			removeImage();
+			return;
 		}
-	}
 
-	function removeImage() {
-		// Revoke object URL to prevent memory leaks
-		if (imagePreview) {
+		$formData.image = file;
+
+		if (imagePreview && !imagePreview.startsWith('http')) {
 			URL.revokeObjectURL(imagePreview);
 		}
+		imagePreview = URL.createObjectURL(file);
+	} else {
+		removeImage();
+	}
+}
 
-		// Reset the preview
-		imagePreview = null;
-
-		// Clear the file input and the form data
-		if (fileInput) {
-			fileInput.value = '';
-			$formData.image = null;
-		}
+function removeImage() {
+	if (imagePreview && !imagePreview.startsWith('http')) {
+		URL.revokeObjectURL(imagePreview);
 	}
 
-	const form = superForm(defaults(zod(createMenuSchema)), {
-		validators: zodClient(createMenuSchema),
-		SPA: true,
-		onUpdate: async ({ form }) => {
-			if (form.valid) {
-				try {
-					const formData = new FormData();
+	imagePreview = null;
 
-					// Handle image file separately
-					if (form.data.image instanceof File) {
-						formData.append('image', form.data.image);
-					}
+	if (fileInput) {
+		fileInput.value = '';
+		$formData.image = null;
+	}
+}
 
-					// Add rest of the fields with explicit type conversion
-					if (form.data.name) formData.append('name', form.data.name);
-					if (form.data.description) formData.append('description', form.data.description);
-					if (form.data.price !== undefined) formData.append('price', form.data.price.toString());
-					if (form.data.priceDescription)
-						formData.append('priceDescription', form.data.priceDescription);
-					if (form.data.inStock !== undefined)
-						formData.append('inStock', form.data.inStock.toString());
-					if (form.data.categoryId) formData.append('categoryId', form.data.categoryId);
+const form = superForm(defaults({
+    ...data.menu, 
+    optionGroupId: data.menu.menuItemOptionGroups?.map(g => g.optionGroup.id) || [], 
+    packId: '', 
+    image: data.menu.imageUrl
+  }, zod(updateMenuSchema)), {
+	validators: zodClient(updateMenuSchema),
+	SPA: true,
+	dataType:'json',
+	onUpdate: async ({ form }) => {
+		console.log("🚀 ~ onUpdate: ~ form:", form)
+		if (form.valid) {
+			try {
+				const formData = new FormData();
 
-					// Handle optional fields
-					if (form.data.packId) formData.append('packId', form.data.packId);
-
-					// Handle array fields
-					if (form.data.optionGroupId && Array.isArray(form.data.optionGroupId)) {
-						form.data.optionGroupId.forEach((id) => {
-							formData.append('optionGroupId[]', id);
-						});
-					}
-
-					const res = await client.vendor.menu.$post({
-						form: form.data
-					});
-					
-
-					if (res.ok) {
-						const data = await res.json();
-						await invalidateAll();
-						goto('/vendor/menu/');
-						// Show toast here
-						toast.success('Menu Item Created', {
-							description: 'Your menu item has been created successfully.',
-
-						});
-
-					}
-				} catch (error) {
-					console.error('Failed to create menu item', error);
+				if (form.data.image instanceof File) {
+					formData.append('image', form.data.image);
 				}
+
+				if (form.data.name) formData.append('name', form.data.name);
+				if (form.data.description) formData.append('description', form.data.description);
+				if (form.data.price !== undefined) formData.append('price', form.data.price.toString());
+				if (form.data.priceDescription)
+					formData.append('priceDescription', form.data.priceDescription);
+				if (form.data.inStock !== undefined)
+					formData.append('inStock', form.data.inStock.toString());
+				if (form.data.categoryId) formData.append('categoryId', form.data.categoryId);
+				if (form.data.packId) formData.append('packId', form.data.packId);
+
+				if (form.data.optionGroupId && Array.isArray(form.data.optionGroupId)) {
+					form.data.optionGroupId.forEach((id) => {
+						formData.append('optionGroupId[]', id);
+					});
+				}				const res = await client.vendor.menu[':id'].$put({
+					param: { id: data.menu.id },
+					form: form.data
+				});
+
+				if (res.ok) {
+					const data = await res.json();
+					await invalidateAll();
+					goto('/vendor/menu/');
+					toast.success('Menu Item Updated', {
+						description: 'Your menu item has been updated successfully.'
+					});
+				}
+			} catch (error) {
+				console.error('Failed to update menu item', error);
 			}
 		}
-	});
+	}
+});
 
-	const { form: formData, enhance, delayed, errors } = form;
+const { form: formData, enhance, delayed, errors } = form;
 </script>
 
 <AddCategoryModal
@@ -170,19 +154,18 @@
 
 <div class="min-h-screen">
 	<div class="sticky top-0 z-10 border-b bg-white shadow-sm">
-		<div class=" mx-auto">
+		<div class="mx-auto">
 			<div class="flex h-16 items-center gap-4">
 				<Button variant="ghost" size="icon" class="shrink-0" onclick={() => history.back()}>
 					<ArrowLeft class="h-5 w-5" />
 				</Button>
-				<h1 class="text-xl font-semibold">Add New Menu Item</h1>
+				<h1 class="text-xl font-semibold">Edit Menu Item</h1>
 			</div>
 		</div>
 	</div>
 
-	<form use:enhance enctype="multipart/form-data" class=" mx-auto max-w-4xl py-8">
+	<form use:enhance enctype="multipart/form-data" class="mx-auto max-w-4xl py-8">
 		<div class="grid gap-8">
-			<!-- Basic Details -->
 			<Card.Root class="border-none  sm:border">
 				<Card.Header class="px-0 sm:p-6">
 					<Card.Title>Basic Details</Card.Title>
@@ -283,7 +266,6 @@
 				</Card.Content>
 			</Card.Root>
 
-			<!-- Image Upload Section -->
 			<Card.Root class="border-none sm:border">
 				<Card.Header class="px-0 sm:p-6">
 					<Card.Title>Item Image</Card.Title>
@@ -337,7 +319,7 @@
 														<span class="font-semibold">Click to upload</span>
 														or drag and drop
 													</p>
-													<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 5MB)</p>
+													<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 2MB)</p>
 												</div>
 												<input
 													id="dropzone-file"
@@ -360,13 +342,13 @@
 											class="relative"
 											onclick={(e) => {
 												e.preventDefault();
-												 fileInput.click();
+												if (fileInput) fileInput.click();
 											}}
 										>
 											<Upload class="mr-2 h-4 w-4" />
 											{imagePreview ? 'Change Image' : 'Choose Image'}
 										</Button>
-										<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 5MB)</p>
+										<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 2MB)</p>
 									</div>
 								</div>
 							{/snippet}
@@ -376,7 +358,6 @@
 				</Card.Content>
 			</Card.Root>
 
-			<!-- Additional Options -->
 			<Card.Root class="border-none sm:border">
 				<Card.Header class="px-0 sm:p-6">
 					<Card.Title>Additional Options</Card.Title>
@@ -404,10 +385,10 @@
 											<Select.Trigger class="h-12">
 												{#if $formData.optionGroupId && $formData.optionGroupId.length > 0}
 													<div class="flex flex-wrap gap-1">
-														{#each $formData.optionGroupId as groupId}
+														{#each data.optionGroups.filter(group => $formData.optionGroupId.includes(group.id)) as group}
 															<Badge variant="secondary" class="mr-1">
-																{data.optionGroups.find((group) => group.id === groupId)?.name ||
-																	'Unknown'}
+																{group.name}
+																
 															</Badge>
 														{/each}
 													</div>
@@ -425,8 +406,8 @@
 											<Button
 												variant="link"
 												onclick={() => addOptionGroupModalState.setTrue()}
-												class="h-auto p-0 text-primary">+ Quick Add Group</Button
-											>
+												class="h-auto p-0 text-primary"
+											>+ Quick Add Group</Button>
 										</div>
 									</div>
 								{/snippet}
@@ -434,7 +415,7 @@
 
 							<Form.FieldErrors />
 						</Form.Field>
-						<Form.Field {form} name="packId">
+						<!-- <Form.Field {form} name="packId">
 							<Form.Control>
 								{#snippet children({ props })}
 									<Form.Label>Pack Options <Badge variant="outline">Optional</Badge></Form.Label>
@@ -464,18 +445,17 @@
 								{/snippet}
 							</Form.Control>
 							<Form.FieldErrors />
-						</Form.Field>
+						</Form.Field> -->
 					</div>
 				</Card.Content>
 			</Card.Root>
 
 			<div class="flex justify-end gap-4">
-				<!-- <Button variant="outline" size="lg">Save as Draft</Button> -->
 				<Form.Button size="lg" class="min-w-[150px]">
 					{#if $delayed}
 						<Loader2 class="mr-2 animate-spin" />
 					{/if}
-					Publish Item
+					Update Item
 				</Form.Button>
 			</div>
 		</div>

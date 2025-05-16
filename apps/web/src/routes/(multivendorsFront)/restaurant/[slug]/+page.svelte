@@ -267,7 +267,7 @@
 <main class="mx-auto max-w-7xl px-2 py-4 sm:px-6 lg:px-4">
 	<div class="">
 		<div class="relative h-64 overflow-hidden rounded-lg">
-			<img src="/shop.avif" alt="Kebab Royal" class="absolute inset-0 h-full w-full object-cover" />
+			<img src={data.restaurant.coverImage} alt="Kebab Royal" class="absolute inset-0 h-full w-full object-cover" />
 			<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20"></div>
 			<!-- Restaurant Closed Banner Overlay -->
 			{#if !isOpenNow}

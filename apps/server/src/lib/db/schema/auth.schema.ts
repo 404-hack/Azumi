@@ -12,6 +12,10 @@ export const userTable = sqliteTable("user_table", {
   credits: integer("credits"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  role: text("role").default("user"),
+  banned: integer("banned", { mode: "boolean" }).default(false),
+  banReason: text("ban_reason"),
+  banExpires: integer("ban_expires", { mode: "timestamp" }),
 });
 
 export const session = sqliteTable("session", {
@@ -26,6 +30,7 @@ export const session = sqliteTable("session", {
     .notNull()
     .references(() => userTable.id, { onDelete: "cascade" }),
   activeOrganizationId: text("active_organization_id"),
+  impersonatedBy: text("impersonated_by"),
 });
 
 export const account = sqliteTable("account", {

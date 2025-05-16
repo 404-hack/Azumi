@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Store, MapPin, Phone, Mail, Globe, Camera, Save, Loader2 } from 'lucide-svelte';
+	import { Store, MapPin, Phone, Mail, Globe, Camera, Save, Loader2, Upload, Trash2 } from 'lucide-svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -16,6 +16,8 @@
 	import { toast } from 'svelte-sonner';
 	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
 	import type { Place } from '$lib/types/places.js';
+	import { onDestroy } from 'svelte';
+	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 	// Get the form from the server
 	let { data } = $props();
 	console.log('🚀 ~ data:', data);
@@ -79,6 +81,116 @@
 			$formData.latitude = place.lat;
 			$formData.longitude = place.lng;
 			$formData.addressName = place.name; // Update the addressName field with the address
+		}
+	}
+
+	let coverImageInput: HTMLInputElement = $state();
+	let coverImagePreview: string | null = $state(data.profile.coverImage || null);
+	let coverImageUrl: string | null = $state(data.profile.coverImage || null);
+
+	// Cleanup function to prevent memory leaks
+	onDestroy(() => {
+		if (coverImagePreview && !coverImagePreview.startsWith('http')) {
+			URL.revokeObjectURL(coverImagePreview);
+		}
+	});
+
+	// Image upload handling
+	async function uploadImage(file: File) {
+		try {
+			// Validate file type
+			const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+			if (!allowedTypes.includes(file.type)) {
+				throw new Error('Invalid file type. Please upload a JPEG, PNG, or WebP image.');
+			}
+
+			// Validate file size (5MB)
+			const maxSize = 5 * 1024 * 1024;
+			if (file.size > maxSize) {
+				throw new Error('File size exceeds 5MB limit.');
+			}
+
+			// Create FormData			const formData = new FormData();
+
+			// // Upload image using the new banner endpoint
+			// const res = await fetch('/api/vendor/banner', {
+			// 	method: 'POST',
+			// 	body: formData
+			// });
+			// use hono client
+			const res = await client.vendor['cover-image'].$post({
+				form: {
+					file: file
+				}
+			});
+
+			if (!res.ok) {
+				throw new Error('Failed to upload cover image');
+			}
+
+			const data = await res.json();
+			return data.data.url;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Failed to upload image';
+			toast.error(message);
+			throw error;
+		}
+	}
+
+	async function handleCoverImagePick(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+
+		if (!file) {
+			return;
+		}
+
+		try {
+			// Show loading state
+			const loadingToast = toast.loading('Uploading cover image...');
+
+			// Upload the image
+			const imageUrl = await uploadImage(file);
+
+			// Update the preview and cover image URL
+			coverImagePreview = imageUrl;
+			coverImageUrl = imageUrl;
+
+			// Clean up the loading state and show success
+			toast.dismiss(loadingToast);
+			toast.success('Cover image uploaded successfully');
+		} catch (error) {
+			if (coverImageInput) {
+				coverImageInput.value = '';
+			}
+		}
+	}
+
+	async function removeCoverImage() {
+		try {
+			// Only make API call if there's an existing cover image
+			if (coverImageUrl && coverImageUrl.startsWith('http')) {
+				const res = await fetch(`${PUBLIC_API_BASE_URL}/api/vendor/cover-image`, {
+					method: 'DELETE',
+					credentials:'include'
+				});
+
+				if (!res.ok) {
+					throw new Error('Failed to remove cover image');
+				}
+			}
+
+			// Reset states
+			coverImagePreview = null;
+			coverImageUrl = null;
+			if (coverImageInput) {
+				coverImageInput.value = '';
+			}
+
+			toast.success('Banner image removed successfully');
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Failed to remove image';
+			toast.error(message);
 		}
 	}
 </script>
@@ -245,71 +357,71 @@
 				</Card.Content>
 			</Card.Root>
 
-			<!-- Store Images -->
-			<!-- <Card.Root class="md:col-span-2">
+			<!-- Store Banner -->
+			<Card.Root class="md:col-span-2">
 				<Card.Header>
 					<Card.Title class="flex items-center">
 						<Camera class="mr-2 h-5 w-5" />
-						Store Images
+						Store Banner
 					</Card.Title>
+					<Card.Description>
+						Add a banner image to make your store stand out. Recommended size: 1200x300 pixels.
+					</Card.Description>
 				</Card.Header>
 				<Card.Content>
-					<div class="grid gap-6 md:grid-cols-2">
-						<div>
-							<Form.Field {form} name="logo">
-								<Form.Control>
-									{#snippet children({ props })}
-										<Form.Label class="mb-2 block">Store Logo</Form.Label>
-										<div
-											class="relative aspect-square w-full overflow-hidden rounded-lg border-2 border-dashed"
-										>
-											<img src={$formData.logo} alt="Store Logo" class="h-full w-full object-cover" />
-											<Button
-												type="button"
-												variant="secondary"
-												class="absolute bottom-4 left-1/2 -translate-x-1/2"
-												on:click={handleLogoUpload}
-											>
-												<Camera class="mr-2 h-4 w-4" />
-												Change Logo
-											</Button>
-										</div>
-									{/snippet}
-								</Form.Control>
-								<Form.FieldErrors />
-							</Form.Field>
+					<div class="space-y-4">
+						<div class="relative aspect-[21/9] w-full overflow-hidden rounded-lg border-2 border-dashed bg-gray-50">
+							{#if coverImagePreview}
+								<img
+									src={coverImagePreview}
+									alt="Banner Preview"
+									class="h-full w-full object-cover"
+								/>
+								<div class="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 opacity-0 transition-all hover:bg-black/40 hover:opacity-100">
+									<Button
+										type="button"
+										variant="destructive"
+										size="sm"
+										class="h-9 w-9"
+										onclick={removeCoverImage}
+									>
+										<Trash2 class="h-4 w-4" />
+									</Button>
+									<Button
+										type="button"
+										variant="secondary"
+										size="sm"
+										class="h-9 w-9"
+										onclick={() => coverImageInput?.click()}
+									>
+										<Camera class="h-4 w-4" />
+									</Button>
+								</div>
+							{:else}
+								<label
+									class="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2"
+									for="banner-upload"
+								>
+									<Camera class="h-8 w-8 text-gray-400" />
+									<div class="text-center">
+										<p class="text-sm font-medium text-gray-900">Upload banner image</p>
+										<p class="text-xs text-gray-500">PNG, JPG or WebP up to 5MB</p>
+									</div>
+								</label>
+							{/if}
 						</div>
-						<div>
-							<Form.Field {form} name="coverImage">
-								<Form.Control>
-									{#snippet children({ props })}
-										<Form.Label class="mb-2 block">Cover Image</Form.Label>
-										<div
-											class="relative aspect-video w-full overflow-hidden rounded-lg border-2 border-dashed"
-										>
-											<img
-												src={$form.coverImage}
-												alt="Cover Image"
-												class="h-full w-full object-cover"
-											/>
-											<Button
-												type="button"
-												variant="secondary"
-												class="absolute bottom-4 left-1/2 -translate-x-1/2"
-												on:click={handleCoverUpload}
-											>
-												<Camera class="mr-2 h-4 w-4" />
-												Change Cover
-											</Button>
-										</div>
-									{/snippet}
-								</Form.Control>
-								<Form.FieldErrors />
-							</Form.Field>
-						</div>
+
+						<input
+							id="banner-upload"
+							type="file"
+							class="hidden"
+							accept="image/png,image/jpeg,image/webp"
+							bind:this={coverImageInput}
+							onchange={handleCoverImagePick}
+						/>
 					</div>
 				</Card.Content>
-			</Card.Root> -->
+			</Card.Root>
 		</div>
 	</form>
 </div>
