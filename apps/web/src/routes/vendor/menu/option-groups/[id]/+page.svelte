@@ -19,7 +19,6 @@
 	import AddOptionModal from '$lib/components/modal/AddOptionModal.svelte';
 
 	let { data } = $props();
-	console.log('🚀 ~ data:', data.optionGroup);
 
 	const form = superForm(defaults(data.optionGroup, zod(updateOptionGroupSchema)), {
 		validators: zod(updateOptionGroupSchema),

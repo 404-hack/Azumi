@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import SEO from '$lib/components/SEO.svelte';
 
 	let storeDetails = $state({
 		name: 'Tasty Bites Restaurant',
@@ -37,6 +38,13 @@
 		console.log('Save store details:', storeDetails);
 	}
 </script>
+
+<SEO
+	title={`${storeDetails.name} - Store Details | Azumi`}
+	description={storeDetails.description}
+	ogType="restaurant"
+	ogImage={storeDetails.logo}
+/>
 
 <div class="container mx-auto space-y-6 p-4">
 	<div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">

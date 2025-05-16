@@ -224,7 +224,7 @@
 										<div
 											class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"
 										>
-											<Store class="h-6 w-6 text-primary" />
+											<!-- <Store class="h-6 w-6 text-primary" /> -->
 										</div>
 										<div>
 											<div class="font-medium">{vendor.name}</div>
@@ -264,7 +264,7 @@
 													{order.status}
 												</Badge>
 											</Table.Cell>
-											<Table.Cell>{formatTime(order.createdAt)}</Table.Cell>
+											<!-- <Table.Cell>{formatTime(order.createdAt)}</Table.Cell> -->
 											<Table.Cell class="text-right">{formatCurrency(order.total)}</Table.Cell>
 										</Table.Row>
 									{/each}

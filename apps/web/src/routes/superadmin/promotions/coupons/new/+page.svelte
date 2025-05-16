@@ -61,7 +61,7 @@
 					</div>
 					<div class="space-y-2">
 						<Label for="type">Discount Type</Label>
-						<Select.Root bind:value={formData.type}>
+						<!-- <Select.Root bind:value={formData.type}>
 							<Select.Trigger class="w-full">
 								<Select.Value placeholder="Select discount type" />
 							</Select.Trigger>
@@ -69,7 +69,7 @@
 								<Select.Item value="percentage">Percentage Discount</Select.Item>
 								<Select.Item value="fixed">Fixed Amount</Select.Item>
 							</Select.Content>
-						</Select.Root>
+						</Select.Root> -->
 					</div>
 				</div>
 
@@ -148,7 +148,7 @@
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2">
 						<Label>Applicable Categories</Label>
-						<Select.Root multiple bind:value={formData.applicableCategories}>
+						<!-- <Select.Root multiple bind:value={formData.applicableCategories}>
 							<Select.Trigger class="w-full">
 								<Select.Value
 									placeholder={formData.applicableCategories.length
@@ -162,11 +162,11 @@
 								<Select.Item value="pharmacy">Pharmacy</Select.Item>
 								<Select.Item value="electronics">Electronics</Select.Item>
 							</Select.Content>
-						</Select.Root>
+						</Select.Root> -->
 					</div>
 					<div class="space-y-2">
 						<Label>Applicable Vendors</Label>
-						<Select.Root multiple bind:value={formData.applicableVendors}>
+						<!-- <Select.Root multiple bind:value={formData.applicableVendors}>
 							<Select.Trigger class="w-full">
 								<Select.Value
 									placeholder={formData.applicableVendors.length
@@ -179,7 +179,7 @@
 								<Select.Item value="vendor2">Vendor 2</Select.Item>
 								<Select.Item value="vendor3">Vendor 3</Select.Item>
 							</Select.Content>
-						</Select.Root>
+						</Select.Root> -->
 					</div>
 				</div>
 

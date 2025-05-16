@@ -67,3 +67,16 @@ export const dayScheduleSchema = z
   );
 
 export const updateShopSchema = createShopSchema.partial();
+
+export const bannerImageSchema = z.object({
+  file: z
+    .instanceof(File)
+    .refine((file) => {
+      const validTypes = ["image/jpeg", "image/png", "image/webp"];
+      return validTypes.includes(file.type);
+    }, "Invalid file type. Please upload a JPEG, PNG, or WebP image.")
+    .refine((file) => {
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      return file.size <= maxSize;
+    }, "File size exceeds 5MB limit."),
+});

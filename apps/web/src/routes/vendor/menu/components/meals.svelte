@@ -37,7 +37,7 @@
 
 	let activeCategory = $state('');
 	let { menuCategoryWithItems }: Props = $props();
-		async function deleteMenuItem(id: string, name: string) {
+	async function deleteMenuItem(id: string, name: string) {
 		deleteModalState.openDelete({
 			itemName: name,
 			loading: false,
@@ -45,12 +45,12 @@
 				try {
 					// Set loading state
 					deleteModalState.setLoading(true);
-					
+
 					// Call API to delete the menu item
 					const res = await client.vendor.menu[':id'].$delete({
 						param: { id }
 					});
-					
+
 					if (res.ok) {
 						toast.success('Menu item deleted successfully');
 						await invalidateAll();
@@ -153,8 +153,10 @@
 										</Table.Row>
 									</Table.Header>
 									<Table.Body>
-										{#each category.menus as meal}
-											<Table.Row>
+										{#each category.menus as meal}											<Table.Row 
+												class="cursor-pointer hover:bg-muted/50 transition-colors group"
+												onclick={() => goto(`/vendor/menu/${meal.id}/edit`)}
+											>
 												<Table.Cell>
 													<div class="flex items-center gap-3">
 														<div
@@ -183,43 +185,21 @@
 												<Table.Cell>{formatCurrency(meal.price)}</Table.Cell>
 												<Table.Cell>
 													<Badge variant={meal.inStock === true ? 'default' : 'destructive'}>
-														{meal.inStock}
+														{meal.inStock ? 'In Stock' : 'Out of Stock'}
 													</Badge>
 												</Table.Cell>
 												<Table.Cell class="text-right">
-													<ResponsiveDropdown>
-														{#snippet trigger()}
-															<Button variant="ghost" size="icon">
-																<MoreVertical class="h-4 w-4" />
-																<span class="sr-only">Open menu</span>
-															</Button>
-														{/snippet}
-														{#snippet children()}
-															<button
-																class="dropdown-menu-item"
-																onclick={() => goto(`/vendor/menu/${meal.id}/`)}
-															>
-																<Pencil class="mr-2 h-4 w-4" />
-																Edit Item
-															</button>
-															<button class="dropdown-menu-item">
-																<Settings class="mr-2 h-4 w-4" />
-																Manage Options
-															</button>
-															<button class="dropdown-menu-item">
-																<BarChart2 class="mr-2 h-4 w-4" />
-																View Analytics
-															</button>
-															<div class="dropdown-menu-separator" />
-															<button
-																class="dropdown-menu-item text-destructive"
-																onclick={() => deleteMenuItem(meal.id, meal.name)}
-															>
-																<Trash class="mr-2 h-4 w-4" />
-																Delete Item
-															</button>
-														{/snippet}
-													</ResponsiveDropdown>
+													<Button
+														variant="ghost"
+														size="sm"
+														class="text-destructive"
+														onclick={(e) => {
+															e.stopPropagation();
+															deleteMenuItem(meal.id, meal.name);
+														}}
+													>
+														<Trash class="h-4 w-4" />
+													</Button>
 												</Table.Cell>
 											</Table.Row>
 										{/each}
@@ -264,13 +244,16 @@
 							</div>
 						{:else}
 							<div class="grid grid-cols-1 gap-4">
-								{#each category.menus as meal}
-									<div class="rounded-lg border p-4">										<div class="flex items-center justify-between">
+								{#each category.menus as meal}									<button 
+										class="rounded-lg border p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+										onclick={() => goto(`/vendor/menu/${meal.id}/edit`)}
+									>
+										<div class="group flex items-center justify-between">
 											<div class="flex items-center gap-3">
 												<div class="flex h-16 w-16 items-center justify-center rounded-md bg-muted">
-													{#if meal.image}
+													{#if meal.imageUrl}
 														<img
-															src={meal.image}
+															src={meal.imageUrl}
 															alt={meal.name}
 															class="h-full w-full rounded-md object-cover"
 														/>
@@ -288,21 +271,21 @@
 											<div class="flex flex-col items-end gap-2">
 												<span class="text-lg font-semibold">{formatCurrency(meal.price)}</span>
 												<div class="flex gap-2">
-													<Button variant="ghost" size="sm" onclick={() => goto(`/vendor/menu/${meal.id}/`)}>
-														<Pencil class="h-4 w-4" />
-													</Button>
-													<Button 
-														variant="ghost" 
-														size="sm" 
-														class="text-destructive"
-														onclick={() => deleteMenuItem(meal.id, meal.name)}
+													<Button
+														variant="ghost"
+														size="sm"
+														class="text-destructive md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+														onclick={(e) => {
+															e.stopPropagation();
+															deleteMenuItem(meal.id, meal.name);
+														}}
 													>
 														<Trash class="h-4 w-4" />
 													</Button>
 												</div>
 											</div>
 										</div>
-									</div>
+									</button>
 								{/each}
 							</div>
 						{/if}
@@ -323,5 +306,3 @@
 		display: none;
 	}
 </style>
-
-

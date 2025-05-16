@@ -170,7 +170,7 @@
 	<div class="relative flex flex-col gap-4 sm:flex-row">
 		<div class="relative">
 			<img
-				src={menuItem.image || 'https://placehold.co/400x300?text=No+Image'}
+				src={menuItem.imageUrl || 'https://placehold.co/400x300?text=No+Image'}
 				alt={menuItem.name}
 				transition:fade={{ duration: 200 }}
 				class="h-16 w-16 rounded-lg object-cover object-center"

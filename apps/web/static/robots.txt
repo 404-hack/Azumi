@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /superadmin/
+Disallow: /vendor/
+Disallow: /rider/
+Disallow: /api/
+
+Sitemap: https://azumi.com.ng/sitemap.xml

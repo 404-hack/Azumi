@@ -191,7 +191,7 @@
 	let productName = $derived(product?.name ?? 'no name');
 	// Ensure productDescription uses the description from productData
 	let productDescription = $derived(product?.description ?? 'No description available');
-	let productImage = $derived(product?.image ?? '/hero-1.png');
+	let productImage = $derived(product?.imageUrl ?? '/hero-1.png');
 	// Updated to use direct optionGroups array from the mapped data structure
 	let optionGroups = $derived(product?.optionGroups ?? []);
 

@@ -9,6 +9,7 @@
 	import { Search, Store, Star, MoreVertical, AlertCircle } from 'lucide-svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { formatCurrency, formatDate } from '$lib/utils';
+	import SEO from '$lib/components/SEO.svelte';
 
 	let searchQuery = $state('');
 	let selectedTab = $state('all');
@@ -64,154 +65,164 @@
 	}
 </script>
 
-<div class="space-y-8">
-	<div class="flex items-center justify-between">
-		<h2 class="text-2xl font-bold">Vendors Management</h2>
-		<Button>Add New Vendor</Button>
-	</div>
+<SEO
+	title="Manage Vendors | Azumi Admin Dashboard"
+	description="Administrative dashboard for managing food vendors, restaurants, and delivery partners on the Azumi platform."
+/>
 
-	<!-- Pending Applications -->
-	{#if pendingApplications.length > 0}
-		<Card class="p-6">
-			<div class="mb-6 flex items-center justify-between">
-				<div class="flex items-center gap-2">
-					<AlertCircle class="h-5 w-5 text-yellow-500" />
-					<h3 class="font-semibold">Pending Applications</h3>
+<div class="container mx-auto space-y-6 p-4">
+	<div class="space-y-8">
+		<div class="flex items-center justify-between">
+			<h2 class="text-2xl font-bold">Vendors Management</h2>
+			<Button>Add New Vendor</Button>
+		</div>
+
+		<!-- Pending Applications -->
+		{#if pendingApplications.length > 0}
+			<Card class="p-6">
+				<div class="mb-6 flex items-center justify-between">
+					<div class="flex items-center gap-2">
+						<AlertCircle class="h-5 w-5 text-yellow-500" />
+						<h3 class="font-semibold">Pending Applications</h3>
+					</div>
+					<Badge variant="outline">{pendingApplications.length} new</Badge>
 				</div>
-				<Badge variant="outline">{pendingApplications.length} new</Badge>
-			</div>
-			<div class="overflow-auto">
-				<Table.Root>
-					<Table.Header>
-						<Table.Row>
-							<Table.Head>Business Name</Table.Head>
-							<Table.Head>Owner</Table.Head>
-							<Table.Head>Location</Table.Head>
-							<Table.Head>Type</Table.Head>
-							<Table.Head>Applied Date</Table.Head>
-							<Table.Head class="text-right">Actions</Table.Head>
-						</Table.Row>
-					</Table.Header>
-					<Table.Body>
-						{#each pendingApplications as application}
+				<div class="overflow-auto">
+					<Table.Root>
+						<Table.Header>
 							<Table.Row>
-								<Table.Cell class="font-medium">{application.businessName}</Table.Cell>
-								<Table.Cell>{application.ownerName}</Table.Cell>
-								<Table.Cell>{application.location}</Table.Cell>
-								<Table.Cell>{application.type}</Table.Cell>
-								<Table.Cell>{formatDate(application.appliedDate)}</Table.Cell>
-								<Table.Cell class="text-right">
-									<div class="flex items-center justify-end gap-2">
-										<Button
-											variant="outline"
-											size="sm"
-											onclick={() => handleApplicationAction(application.id, false)}
-										>
-											Reject
-										</Button>
-										<Button size="sm" onclick={() => handleApplicationAction(application.id, true)}>
-											Approve
-										</Button>
-									</div>
-								</Table.Cell>
+								<Table.Head>Business Name</Table.Head>
+								<Table.Head>Owner</Table.Head>
+								<Table.Head>Location</Table.Head>
+								<Table.Head>Type</Table.Head>
+								<Table.Head>Applied Date</Table.Head>
+								<Table.Head class="text-right">Actions</Table.Head>
 							</Table.Row>
-						{/each}
-					</Table.Body>
-				</Table.Root>
-			</div>
-		</Card>
-	{/if}
-
-	<!-- Vendors List -->
-	<Card class="p-6">
-		<div class="space-y-4">
-			<div class="flex items-center justify-between">
-				<Tabs.Root value={selectedTab} class="w-[400px]" onValueChange={(v) => (selectedTab = v)}>
-					<Tabs.List>
-						<Tabs.Trigger value="all">All Vendors</Tabs.Trigger>
-						<Tabs.Trigger value="active">Active</Tabs.Trigger>
-						<Tabs.Trigger value="inactive">Inactive</Tabs.Trigger>
-					</Tabs.List>
-				</Tabs.Root>
-				<div class="relative">
-					<Search class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-					<Input placeholder="Search vendors..." class="pl-8" bind:value={searchQuery} />
+						</Table.Header>
+						<Table.Body>
+							{#each pendingApplications as application}
+								<Table.Row>
+									<Table.Cell class="font-medium">{application.businessName}</Table.Cell>
+									<Table.Cell>{application.ownerName}</Table.Cell>
+									<Table.Cell>{application.location}</Table.Cell>
+									<Table.Cell>{application.type}</Table.Cell>
+									<Table.Cell>{formatDate(application.appliedDate)}</Table.Cell>
+									<Table.Cell class="text-right">
+										<div class="flex items-center justify-end gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												onclick={() => handleApplicationAction(application.id, false)}
+											>
+												Reject
+											</Button>
+											<Button
+												size="sm"
+												onclick={() => handleApplicationAction(application.id, true)}
+											>
+												Approve
+											</Button>
+										</div>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
 				</div>
-			</div>
+			</Card>
+		{/if}
 
-			<div class="rounded-md border">
-				<Table.Root>
-					<Table.Header>
-						<Table.Row>
-							<Table.Head>Vendor</Table.Head>
-							<Table.Head>Orders</Table.Head>
-							<Table.Head>Revenue</Table.Head>
-							<Table.Head>Rating</Table.Head>
-							<Table.Head>Status</Table.Head>
-							<Table.Head>Joined</Table.Head>
-							<Table.Head class="text-right">Actions</Table.Head>
-						</Table.Row>
-					</Table.Header>
-					<Table.Body>
-						{#each filteredVendors as vendor}
+		<!-- Vendors List -->
+		<Card class="p-6">
+			<div class="space-y-4">
+				<div class="flex items-center justify-between">
+					<Tabs.Root value={selectedTab} class="w-[400px]" onValueChange={(v) => (selectedTab = v)}>
+						<Tabs.List>
+							<Tabs.Trigger value="all">All Vendors</Tabs.Trigger>
+							<Tabs.Trigger value="active">Active</Tabs.Trigger>
+							<Tabs.Trigger value="inactive">Inactive</Tabs.Trigger>
+						</Tabs.List>
+					</Tabs.Root>
+					<div class="relative">
+						<Search class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+						<Input placeholder="Search vendors..." class="pl-8" bind:value={searchQuery} />
+					</div>
+				</div>
+
+				<div class="rounded-md border">
+					<Table.Root>
+						<Table.Header>
 							<Table.Row>
-								<Table.Cell>
-									<div class="flex items-center gap-2">
-										<Store class="h-4 w-4 text-muted-foreground" />
-										<div>
-											<div class="font-medium">{vendor.name}</div>
-											<div class="text-sm text-muted-foreground">
-												Last active {formatDate(vendor.lastActive)}
+								<Table.Head>Vendor</Table.Head>
+								<Table.Head>Orders</Table.Head>
+								<Table.Head>Revenue</Table.Head>
+								<Table.Head>Rating</Table.Head>
+								<Table.Head>Status</Table.Head>
+								<Table.Head>Joined</Table.Head>
+								<Table.Head class="text-right">Actions</Table.Head>
+							</Table.Row>
+						</Table.Header>
+						<Table.Body>
+							{#each filteredVendors as vendor}
+								<Table.Row>
+									<Table.Cell>
+										<div class="flex items-center gap-2">
+											<Store class="h-4 w-4 text-muted-foreground" />
+											<div>
+												<div class="font-medium">{vendor.name}</div>
+												<div class="text-sm text-muted-foreground">
+													Last active {formatDate(vendor.lastActive)}
+												</div>
 											</div>
 										</div>
-									</div>
-								</Table.Cell>
-								<Table.Cell>{vendor.totalOrders}</Table.Cell>
-								<Table.Cell>{formatCurrency(vendor.totalRevenue)}</Table.Cell>
-								<Table.Cell>
-									<div class="flex items-center gap-1">
-										<Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
-										<span>{vendor.rating.toFixed(1)}</span>
-									</div>
-								</Table.Cell>
-								<Table.Cell>
-									<Badge variant={getStatusBadgeVariant(vendor.isActive)}>
-										{vendor.isActive ? 'Active' : 'Inactive'}
-									</Badge>
-								</Table.Cell>
-								<Table.Cell>{formatDate(vendor.joinedDate)}</Table.Cell>
-								<Table.Cell class="text-right">
-									<DropdownMenu.Root>
-										<DropdownMenu.Trigger>
-											<Button variant="ghost" size="icon">
-												<MoreVertical class="h-4 w-4" />
-												<span class="sr-only">Actions</span>
-											</Button>
-										</DropdownMenu.Trigger>
-										<DropdownMenu.Content align="end">
-											<DropdownMenu.Item
-												onclick={() =>
-													handleVendorAction(vendor.id, vendor.isActive ? 'suspend' : 'activate')}
-											>
-												{vendor.isActive ? 'Suspend' : 'Activate'}
-											</DropdownMenu.Item>
-											<DropdownMenu.Item>View Profile</DropdownMenu.Item>
-											<DropdownMenu.Item>Edit Details</DropdownMenu.Item>
-											<DropdownMenu.Separator />
-											<DropdownMenu.Item
-												class="text-red-600"
-												onclick={() => handleVendorAction(vendor.id, 'delete')}
-											>
-												Delete
-											</DropdownMenu.Item>
-										</DropdownMenu.Content>
-									</DropdownMenu.Root>
-								</Table.Cell>
-							</Table.Row>
-						{/each}
-					</Table.Body>
-				</Table.Root>
+									</Table.Cell>
+									<Table.Cell>{vendor.totalOrders}</Table.Cell>
+									<Table.Cell>{formatCurrency(vendor.totalRevenue)}</Table.Cell>
+									<Table.Cell>
+										<div class="flex items-center gap-1">
+											<Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
+											<span>{vendor.rating.toFixed(1)}</span>
+										</div>
+									</Table.Cell>
+									<Table.Cell>
+										<Badge variant={getStatusBadgeVariant(vendor.isActive)}>
+											{vendor.isActive ? 'Active' : 'Inactive'}
+										</Badge>
+									</Table.Cell>
+									<Table.Cell>{formatDate(vendor.joinedDate)}</Table.Cell>
+									<Table.Cell class="text-right">
+										<DropdownMenu.Root>
+											<DropdownMenu.Trigger>
+												<Button variant="ghost" size="icon">
+													<MoreVertical class="h-4 w-4" />
+													<span class="sr-only">Actions</span>
+												</Button>
+											</DropdownMenu.Trigger>
+											<DropdownMenu.Content align="end">
+												<DropdownMenu.Item
+													onclick={() =>
+														handleVendorAction(vendor.id, vendor.isActive ? 'suspend' : 'activate')}
+												>
+													{vendor.isActive ? 'Suspend' : 'Activate'}
+												</DropdownMenu.Item>
+												<DropdownMenu.Item>View Profile</DropdownMenu.Item>
+												<DropdownMenu.Item>Edit Details</DropdownMenu.Item>
+												<DropdownMenu.Separator />
+												<DropdownMenu.Item
+													class="text-red-600"
+													onclick={() => handleVendorAction(vendor.id, 'delete')}
+												>
+													Delete
+												</DropdownMenu.Item>
+											</DropdownMenu.Content>
+										</DropdownMenu.Root>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
+				</div>
 			</div>
-		</div>
-	</Card>
+		</Card>
+	</div>
 </div>
