@@ -48,7 +48,7 @@ export const shopTable = sqliteTable(
     commission: integer("commission").default(10),
     minimumOrderAmount: integer("minimum_order_amount").default(0),
     active: integer("active", { mode: "boolean" }).default(false),
-    status: text("status", { enum: SHOP_STATUS }).default("PENDING"),
+    status: text("status", { enum: SHOP_STATUS }).default("DRAFT"),
     logo: text("logo"),
     coverImage: text("cover_image"),
     averageRating: integer("average_rating"),

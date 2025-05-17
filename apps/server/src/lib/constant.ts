@@ -41,6 +41,7 @@ export const PAYMENT_METHODS = [
 export const DELIVERY_TYPE = ["INSTANT", "PRE_ORDER"] as const;
 
 export const SHOP_STATUS = [
+  "DRAFT",
   "PENDING",
   "APPROVED",
   "REJECTED",
