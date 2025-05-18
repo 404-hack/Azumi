@@ -15,6 +15,7 @@ import paystackWebhookRoute from "./routes/paystack-webhook.route";
 import favoriteRoute from "./routes/favorite.route";
 import deliveryFeeRoute from "./routes/fee.route";
 import wsRoute from "./routes/ws.route";
+import adminRoute from "./routes/admin.route";
 // Create app instance using factory
 const app = factory
   .createApp({ strict: false })
@@ -31,6 +32,7 @@ export const routes = app
   .route("/user", userRoute)
   .route("/shop", shopRoute)
   .route("/vendor", vendorRoute)
+  .route("/admin", adminRoute)
   .route("/favorite", favoriteRoute)
   .route("/order", orderRoute)
   .route("/menu", menuRoute)

@@ -176,7 +176,19 @@ export const shopPaymentMethodTable = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.accountNumber, table.shopId] })]
 );
+export const memberRelations = relations(member, ({ one }) => ({
+  shop: one(shopTable, {
+    fields: [member.organizationId],
+    references: [shopTable.id],
+    relationName: "shopOfMember",
+  }),
+  user: one(userTable, {
+    fields: [member.userId],
+    references: [userTable.id],
+  }),
+}));
 export const shopRelations = relations(shopTable, ({ one, many }) => ({
+  members: many(member),
   todo: one(shopTodoTable, {
     fields: [shopTable.id],
     references: [shopTodoTable.shopId],

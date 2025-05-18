@@ -5,6 +5,7 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { page } from '$app/stores';
 	import SEO from '$lib/components/SEO.svelte';
+	import ImpersonationBanner from '$lib/components/impersonation-banner.svelte';
 
 	import { Toaster } from '$lib/components/ui/sonner/index.js';
 	import { afterNavigate, beforeNavigate } from '$app/navigation';
@@ -24,6 +25,7 @@
 </script>
 
 <div>
+	<ImpersonationBanner />
 	<SEO
 		title="Azumi - Fast & Reliable Food Delivery in Nigeria"
 		description="Your go-to food delivery service in Nigeria. Get your favorite meals delivered quickly and reliably from a wide range of restaurants."
