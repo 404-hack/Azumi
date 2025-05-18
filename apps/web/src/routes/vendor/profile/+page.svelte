@@ -14,13 +14,14 @@
 
 <div class="space-y-6">
 	<Card.Root class="overflow-hidden">
-		<div class="relative h-32 bg-gradient-to-r from-primary to-secondary">
-			<div class="absolute -bottom-12 left-6">
-				<div class="relative h-24 w-24 overflow-hidden rounded-full border-4 border-background">
-					<img src="/placeholder.svg" alt="Vendor Logo" class="h-full w-full object-cover" />
-				</div>
+		<div class="relative h-48">
+			<div class="absolute inset-0">
+				<img 
+					src={data.profile.coverImage ?? '/hero-1.jpeg'} 
+					alt="Profile Cover" 
+					class="h-full w-full object-cover"
+				/>
 			</div>
-
 			<div class="absolute right-4 top-4">
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
@@ -48,7 +49,7 @@
 				</DropdownMenu.Root>
 			</div>
 		</div>
-		<Card.Content class="pb-6 pt-16">
+		<Card.Content class="p-6">
 			<div class="mb-4 flex items-end justify-between">
 				<div>
 					<h2 class="text-2xl font-bold">{data.profile.name}</h2>

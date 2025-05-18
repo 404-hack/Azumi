@@ -121,7 +121,7 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
       }),
       openAPI(),
       admin({
-        adminUserIds: ["YOUR_USER_ID_HERE"], // Replace with the actual user ID
+        adminUserIds: ["5FlpMALblsrSLkserurIDlMaOHqf4fg3"], // Replace with the actual user ID
       }),
       phoneNumber({
         sendOTP: ({ phoneNumber, code }, request) => {
