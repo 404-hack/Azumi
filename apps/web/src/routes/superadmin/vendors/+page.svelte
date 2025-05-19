@@ -29,7 +29,6 @@
 			return matchesSearch && matchesTab;
 		})
 	);
-	console.log('🚀 ~ filteredVendors:', filteredVendors);
 
 	async function handleSearch() {
 		await goto(
@@ -122,7 +121,7 @@
 	<div class="space-y-8">
 		<div class="flex items-center justify-between">
 			<h2 class="text-2xl font-bold">Vendors Management</h2>
-			<Button>Add New Vendor</Button>
+			<Button  href='/superadmin/vendors/new' >Add New Vendor</Button>
 		</div>
 
 		<!-- {#if pendingVendors.length > 0}

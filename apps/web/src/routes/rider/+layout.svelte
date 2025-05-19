@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { riderState } from '$lib/states/riderState.svelte';
 	import { Bike, Clock, Wallet, Settings, LogOut, Menu, X, History } from 'lucide-svelte';
 
 	let isSidebarOpen = $state(false);
-	let currentPath = $derived($page.url.pathname);
+	let currentPath = $derived(page.url.pathname);
 
 	const navigation = [
 		{
@@ -81,7 +81,7 @@
 					href={item.href}
 					onclick={() => (isSidebarOpen = false)}
 					class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground {item.isActive(
-						$page.url.pathname
+						page.url.pathname
 					)
 						? 'bg-accent text-accent-foreground'
 						: 'text-muted-foreground'}"

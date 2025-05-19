@@ -16,17 +16,21 @@ import favoriteRoute from "./routes/favorite.route";
 import deliveryFeeRoute from "./routes/fee.route";
 import wsRoute from "./routes/ws.route";
 import adminRoute from "./routes/admin.route";
+import riderRoute from "./routes/rider.route";
+
 // Create app instance using factory
 const app = factory
   .createApp({ strict: false })
   .basePath("/api")
   // Add global middleware
   .use("*", customCors);
+
 app.on(["POST", "GET"], "/auth/*", async (c) => {
   const db = c.get("db");
   const auth = await createAuth(db);
   return auth.handler(c.req.raw);
 });
+
 // Mount routes
 export const routes = app
   .route("/user", userRoute)
@@ -42,11 +46,13 @@ export const routes = app
   .route("/address", addressRoute)
   .route("/delivery-fee", deliveryFeeRoute)
   .route("/webhook/paystack", paystackWebhookRoute)
+  .route("/rider", riderRoute)
   .route("/", bucketRoute)
   .route("/ws", wsRoute)
   .get("/love", (c) => {
     return c.json({ message: "Welcome to the API" });
   });
+
 export { OrderNotification } from "./durable-objects/order-notification.do";
 
 export default app;

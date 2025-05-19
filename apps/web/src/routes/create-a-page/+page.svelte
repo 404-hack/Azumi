@@ -10,6 +10,7 @@
 	import { Loader, Store, MapPin } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { authClient } from '$lib/auth-client.js';
 	import { createShopSchema } from '@repo/server/validations';
 	import { client } from '$lib/hc.js';
@@ -23,16 +24,25 @@
 
 	let { data } = $props();
 	const session = authClient.useSession();
+
+	$effect(() => {
+		const urlShopType = page.url.searchParams.get('shopType');
+		if (urlShopType) {
+			$formData.type = urlShopType;
+		}
+	});
+
 	const form = superForm(defaults(zod(createShopSchema)), {
 		validators: zod(createShopSchema),
 		SPA: true,
 		resetForm: false,
 		dataType: 'json',
 		onUpdate: async ({ form }) => {
-			console.log('🚀 ~ onUpdate: ~ form:', form);
 			// check if coordinates are selected
-			if (form.data.address && form.errors.latitude) {
-				toast.error('Please select a location from the suggestions.');
+			if (form.data.address && form.data.longitude === 0 && form.data.latitude === 0) {
+				toast.error(
+					'Please select a location from the suggestions provided when typing your address'
+				);
 				return;
 			}
 			if (form.valid) {
@@ -64,7 +74,6 @@
 	});
 
 	const { form: formData, enhance, delayed, capture, restore, submit } = form;
-	export const snapshot = { capture, restore };
 
 	// Optional: Store coordinates for future use
 	let selectedLocation = $state<{ lat: number; lng: number } | null>(null);
@@ -72,7 +81,6 @@
 	// Function to handle place selection
 	function handlePlaceSelect(place: Place) {
 		if (place) {
-			
 			$formData.address = place.address;
 			$formData.latitude = place.lat;
 			$formData.longitude = place.lng;
@@ -96,7 +104,6 @@
 			};
 
 			const { address, name } = await reverseGeocode(latitude, longitude);
-			console.log("🚀 ~ useCurrentLocation ~ name:", name)
 			$formData.address = address;
 			$formData.latitude = latitude;
 			$formData.longitude = longitude;
@@ -136,7 +143,6 @@
 			</Card.Header>
 
 			<Card.Content class="space-y-6">
-
 				<Form.Field {form} name="name">
 					<Form.Control>
 						{#snippet children({ props })}
@@ -156,15 +162,13 @@
 							<div class="space-y-2">
 								<Form.Label>Business Type</Form.Label>
 								<Select.Root bind:value={$formData.type} type="single" name={props.name}>
-									<Select.Trigger {...props} class="w-full">
-										<span class="">
-											{data.shopTypes.find((shopType) => shopType.id === $formData.type)?.name ||
-												'Select business type'}
-										</span>
+									<Select.Trigger {...props} class="w-full capitalize">
+										{data.shopTypes.find((shopType) => shopType.id === $formData.type)?.name ||
+											'Select business type'}
 									</Select.Trigger>
 									<Select.Content>
 										{#each data.shopTypes as shopType}
-											<Select.Item value={shopType.id} label={shopType.name} />
+											<Select.Item value={shopType.id} class="capitalize" label={shopType.name} />
 										{/each}
 									</Select.Content>
 								</Select.Root>
@@ -197,7 +201,12 @@
 							{#snippet children({ props })}
 								<div class="space-y-2">
 									<Form.Label>Phone Number</Form.Label>
-									<Input {...props} type="tel" bind:value={$formData.phoneNumber} placeholder="+234..." />
+									<Input
+										{...props}
+										type="tel"
+										bind:value={$formData.phoneNumber}
+										placeholder="+234..."
+									/>
 								</div>
 							{/snippet}
 						</Form.Control>

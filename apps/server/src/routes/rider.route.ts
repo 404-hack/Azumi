@@ -7,7 +7,8 @@ import { eq } from "drizzle-orm";
 import { createAuth } from "../lib/auth";
 import { nanoid } from "nanoid";
 import {
-  riderApplicationSchema,
+  riderApplicationSchema, // Keep for backward compatibility
+  createRiderSchema,
   updateRiderStatusSchema,
   updateLocationSchema,
 } from "../lib/validation/rider.validation";
@@ -36,13 +37,16 @@ const riderRoute = factory
         .insert(riders)
         .values({
           id: registerResponse.user.id,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          phoneNumber: data.phoneNumber,
+          address: data.address,
+          longitude: data.longitude,
+          latitude: data.latitude,
           vehicleType: data.vehicleType,
-          licensePlate: data.licensePlate,
-          idDocument: data.idDocument,
-          status: "offline",
+          identificationDocument: data.identificationDocument,
           isVerified: false,
-          currentLocation: null,
-          activeArea: { city: data.city, address: data.address },
         })
         .returning()
         .get();

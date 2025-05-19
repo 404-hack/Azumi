@@ -72,6 +72,7 @@
 			{/if}
 		</div>
 		<LoginModal />
+
 		<AddDeliveryAddress />
 
 		<!-- Search -->

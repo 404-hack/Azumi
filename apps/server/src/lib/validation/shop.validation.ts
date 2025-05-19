@@ -28,7 +28,9 @@ export const createShopSchema = z.object({
       return val;
     }),
   email: z.string().email({ message: "Invalid email format" }),
-  type: z.string().min(1, { message: "Business type is required" }),
+  type: z.enum(["restaurant", "market", "store"], {
+    message: "Invalid shop type",
+  }),
   active: z.boolean().default(false),
   description: z.string().optional(),
   website: z.string().optional(),
