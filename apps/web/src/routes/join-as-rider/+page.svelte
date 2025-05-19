@@ -10,7 +10,7 @@
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client.js';
-	import { createRiderSchema } from '@repo/server/src/lib/validation/rider.validation';
+	import { createRiderSchema } from '@repo/server/validations';
 	import { client } from '$lib/hc.js';
 	import { loginModalState, registerModalState } from '$lib/states/modalState.svelte.js';
 	import LoginModal from '$lib/components/modal/LoginModal.svelte';
@@ -18,7 +18,7 @@
 	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
 	import { getCurrentPosition, reverseGeocode } from '$lib/utils/geolocation';
 	import type { Place } from '$lib/types/places';
-	
+
 	let { data } = $props();
 	const session = authClient.useSession();
 	const form = superForm(defaults(zod(createRiderSchema)), {
@@ -31,7 +31,7 @@
 				toast.error('Please select a location from the suggestions.');
 				return;
 			}
-			
+
 			if (form.valid) {
 				const res = await client.rider.create.$post({
 					json: {
@@ -48,11 +48,13 @@
 						identificationDocument: form.data.identificationDocument
 					}
 				});
-				
+
 				if (res.ok) {
 					await goto('/join-as-rider/application-sent');
 				} else {
-					toast.error('An error occurred while submitting your application. Please try again later.');
+					toast.error(
+						'An error occurred while submitting your application. Please try again later.'
+					);
 				}
 			}
 		}
@@ -131,7 +133,11 @@
 							{#snippet children({ props })}
 								<div class="space-y-2">
 									<Form.Label>First Name</Form.Label>
-									<Input {...props} bind:value={$formData.firstName} placeholder="Your first name" />
+									<Input
+										{...props}
+										bind:value={$formData.firstName}
+										placeholder="Your first name"
+									/>
 								</div>
 							{/snippet}
 						</Form.Control>
@@ -174,7 +180,12 @@
 							{#snippet children({ props })}
 								<div class="space-y-2">
 									<Form.Label>Phone Number</Form.Label>
-									<Input {...props} type="tel" bind:value={$formData.phoneNumber} placeholder="+234..." />
+									<Input
+										{...props}
+										type="tel"
+										bind:value={$formData.phoneNumber}
+										placeholder="+234..."
+									/>
 								</div>
 							{/snippet}
 						</Form.Control>
@@ -234,9 +245,10 @@
 								<Select.Root bind:value={$formData.vehicleType} type="single" name={props.name}>
 									<Select.Trigger {...props} class="w-full">
 										<span class="">
-											{$formData.vehicleType ? 
-												$formData.vehicleType.charAt(0).toUpperCase() + $formData.vehicleType.slice(1) : 
-												'Select vehicle type'}
+											{$formData.vehicleType
+												? $formData.vehicleType.charAt(0).toUpperCase() +
+													$formData.vehicleType.slice(1)
+												: 'Select vehicle type'}
 										</span>
 									</Select.Trigger>
 									<Select.Content>
@@ -263,7 +275,9 @@
 									bind:value={$formData.vehicleLicense}
 									placeholder="Enter license plate number"
 								/>
-								<Form.Description>Leave blank if you're delivering on foot or bicycle</Form.Description>
+								<Form.Description
+									>Leave blank if you're delivering on foot or bicycle</Form.Description
+								>
 							</div>
 						{/snippet}
 					</Form.Control>
@@ -276,7 +290,9 @@
 							<div class="space-y-2">
 								<Form.Label>Identification Document</Form.Label>
 								<Input {...props} type="file" />
-								<Form.Description>Upload a copy of your ID card or driver's license</Form.Description>
+								<Form.Description
+									>Upload a copy of your ID card or driver's license</Form.Description
+								>
 							</div>
 						{/snippet}
 					</Form.Control>
@@ -286,8 +302,8 @@
 
 			<Card.Footer class="flex flex-col space-y-4">
 				<p class="text-xs text-muted-foreground">
-					By registering as a rider, you agree to our Terms of Service and Privacy Policy. You must be at
-					least 18 years old to become a rider on our platform.
+					By registering as a rider, you agree to our Terms of Service and Privacy Policy. You must
+					be at least 18 years old to become a rider on our platform.
 				</p>
 				<Button type="submit" class="w-full">
 					{#if $delayed}
