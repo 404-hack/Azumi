@@ -30,6 +30,38 @@ export const PAYMENT_STATUS = [
   "REVERSED",
 ] as const;
 
+export const RIDER_APPLICATION_STATUS = [
+  "DRAFT",
+  "PENDING",
+  "DOCUMENT_VERIFICATION",
+  "BACKGROUND_CHECK",
+  "TRAINING",
+  "APPROVED",
+  "REJECTED",
+  "SUSPENDED",
+] as const;
+
+export const RIDER_AVAILABILITY_STATUS = [
+  "AVAILABLE",
+  "BUSY",
+  "OFFLINE",
+] as const;
+
+export const VEHICLE_TYPES = [
+  "MOTORCYCLE",
+  "CAR",
+  "BICYCLE",
+  "TRICYCLE",
+  "FOOT",
+] as const;
+
+export const RIDER_DOCUMENTS = [
+  "NATIONAL_ID",
+  "DRIVERS_LICENSE",
+  "INTERNATIONAL_PASSPORT",
+  "NIN",
+] as const;
+
 export const PAYMENT_METHODS = [
   "CARD",
   "CASH",
@@ -41,6 +73,7 @@ export const PAYMENT_METHODS = [
 export const DELIVERY_TYPE = ["INSTANT", "PRE_ORDER"] as const;
 
 export const SHOP_STATUS = [
+  "DRAFT",
   "PENDING",
   "APPROVED",
   "REJECTED",

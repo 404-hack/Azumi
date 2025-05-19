@@ -20,13 +20,11 @@
 	];
 	let { children, data } = $props();
 	let searchTerm = $state('');
-	let activeCategory = $state('All');
-
-	// Static shop types for testing
-
-	// Function to get appropriate background color class based on index
-
-	// Function to get appropriate text color class based on index
+	let activeCategory = $derived(page.url.searchParams.get('category') || 'All');
+	
+	function selectCategory(name: string) {
+		goto('/explore/shops?category=' + name);
+	}
 
 	// Category icons mapping
 	const categoryIcons: Record<string, string> = {
@@ -50,26 +48,32 @@
 			{#each data.shopTypes as { name }, i}
 				<button
 					class="group flex flex-col items-center"
-					onclick={() => goto('/explore/shops?category=' + name)}
-				>
-					<div
+					onclick={() => selectCategory(name)}
+				>					<div
 						class={cn(
-							'relative mb-2 h-[116px] w-[116px] overflow-hidden rounded-lg shadow-sm transition-transform',
+							'relative mb-2 h-[116px] w-[116px] overflow-hidden rounded-lg shadow-sm transition-all duration-200',
 							activeCategory === name
-								? 'scale-105 ring-2 ring-primary ring-offset-1'
-								: 'ring-1 ring-transparent'
+								? 'scale-105 ring-[3px] ring-primary ring-offset-2 ring-offset-background shadow-md'
+								: 'hover:scale-105 ring-1 ring-muted hover:ring-primary/50'
 						)}
 					>
 						<img
 							src={`./${categoryIcons[name] || 'storeIcon.png'}`}
 							alt={name}
-							class="relative z-10 h-full w-full object-cover"
+							class={cn(
+								"relative z-10 h-full w-full object-cover transition-all",
+								activeCategory === name ? "brightness-105" : "group-hover:brightness-102"
+							)}
 						/>
+						{#if activeCategory === name}
+							<div class="absolute inset-0 bg-primary/10 z-20"></div>
+							<div class="absolute bottom-0 left-0 right-0 h-1 bg-primary z-30"></div>
+						{/if}
 					</div>
 					<span
 						class={cn(
-							'text-base font-medium capitalize',
-							activeCategory === name ? 'text-primary' : 'text-muted-foreground'
+							'text-base font-medium capitalize transition-colors duration-200',
+							activeCategory === name ? 'text-primary' : 'text-muted-foreground group-hover:text-primary/80'
 						)}>{name}</span
 					>
 				</button>

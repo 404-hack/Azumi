@@ -25,17 +25,15 @@
 				<h3 class="text-sm font-medium">Partner with us</h3>
 				<ul class="space-y-1">
 					<li>
-						<a href="/create-a-page" class="text-sm text-muted-foreground hover:text-primary"
-							>For restaurants</a
+						<a
+							href="/create-a-page?shopType=restaurant"
+							class="text-sm text-muted-foreground hover:text-primary">For restaurants</a
 						>
 					</li>
 					<li>
-						<a href="/stores" class="text-sm text-muted-foreground hover:text-primary">For stores</a
-						>
-					</li>
-					<li>
-						<a href="/business" class="text-sm text-muted-foreground hover:text-primary"
-							>For companies</a
+						<a
+							href="/create-a-page?shopType=store"
+							class="text-sm text-muted-foreground hover:text-primary">For stores</a
 						>
 					</li>
 				</ul>

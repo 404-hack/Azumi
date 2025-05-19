@@ -14,8 +14,15 @@ export function formatCurrency(amount: number) {
 	}).format(amount);
 }
 
-export function formatDate(date: Date) {
-	return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
+export function formatDate(date: string | number | Date | null | undefined) {
+	if (!date) return '';
+	try {
+		const dateObject = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+		return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(dateObject);
+	} catch (error) {
+		console.error('Error formatting date:', error);
+		return '';
+	}
 }
 
 // Updated formatTime to accept "HH:MM" string

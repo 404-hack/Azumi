@@ -1,8 +1,12 @@
 <script lang="ts">
 	import type { TShopTodo } from '@repo/server/types';
-	import { CheckCircle2, Circle } from 'lucide-svelte';
+	import { CheckCircle2, Circle, Loader2 } from 'lucide-svelte';
+	import { client } from '$lib/hc';
+	import { toast } from 'svelte-sonner';
+	import { invalidateAll } from '$app/navigation';
 
 	let { todos } = $props<{ todos: TShopTodo }>();
+	let isLoading = $state(false);
 
 	// Define the structured tasks based on the shopTodo database schema
 	const taskItems = [
@@ -25,10 +29,32 @@
 	});
 
 	// Function to handle the request for activation
-	const requestActivation = () => {
-		// Logic to handle the request for activation
-		// This could involve making an API call or navigating to another page
-		alert('Request for activation has been sent!');
+	const requestActivation = async () => {
+		if (isLoading) return;
+		isLoading = true;
+
+		try {
+			const response = await client.vendor['request-activation'].$post();
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.message || 'Failed to request activation');
+			}
+
+			if (data.success) {
+				toast.success(data.message || 'Activation request sent successfully!');
+
+			} else {
+				toast.error(data.message || 'Could not send activation request.');
+			}
+			
+		} catch (error: any) {
+			console.error('Error requesting activation:', error);
+			toast.error(error.message || 'An error occurred while requesting activation');
+		} finally {
+			isLoading = false;
+			invalidateAll();
+		}
 	};
 </script>
 
@@ -63,10 +89,16 @@
 					<div class="mt-4">
 						<button
 							type="button"
-							onclick={requestActivation}
-							class="inline-flex items-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+							on:click={requestActivation}
+							disabled={isLoading}
+							class="inline-flex items-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
 						>
-							Request for Activation
+							{#if isLoading}
+								<Loader2 class="mr-2 h-4 w-4 animate-spin" />
+								Processing...
+							{:else}
+								Request for Activation
+							{/if}
 						</button>
 					</div>
 				</div>

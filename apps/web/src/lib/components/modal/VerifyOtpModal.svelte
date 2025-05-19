@@ -75,7 +75,9 @@
 								if (isNewUser) {
 									// For new users, show profile setup modal
 									verifyOtpModalState.setFalse();
-									profileSetupModalState.setTrue();
+									setTimeout(() => {
+										profileSetupModalState.setTrue();
+									}, 100);
 									toast.success('Phone verified! Please complete your profile.');
 								} else {
 									// For existing users, just close modal and show success

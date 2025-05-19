@@ -158,6 +158,7 @@
 					<div class="mt-2">
 						<p class="text-3xl font-bold">${balance.toFixed(2)}</p>
 						<p class="text-sm text-muted-foreground">Available for withdrawal</p>
+						<p class="text-xs text-muted-foreground mt-1">Payouts are processed automatically on a weekly basis.</p>
 					</div>
 				</Card.Content>
 			</Card.Root>
@@ -173,7 +174,7 @@
 				<Card.Content>
 					<div class="mt-2">
 						<p class="text-3xl font-bold">${pendingAmount.toFixed(2)}</p>
-						<p class="text-sm text-muted-foreground">Will be available in 2-3 business days</p>
+						<p class="text-sm text-muted-foreground">Scheduled for next weekly payout</p>
 					</div>
 				</Card.Content>
 			</Card.Root>
@@ -188,10 +189,6 @@
 				</Card.Header>
 				<Card.Content>
 					<div class="grid gap-4">
-						<Button variant="outline" class="w-full justify-start">
-							<ArrowUpRight class="mr-2 h-4 w-4" />
-							Withdraw Funds
-						</Button>
 						<Button variant="outline" class="w-full justify-start">
 							<Download class="mr-2 h-4 w-4" />
 							Download Statement

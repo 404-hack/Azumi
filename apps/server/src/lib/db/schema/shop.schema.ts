@@ -48,7 +48,7 @@ export const shopTable = sqliteTable(
     commission: integer("commission").default(10),
     minimumOrderAmount: integer("minimum_order_amount").default(0),
     active: integer("active", { mode: "boolean" }).default(false),
-    status: text("status", { enum: SHOP_STATUS }).default("PENDING"),
+    status: text("status", { enum: SHOP_STATUS }).default("DRAFT"),
     logo: text("logo"),
     coverImage: text("cover_image"),
     averageRating: integer("average_rating"),
@@ -176,7 +176,19 @@ export const shopPaymentMethodTable = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.accountNumber, table.shopId] })]
 );
+export const memberRelations = relations(member, ({ one }) => ({
+  shop: one(shopTable, {
+    fields: [member.organizationId],
+    references: [shopTable.id],
+    relationName: "shopOfMember",
+  }),
+  user: one(userTable, {
+    fields: [member.userId],
+    references: [userTable.id],
+  }),
+}));
 export const shopRelations = relations(shopTable, ({ one, many }) => ({
+  members: many(member),
   todo: one(shopTodoTable, {
     fields: [shopTable.id],
     references: [shopTodoTable.shopId],

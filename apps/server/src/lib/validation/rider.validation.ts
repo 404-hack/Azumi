@@ -1,17 +1,51 @@
 import { z } from "zod";
-export const riderApplicationSchema = z.object({
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
-  email: z.string().email(),
-  phone: z.string().min(6),
-  vehicleType: z.enum(["MOTORCYCLE", "BICYCLE", "CAR", "SCOOTER"]),
-  licensePlate: z.string().optional(),
-  address: z.string(),
-  city: z.string(),
-  idDocument: z.string(), // URL of uploaded ID
+import { RIDER_DOCUMENTS, VEHICLE_TYPES } from "../constant";
+
+export const createRiderSchema = z.object({
+  firstName: z.string().min(2, { message: "First name is required" }),
+  lastName: z.string().min(2, { message: "Last name is required" }),
+  email: z.string().email({ message: "Invalid email address" }),
+  phoneNumber: z
+    .string()
+    .min(1, { message: "Phone number is required" })
+    .regex(/^(?:\+?234|0)[789][01]\d{8}$/, {
+      message: "Please enter a valid Nigerian phone number",
+    })
+    .transform((val) => {
+      // Normalize to international format
+      if (val.startsWith("0")) {
+        return "+234" + val.slice(1);
+      }
+      if (val.startsWith("234")) {
+        return "+" + val;
+      }
+      return val;
+    }),
+  address: z.string().min(5, { message: "Address is required" }),
+  longitude: z.number({ message: "Longitude is required" }),
+  latitude: z.number({ message: "Latitude is required" }),
+  addressName: z.string().optional(),
+  vehicleType: z.enum(VEHICLE_TYPES, {
+    message: "Please select a valid vehicle type",
+  }),
+  vehicleLicense: z.string().optional(),
+  identificationDocument: z.enum(RIDER_DOCUMENTS, {
+    message: "Please select a valid identification document",
+  }),
 });
 
-// Rider status update schema
+// Legacy rider application schema (kept for compatibility)
+export const riderApplicationSchema = createRiderSchema;
+
+// Rider admin status update schema
+export const updateRiderAdminStatusSchema = z.object({
+  status: z.enum(["PENDING", "APPROVED", "REJECTED", "SUSPENDED"], {
+    message: "Status must be PENDING, APPROVED, REJECTED, or SUSPENDED",
+  }),
+  active: z.boolean().optional(),
+});
+
+// Rider availability status update schema
 export const updateRiderStatusSchema = z.object({
   status: z.enum(["available", "busy", "offline"]),
   currentLocation: z

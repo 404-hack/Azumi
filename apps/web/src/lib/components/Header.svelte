@@ -43,6 +43,7 @@
 
 	let user = $derived(page.data.user);
 	const organizations = authClient.useListOrganizations();
+	let isAdmin = $derived(user?.role === 'admin' || user?.role === 'SUPER_ADMIN');
 </script>
 
 <header
@@ -71,6 +72,7 @@
 			{/if}
 		</div>
 		<LoginModal />
+
 		<AddDeliveryAddress />
 
 		<!-- Search -->
@@ -97,7 +99,7 @@
 				<Button
 					variant="outline"
 					size="icon"
-					class="relative hidden items-center gap-2 md:flex"
+					class="relative  flex items-center gap-2"
 					onclick={() => cartsSheetStore.setTrue()}
 				>
 					<ShoppingCart class="h-5 w-5" />
@@ -136,15 +138,16 @@
 							<DropdownMenu.Item>
 								<a href="/me/personal-info" class="flex w-full">Profile</a>
 							</DropdownMenu.Item>
-							<DropdownMenu.Item>
-								<a href="/me/orders" class="flex w-full">Orders</a>
-							</DropdownMenu.Item>
-							<DropdownMenu.Item>
-								<a href="/me/favorites" class="flex w-full">Favorites</a>
-							</DropdownMenu.Item>
-							<DropdownMenu.Item>
-								<a href="/me/settings" class="flex w-full">Settings</a>
-							</DropdownMenu.Item>
+
+							{#if isAdmin}
+								<DropdownMenu.Separator />
+								<DropdownMenu.Item>
+									<a href="/superadmin" class="flex w-full items-center">
+										<Settings class="mr-2 h-4 w-4" />
+										<span>Admin Dashboard</span>
+									</a>
+								</DropdownMenu.Item>
+							{/if}
 							<DropdownMenu.Separator />
 							{#if $organizations.isPending}
 								<p>Loading...</p>
@@ -175,94 +178,23 @@
 									}}
 									class="flex w-full"
 								>
-									Sign out
+									Log out
 								</button>
 							</DropdownMenu.Item>
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
-					<!-- <ResponsiveDropdown>
-						{#snippet trigger()}
-							<Button
-								variant="ghost"
-								class="relative h-9 w-9 rounded-full p-0 hover:bg-muted/80"
-								aria-label="User menu"
-							>
-								<Avatar class="h-9 w-9">
-									<AvatarImage src={user.image} alt={user.name || 'User'} />
-									<AvatarFallback>
-										{user?.name
-											?.split(' ')
-											.map((n) => n.charAt(0))
-											.join('')
-											.toUpperCase() ?? ''}
-									</AvatarFallback>
-								</Avatar>
-							</Button>
-						{/snippet}
-						{#snippet children()}
-							<div>
-								<div class="dropdown-menu-label">My Account</div>
-								<Separator />
-								<a class="dropdown-menu-item" href="/me/personal-info"
-									><User class="mr-2 h-4 w-4" />Profile</a
-								>
-								<a href="/me/orders" class="dropdown-menu-item"
-									><Package class="mr-2 h-4 w-4" />Orders</a
-								>
-								<a href="/me/favorites" class="dropdown-menu-item"
-									><Heart class="mr-2 h-4 w-4" />Favorites</a
-								>
-								<a href="/me/settings" class="dropdown-menu-item"
-									><Settings class="mr-2 h-4 w-4" />Settings</a
-								>
-								<Separator />
-
-								{#if $organizations.isPending}
-									<p>Loading...</p>
-								{:else if $organizations.data === null}
-									<span class="sr-only">no organizations</span>
-								{:else}
-									{#each $organizations.data as organization}
-										<button
-											type="button"
-											class="dropdown-menu-item"
-											onclick={() => {
-												authClient.organization.setActive({
-													organizationSlug: organization.slug
-												});
-												goto('/vendor/menu');
-											}}
-										>
-											<Store class="mr-2 h-4 w-4" />
-											{organization.name}
-										</button>
-									{/each}
-								{/if}
-
-								<Separator />
-								<button
-									class="dropdown-menu-item text-red-500"
-									onclick={async () => {
-										authClient.signOut();
-										await invalidateAll();
-									}}
-									type="button"
-								>
-									Sign out
-								</button>
-							</div>
-						{/snippet}
-					</ResponsiveDropdown> -->
 				</nav>
 			{:else}
-				<div class="hidden items-center gap-2 md:flex">
+				<div class=" flex items-center gap-2">
 					<Button onclick={() => loginModalState.setTrue()} variant="ghost" size="sm">Login</Button>
-				
 				</div>
 			{/if}
 
 			<!-- Mobile Menu Button -->
-			<Button
+		</div>
+	</div>
+</header>
+<!-- <Button
 				variant="ghost"
 				size="icon"
 				class="md:hidden"
@@ -270,47 +202,39 @@
 				aria-label="Menu"
 			>
 				<Menu class="h-5 w-5" />
+			</Button> -->
+<!-- Mobile Search and Navigation -->
+<!-- {#if isMobileMenuOpen}
+	<div class="border-t p-4 duration-300 animate-in slide-in-from-top md:hidden">
+		<div class="relative mb-4">
+			<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+			<Input
+				type="search"
+				placeholder="Search..."
+				class="w-full pl-10"
+				bind:value={searchQuery}
+			/>
+		</div>
+
+		<div class="flex flex-col gap-2">
+			{#if page.data.carts && page.data.carts.length}
+				<Button variant="outline" onclick={() => cartsSheetStore.setTrue()} class="justify-start">
+					<ShoppingBag class="mr-2 h-4 w-4" />
+					Orders
+				</Button>
+			{/if}
+
+			{#if !user}
+				<Button onclick={() => loginModalState.setTrue()} variant="ghost" class="justify-start"
+					>Login</Button
+				>
+				
+			{/if}
+
+			<Button variant="ghost" class="justify-start">
+				<MapPin class="mr-2 h-4 w-4" />
+				{location}
 			</Button>
 		</div>
 	</div>
-
-	<!-- Mobile Search and Navigation -->
-	{#if isMobileMenuOpen}
-		<div class="border-t p-4 duration-300 animate-in slide-in-from-top md:hidden">
-			<div class="relative mb-4">
-				<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					type="search"
-					placeholder="Search..."
-					class="w-full pl-10"
-					bind:value={searchQuery}
-				/>
-			</div>
-
-			<div class="flex flex-col gap-2">
-				{#if page.data.carts && page.data.carts.length}
-					<Button variant="outline" onclick={() => cartsSheetStore.setTrue()} class="justify-start">
-						<ShoppingBag class="mr-2 h-4 w-4" />
-						Orders
-					</Button>
-				{/if}
-
-				{#if !user}
-					<Button onclick={() => loginModalState.setTrue()} variant="ghost" class="justify-start"
-						>Login</Button
-					>
-					<Button
-						onclick={() => registerModalState.setTrue()}
-						variant="default"
-						class="justify-start">Register</Button
-					>
-				{/if}
-
-				<Button variant="ghost" class="justify-start">
-					<MapPin class="mr-2 h-4 w-4" />
-					{location}
-				</Button>
-			</div>
-		</div>
-	{/if}
-</header>
+{/if} -->

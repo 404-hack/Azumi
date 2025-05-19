@@ -6,6 +6,9 @@ export * from "./option.validation";
 // Shop related validations
 export * from "./shop.validation";
 
+// Rider related validations
+export * from "./rider.validation";
+
 // address vaidations
 export * from "./address.validation";
 // Common types and utilities
