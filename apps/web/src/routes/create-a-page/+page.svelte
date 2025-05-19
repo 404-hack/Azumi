@@ -14,7 +14,7 @@
 	import { authClient } from '$lib/auth-client.js';
 	import { createShopSchema } from '@repo/server/validations';
 	import { client } from '$lib/hc.js';
-	import { loginModalState, registerModalState } from '$lib/states/modalState.svelte.js';
+	import { loginModalState } from '$lib/states/modalState.svelte.js';
 	import LoginModal from '$lib/components/modal/LoginModal.svelte';
 	import RegisterModal from '$lib/components/modal/RegisterModal.svelte';
 	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
@@ -61,7 +61,12 @@
 				if (res.ok) {
 					await goto('/create-a-page/application-sent');
 				} else {
-					toast.error('An error occurred while creating your store. Please try again later.');
+					if (res.status === 401) {
+						loginModalState.setTrue();
+						toast.error('You need to be logged in to create a shop.');
+					} else {
+						toast.error('An error occurred while creating your store. Please try again later.');
+					}
 				}
 				// check if the user is logged in
 				// if ($session.data) {
@@ -267,7 +272,6 @@
 		</Card.Root>
 	</form>
 </div>
-<RegisterModal title="You need to be registered in first before you can create a shop" />
 <LoginModal title="You need to be logged in first before you can create a shop" />
 
 <style>
