@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { RIDER_DOCUMENTS, VEHICLE_TYPES } from "../constant";
+import {
+  RIDER_AVAILABILITY_STATUS,
+  RIDER_DOCUMENTS,
+  VEHICLE_TYPES,
+} from "../constant";
 
 export const createRiderSchema = z.object({
   firstName: z.string().min(2, { message: "First name is required" }),
@@ -29,9 +33,6 @@ export const createRiderSchema = z.object({
     message: "Please select a valid vehicle type",
   }),
   vehicleLicense: z.string().optional(),
-  identificationDocument: z.enum(RIDER_DOCUMENTS, {
-    message: "Please select a valid identification document",
-  }),
 });
 
 // Legacy rider application schema (kept for compatibility)
@@ -47,13 +48,9 @@ export const updateRiderAdminStatusSchema = z.object({
 
 // Rider availability status update schema
 export const updateRiderStatusSchema = z.object({
-  status: z.enum(["available", "busy", "offline"]),
-  currentLocation: z
-    .object({
-      latitude: z.number(),
-      longitude: z.number(),
-    })
-    .optional(),
+  status: z.enum(RIDER_AVAILABILITY_STATUS),
+  latitude: z.number(),
+  longitude: z.number(),
 });
 
 // Update rider location schema

@@ -59,12 +59,17 @@ export type TCart = typeof schema.cartTable.$inferSelect & {
 };
 export type TOperatingHours =
   typeof schema.shopOperatingHoursTable.$inferSelect;
+
+export type TRider = typeof schema.riders.$inferSelect;
+
 // Hono Context Variables
 export type Variables = {
   db: DrizzleD1Database<typeof schema>;
   user: TUser | null;
   session: TSession | null;
   orgId: string;
+  rider?: TRider;
+  userId: string;
 };
 
 // Hono Context Type
