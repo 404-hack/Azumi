@@ -36,6 +36,11 @@
 							class="text-sm text-muted-foreground hover:text-primary">For stores</a
 						>
 					</li>
+					<li>
+						<a href="/join-as-rider" class="text-sm text-muted-foreground hover:text-primary"
+							>For riders</a
+						>
+					</li>
 				</ul>
 			</div>
 

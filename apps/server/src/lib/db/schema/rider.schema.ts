@@ -8,7 +8,7 @@ import {
   VEHICLE_TYPES,
 } from "../../constant";
 
-export const riders = sqliteTable("riders", {
+export const riderTable = sqliteTable("riders", {
   id: text("id")
     .primaryKey()
     .references(() => userTable.id, { onDelete: "cascade" }),
@@ -23,9 +23,8 @@ export const riders = sqliteTable("riders", {
   vehicleType: text("vehicle_type", {
     enum: VEHICLE_TYPES,
   }),
-  identificationDocument: text("identification_document", {
-    enum: RIDER_DOCUMENTS,
-  }),
+  vehicleLicense: text("vehicle_license"),
+  identificationDocument: text("identification_document"),
   applicationStatus: text("application_status", {
     enum: RIDER_APPLICATION_STATUS,
   }).default("DRAFT"),

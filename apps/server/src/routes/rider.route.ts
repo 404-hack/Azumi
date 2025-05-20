@@ -1,11 +1,10 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { Context } from "../lib/types";
-import { riders } from "../lib/db/schema/rider.schema";
+import { riderTable } from "../lib/db/schema/rider.schema";
 import { factory } from "../lib/factory";
 import { eq } from "drizzle-orm";
-import { createAuth } from "../lib/auth";
-import { nanoid } from "nanoid";
+import riderAuthMiddleware from "../middlewares/riderAuth";
 import {
   riderApplicationSchema, // Keep for backward compatibility
   createRiderSchema,
@@ -15,37 +14,35 @@ import {
 
 const riderRoute = factory
   .createApp()
+  .use(riderAuthMiddleware)
   .post("/apply", zValidator("json", riderApplicationSchema), async (c) => {
     try {
       const db = c.get("db");
       const data = c.req.valid("json");
-      const auth = await createAuth(db);
+      const userId = c.get("userId");
 
-      const registerResponse = await auth.api.signUpEmail({
-        body: {
-          email: data.email,
-          password: nanoid(12),
-          name: `${data.firstName} ${data.lastName}`,
-        },
+      // Check if user already has a rider profile
+      const existingRider = await db.query.riderTable.findFirst({
+        where: eq(riderTable.id, userId),
       });
 
-      if (!registerResponse) {
-        return c.json({ error: "Failed to create user account" }, 400);
+      if (existingRider) {
+        return c.json({ error: "You are already registered as a rider" }, 400);
       }
 
       const rider = await db
-        .insert(riders)
+        .insert(riderTable)
         .values({
-          id: registerResponse.user.id,
+          id: userId, // Use the authenticated user's ID
           firstName: data.firstName,
           lastName: data.lastName,
-          email: data.email,
+          email: data.email, // Prefer user's email from auth
           phoneNumber: data.phoneNumber,
           address: data.address,
           longitude: data.longitude,
           latitude: data.latitude,
           vehicleType: data.vehicleType,
-          identificationDocument: data.identificationDocument,
+          vehicleLicense: data.vehicleLicense,
           isVerified: false,
         })
         .returning()
@@ -66,8 +63,8 @@ const riderRoute = factory
       const db = c.get("db");
       const { id } = c.req.param();
 
-      const rider = await db.query.riders.findFirst({
-        where: eq(riders.id, id),
+      const rider = await db.query.riderTable.findFirst({
+        where: eq(riderTable.id, id),
       });
 
       if (!rider) {
@@ -80,21 +77,20 @@ const riderRoute = factory
       return c.json({ error: "Internal server error" }, 500);
     }
   })
-
   .patch("/status", zValidator("json", updateRiderStatusSchema), async (c) => {
     try {
       const db = c.get("db");
-      const user = c.get("user");
-      const { status, currentLocation } = c.req.valid("json");
-
-      if (!user) {
-        return c.json({ error: "Unauthorized" }, 401);
-      }
+      const userId = c.get("userId");
+      const { status, latitude, longitude } = c.req.valid("json");
 
       const updatedRider = await db
-        .update(riders)
-        .set({ status, currentLocation: currentLocation })
-        .where(eq(riders.id, user.id))
+        .update(riderTable)
+        .set({
+          availabilityStatus: status,
+          longitude,
+          latitude,
+        })
+        .where(eq(riderTable.id, userId))
         .returning()
         .get();
 
@@ -104,21 +100,16 @@ const riderRoute = factory
       return c.json({ error: "Internal server error" }, 500);
     }
   })
-
   .patch("/location", zValidator("json", updateLocationSchema), async (c) => {
     try {
       const db = c.get("db");
-      const user = c.get("user");
+      const userId = c.get("userId");
       const { latitude, longitude } = c.req.valid("json");
 
-      if (!user) {
-        return c.json({ error: "Unauthorized" }, 401);
-      }
-
       const updatedRider = await db
-        .update(riders)
-        .set({ currentLocation: { latitude, longitude } })
-        .where(eq(riders.id, user.id))
+        .update(riderTable)
+        .set({ latitude, longitude })
+        .where(eq(riderTable.id, userId))
         .returning()
         .get();
 

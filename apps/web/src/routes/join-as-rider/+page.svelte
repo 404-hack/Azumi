@@ -18,6 +18,7 @@
 	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
 	import { getCurrentPosition, reverseGeocode } from '$lib/utils/geolocation';
 	import type { Place } from '$lib/types/places';
+	import { VEHICLE_TYPES } from '../../../../server/src/lib/constant';
 
 	let { data } = $props();
 	const session = authClient.useSession();
@@ -33,7 +34,7 @@
 			}
 
 			if (form.valid) {
-				const res = await client.rider.create.$post({
+				const res = await client.rider.apply.$post({
 					json: {
 						firstName: form.data.firstName,
 						lastName: form.data.lastName,
@@ -44,8 +45,7 @@
 						latitude: form.data.latitude,
 						addressName: form.data.addressName,
 						vehicleType: form.data.vehicleType,
-						vehicleLicense: form.data.vehicleLicense,
-						identificationDocument: form.data.identificationDocument
+						vehicleLicense: form.data.vehicleLicense
 					}
 				});
 
@@ -106,7 +106,7 @@
 	<title>Join As Rider - Azumi</title>
 	<meta
 		name="description"
-		content="Join Azumi as a delivery rider and earn money delivering packages across Africa."
+		content="Join Azumi as a Pigeon  and earn money delivering packages across Africa."
 	/>
 </svelte:head>
 
@@ -115,7 +115,7 @@
 		<Bike class="mx-auto mb-6 size-16 text-primary" />
 		<h1 class="font-display text-4xl font-bold tracking-tight md:text-5xl">Join As Rider</h1>
 		<p class="mt-3 text-lg text-muted-foreground">
-			Become a delivery partner and earn money on your own schedule
+			Become a Pigeon and earn money on your own schedule
 		</p>
 	</div>
 
@@ -211,7 +211,7 @@
 							<Button
 								type="button"
 								variant="outline"
-								on:click={() => useCurrentLocation()}
+								onclick={() => useCurrentLocation()}
 								class="mt-2 w-full"
 								disabled={isGettingLocation}
 							>
@@ -252,11 +252,9 @@
 										</span>
 									</Select.Trigger>
 									<Select.Content>
-										<Select.Item value="motorcycle" label="Motorcycle" />
-										<Select.Item value="car" label="Car" />
-										<Select.Item value="bicycle" label="Bicycle" />
-										<Select.Item value="tricycle" label="Tricycle" />
-										<Select.Item value="foot" label="On Foot" />
+										{#each VEHICLE_TYPES as v}
+											<Select.Item value={v} label={v.charAt(0).toUpperCase() + v.slice(1)} />
+										{/each}
 									</Select.Content>
 								</Select.Root>
 							</div>
@@ -283,21 +281,6 @@
 					</Form.Control>
 					<Form.FieldErrors />
 				</Form.Field>
-
-				<Form.Field {form} name="identificationDocument">
-					<Form.Control>
-						{#snippet children({ props })}
-							<div class="space-y-2">
-								<Form.Label>Identification Document</Form.Label>
-								<Input {...props} type="file" />
-								<Form.Description
-									>Upload a copy of your ID card or driver's license</Form.Description
-								>
-							</div>
-						{/snippet}
-					</Form.Control>
-					<Form.FieldErrors />
-				</Form.Field>
 			</Card.Content>
 
 			<Card.Footer class="flex flex-col space-y-4">
@@ -318,7 +301,6 @@
 	</form>
 </div>
 
-<RegisterModal title="You need to be registered first before applying as a rider" />
 <LoginModal title="You need to be logged in first before applying as a rider" />
 
 <style>

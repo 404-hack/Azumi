@@ -43,7 +43,7 @@
 
 	let user = $derived(page.data.user);
 	const organizations = authClient.useListOrganizations();
-	let isAdmin = $derived(user?.role === 'admin' || user?.role === 'SUPER_ADMIN');
+	let isAdmin = $derived(user?.role === 'admin' || user?.role === 'super_admin');
 </script>
 
 <header
