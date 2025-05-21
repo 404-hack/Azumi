@@ -125,7 +125,6 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
       }),
       phoneNumber({
         sendOTP: async ({ phoneNumber, code }, request) => {
-          console.log("🚀 ~ sendOTP:", { ...env });
           // i am using sendchamp for sending the sms
           const url = `${env.SENDCHAMP_LIVE_URL}/sms/send`;
           const headers = {
@@ -137,7 +136,7 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
               ? `234${phoneNumber.slice(1)}`
               : phoneNumber,
             sender_name: "Schamp",
-            message: `Your verification code is ${code}`,
+            message: `Your azumi otp code is ${code}. expires in 5 minutes. Thank you.`,
             route: "dnd",
           };
           const result = await fetch(url, {

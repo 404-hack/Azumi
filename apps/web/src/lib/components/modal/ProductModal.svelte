@@ -12,7 +12,7 @@
 		type OptionGroup,
 		type OptionItem
 	} from '$lib/states/modalState.svelte';
-	import { Minus, Plus, Star } from 'lucide-svelte';
+	import { Minus, Plus, Star, ChevronDown, ChevronUp } from 'lucide-svelte';
 	import Button from '../ui/button/button.svelte';
 	import { blur } from 'svelte/transition';
 	import { Separator } from '$lib/components/ui/separator';
@@ -31,6 +31,9 @@
 	let quantity = $state(1);
 	let isLoading = $state(false);
 	let specialInstructions = $state('');
+	let isDescriptionExpanded = $state(false);
+	const MAX_DESCRIPTION_LENGTH = 80;
+
 	// Props
 	let { cart = null } = $props();
 
@@ -158,6 +161,7 @@
 			quantity = editContext?.initialQuantity ?? 1;
 			specialInstructions = editContext?.initialSpecialInstructions ?? '';
 			optionGroupErrors = {}; // Clear errors
+			isDescriptionExpanded = false; // Reset description expansion state
 
 			// Initialize selectedOptions from editContext or defaults
 			const initialSelections: Record<string, { id: string; quantity: number }[]> = {};
@@ -194,6 +198,19 @@
 	let productImage = $derived(product?.imageUrl ?? '/hero-1.png');
 	// Updated to use direct optionGroups array from the mapped data structure
 	let optionGroups = $derived(product?.optionGroups ?? []);
+
+	// Derived values for truncated description
+	const isDescriptionTruncatable = $derived(productDescription.length > MAX_DESCRIPTION_LENGTH);
+	const truncatedDescription = $derived(
+		isDescriptionTruncatable && !isDescriptionExpanded
+			? productDescription.substring(0, MAX_DESCRIPTION_LENGTH) + '...'
+			: productDescription
+	);
+
+	// Function to toggle description expansion
+	function toggleDescriptionExpansion(): void {
+		isDescriptionExpanded = !isDescriptionExpanded;
+	}
 
 	// Track validation state for option groups
 	let optionGroupErrors = $state<Record<string, string>>({});
@@ -463,41 +480,45 @@
 
 		// Clear any previous errors first
 		optionGroupErrors = {};
-		
+
 		// Run validation at submission time
 		if (!validateAllOptionGroups()) {
 			// Show error message or handle invalid state
 			toast.error('Please check required options.');
-			
+
 			// Improved scroll to error functionality
 			// Wait for the DOM to update with the error
 			setTimeout(() => {
 				// Find the first group with an error
-				const firstErrorGroupId = Object.keys(optionGroupErrors).find(id => !!optionGroupErrors[id]);
-				
+				const firstErrorGroupId = Object.keys(optionGroupErrors).find(
+					(id) => !!optionGroupErrors[id]
+				);
+
 				if (firstErrorGroupId) {
 					// Try to find and scroll to the group with the error
-					const errorGroupElement = document.querySelector(`[data-group-id="${firstErrorGroupId}"]`);
-					
+					const errorGroupElement = document.querySelector(
+						`[data-group-id="${firstErrorGroupId}"]`
+					);
+
 					if (errorGroupElement) {
 						// Scroll the group into view
-						errorGroupElement.scrollIntoView({ 
-							behavior: 'smooth', 
+						errorGroupElement.scrollIntoView({
+							behavior: 'smooth',
 							block: 'center'
 						});
 					} else {
 						// Fallback to alert element if group can't be found
 						const alertElement = document.querySelector('.alert-destructive');
 						if (alertElement) {
-							alertElement.scrollIntoView({ 
-								behavior: 'smooth', 
-								block: 'center' 
+							alertElement.scrollIntoView({
+								behavior: 'smooth',
+								block: 'center'
 							});
 						}
 					}
 				}
 			}, 100);
-			
+
 			return;
 		}
 
@@ -604,7 +625,21 @@
 				<Dialog.Title class="text-lg font-semibold capitalize">{productName}</Dialog.Title>
 				{#if productDescription}
 					<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-						{productDescription}
+						{truncatedDescription}
+						{#if isDescriptionTruncatable}
+							<button
+								class="ml-1 inline-flex items-center text-xs font-medium text-primary hover:underline focus:outline-none"
+								onclick={toggleDescriptionExpansion}
+								type="button"
+							>
+								{isDescriptionExpanded ? 'See less' : 'See more'}
+								{#if isDescriptionExpanded}
+									<ChevronUp class="ml-0.5 h-3 w-3" />
+								{:else}
+									<ChevronDown class="ml-0.5 h-3 w-3" />
+								{/if}
+							</button>
+						{/if}
 					</Dialog.Description>
 				{/if}
 				<div class="mt-2 flex items-center gap-2">
