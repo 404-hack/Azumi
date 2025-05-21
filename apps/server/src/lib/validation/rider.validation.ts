@@ -9,22 +9,7 @@ export const createRiderSchema = z.object({
   firstName: z.string().min(2, { message: "First name is required" }),
   lastName: z.string().min(2, { message: "Last name is required" }),
   email: z.string().email({ message: "Invalid email address" }),
-  phoneNumber: z
-    .string()
-    .min(1, { message: "Phone number is required" })
-    .regex(/^(?:\+?234|0)[789][01]\d{8}$/, {
-      message: "Please enter a valid Nigerian phone number",
-    })
-    .transform((val) => {
-      // Normalize to international format
-      if (val.startsWith("0")) {
-        return "+234" + val.slice(1);
-      }
-      if (val.startsWith("234")) {
-        return "+" + val;
-      }
-      return val;
-    }),
+
   address: z.string().min(5, { message: "Address is required" }),
   longitude: z.number({ message: "Longitude is required" }),
   latitude: z.number({ message: "Latitude is required" }),

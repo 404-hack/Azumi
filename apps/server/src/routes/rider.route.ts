@@ -33,11 +33,10 @@ const riderRoute = factory
       const rider = await db
         .insert(riderTable)
         .values({
-          id: userId, // Use the authenticated user's ID
+          userId: userId, // Use the authenticated user's ID
           firstName: data.firstName,
           lastName: data.lastName,
           email: data.email, // Prefer user's email from auth
-          phoneNumber: data.phoneNumber,
           address: data.address,
           longitude: data.longitude,
           latitude: data.latitude,

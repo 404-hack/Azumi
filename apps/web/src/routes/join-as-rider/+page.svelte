@@ -28,7 +28,7 @@
 		resetForm: false,
 		dataType: 'json',
 		onUpdate: async ({ form }) => {
-			if (form.data.address && form.errors.latitude) {
+			if (form.data.address && form.data.latitude === 0 && form.data.longitude === 0) {
 				toast.error('Please select a location from the suggestions.');
 				return;
 			}
@@ -39,7 +39,6 @@
 						firstName: form.data.firstName,
 						lastName: form.data.lastName,
 						email: form.data.email,
-						phoneNumber: form.data.phoneNumber,
 						address: form.data.address,
 						longitude: form.data.longitude,
 						latitude: form.data.latitude,
@@ -52,9 +51,16 @@
 				if (res.ok) {
 					await goto('/join-as-rider/application-sent');
 				} else {
-					toast.error(
-						'An error occurred while submitting your application. Please try again later.'
-					);
+					if (res.status === 409) {
+						toast.error('You have already applied as a rider.');
+					} else if (res.status === 401) {
+						toast.error('You need to be logged in to apply as a rider.');
+						loginModalState.setTrue();
+					} else {
+						toast.error(
+							'An error occurred while submitting your application. Please try again later.'
+						);
+					}
 				}
 			}
 		}
@@ -168,23 +174,6 @@
 										type="email"
 										bind:value={$formData.email}
 										placeholder="you@example.com"
-									/>
-								</div>
-							{/snippet}
-						</Form.Control>
-						<Form.FieldErrors />
-					</Form.Field>
-
-					<Form.Field {form} name="phoneNumber">
-						<Form.Control>
-							{#snippet children({ props })}
-								<div class="space-y-2">
-									<Form.Label>Phone Number</Form.Label>
-									<Input
-										{...props}
-										type="tel"
-										bind:value={$formData.phoneNumber}
-										placeholder="+234..."
 									/>
 								</div>
 							{/snippet}

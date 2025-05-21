@@ -7,14 +7,18 @@ import {
   RIDER_DOCUMENTS,
   VEHICLE_TYPES,
 } from "../../constant";
+import { nanoid } from "nanoid";
 
 export const riderTable = sqliteTable("riders", {
   id: text("id")
     .primaryKey()
-    .references(() => userTable.id, { onDelete: "cascade" }),
+    .$default(() => nanoid()),
+  userId: text("user_id").references(() => userTable.id, {
+    onDelete: "cascade",
+  }),
+
   firstName: text("first_name"),
   lastName: text("last_name"),
-  phoneNumber: text("phone_number"),
   email: text("email"),
   address: text("address"),
   longitude: real("longitude"),

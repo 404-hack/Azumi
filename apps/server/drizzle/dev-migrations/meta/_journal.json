@@ -85,6 +85,13 @@
       "when": 1747417494024,
       "tag": "0011_mighty_marauders",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1747753522187,
+      "tag": "0012_smart_pride",
+      "breakpoints": true
     }
   ]
 }
