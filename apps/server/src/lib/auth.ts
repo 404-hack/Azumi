@@ -121,14 +121,32 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
       }),
       openAPI(),
       admin({
-        adminUserIds: ["5FlpMALblsrSLkserurIDlMaOHqf4fg3"], // Replace with the actual user ID
+        // Replace with the actual user ID
       }),
       phoneNumber({
-        sendOTP: ({ phoneNumber, code }, request) => {
-          console.log("🚀 ~ createAuth ~ request:", request);
-          console.log("🚀 ~ createAuth ~ code:", code);
-          console.log("🚀 ~ createAuth ~ phoneNumber:", phoneNumber);
-          // Implement sending OTP code via SMS
+        sendOTP: async ({ phoneNumber, code }, request) => {
+          console.log("🚀 ~ sendOTP:", { ...env });
+          // i am using sendchamp for sending the sms
+          const url = `${env.SENDCHAMP_LIVE_URL}/sms/send`;
+          const headers = {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${env.SENDCHAMP_API_KEY}`,
+          };
+          const body = {
+            to: phoneNumber.startsWith("0")
+              ? `234${phoneNumber.slice(1)}`
+              : phoneNumber,
+            sender_name: "Schamp",
+            message: `Your verification code is ${code}`,
+            route: "dnd",
+          };
+          const result = await fetch(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          });
+
+          console.log("SMS send result:", await result.json());
         },
         signUpOnVerification: {
           getTempEmail: (phoneNumber) => {
