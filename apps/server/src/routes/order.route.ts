@@ -23,6 +23,7 @@ import {
   isShopCurrentlyOpen,
 } from "../lib/utils/shop.utils";
 import { DAYS_OF_WEEK } from "../lib/constant";
+import { RiderDispatchService } from "../services/riderDispatch.service";
 
 const orderRoute = factory
   .createApp()
@@ -389,7 +390,7 @@ const orderRoute = factory
           latitude: data.userLatitude,
           longitude: data.userLongitude,
           addressName: data.addressName,
-          riderConfirmationCode, // Save the generated number
+          riderConfirmationCode: riderConfirmationCode, // Save the generated number
         })
         .returning()
         .get();
@@ -528,12 +529,54 @@ const orderRoute = factory
 
       const accessCode = accessCodeData.data.access_code;
 
-      return c.json({ data: { accessCode } });
+      // WORKFLOW: Initiate order workflow
+      // This is the entry point for the order workflow
+      try {
+        // Start the workflow with order information
+        const workflowExecution = await env.ORDER_WORKFLOW.create({
+          params: {
+            orderId: order.id, // From the created order
+            timestamp: new Date().toISOString(),
+            customerEmail: user.email,
+            customerId: user.id,
+            customerPhone: user.phoneNumber,
+            shopId: order.shopId,
+            // vendorEmail: cart.shop.email, // Assuming shop schema has email
+            paymentTransactionId: reference, // Use the same reference stored in DB
+            paymentMethod: order.paymentMethod,
+            // items: completeOrder.items.map((item) => ({ // Use completeOrder for items
+            //   id: item.id,
+            //   name: item.menuItemName,
+            //   quantity: item.quantity,
+            //   price: item.unitPrice,
+            // })),
+            deliveryAddress: {
+              latitude: order.latitude,
+              longitude: order.longitude,
+              formattedAddress: order.addressName,
+            },
+            subtotal: order.subtotal,
+            deliveryFee: order.deliveryFee,
+            total: order.total,
+          },
+          id: order.id, // Use the order ID as the workflow instance ID
+        });
+
+        console.log(
+          `Order workflow started for order: ${order.id} with ID: ${workflowExecution.id}`
+        );
+      } catch (workflowError) {
+        console.error("Failed to start order workflow:", workflowError);
+        // Continue with order creation even if workflow fails
+        // The workflow can be manually started later if needed
+      }
+
+      // Return the order information to the client
+      return c.json({
+        data: { orderId: order.id, paymentInfo: { accessCode } },
+      });
     } catch (error) {
       console.error("Error creating order:", error);
-      if (error instanceof z.ZodError) {
-        return c.json({ error: "Invalid input", details: error.errors }, 400);
-      }
       return c.json({ error: "Internal server error" }, 500);
     }
   })
@@ -595,9 +638,10 @@ const orderRoute = factory
     async (c) => {
       try {
         const { id } = c.req.param();
-        const { status, reason } = c.req.valid("json");
+        const { status, cancelReason } = c.req.valid("json"); // Include cancelReason
         const db = c.get("db");
-        const user = c.get("user");
+
+        const user = c.get("user"); // Removed duplicate session declaration
 
         if (!user) {
           return c.json({ error: "Unauthorized" }, 401);
@@ -606,6 +650,13 @@ const orderRoute = factory
         // Get the current order
         const existingOrder = await db.query.orderTable.findFirst({
           where: eq(orderTable.id, id),
+          columns: {
+            id: true,
+            status: true,
+            customerId: true,
+            shopId: true,
+            riderId: true,
+          },
         });
 
         if (!existingOrder) {
@@ -613,13 +664,11 @@ const orderRoute = factory
         }
 
         // Check permissions
-        const session = c.get("session");
-        // Corrected: Use shopId from existingOrder
+        const session = c.get("session"); // Keep this one
         const isVendor = session?.activeOrganizationId === existingOrder.shopId;
-        const isRider = user.id === existingOrder.riderId; // Assuming riderId is stored
-
-        // Allow customer to cancel PENDING orders
+        const isRider = user.id === existingOrder.riderId;
         const isCustomer = user.id === existingOrder.customerId;
+
         if (
           status === "CANCELLED" &&
           isCustomer &&
@@ -629,21 +678,25 @@ const orderRoute = factory
             { error: "Customers can only cancel pending orders" },
             403
           );
-        } else if (status === "CANCELLED" && !isCustomer && !isVendor) {
-          // Allow vendors to cancel at other stages (adjust logic as needed)
+        } else if (
+          status === "CANCELLED" &&
+          !isCustomer &&
+          !isVendor &&
+          !isRider
+        ) {
+          // Added !isRider
           return c.json(
             {
               error:
-                "Only the customer (for pending orders) or vendor can cancel",
+                "Only the customer (for pending orders), vendor, or rider can cancel",
             },
             403
           );
         }
 
-        // Certain status changes require specific roles (excluding cancellation handled above)
         if (status !== "CANCELLED") {
           if (
-            ["CONFIRMED", "PREPARING", "READY"].includes(status) &&
+            ["CONFIRMED", "READY"].includes(status) && // Removed "PREPARING"
             !isVendor
           ) {
             return c.json(
@@ -653,8 +706,6 @@ const orderRoute = factory
           }
 
           if (["IN_TRANSIT", "DELIVERED"].includes(status) && !isRider) {
-            // If no rider assigned yet, maybe vendor marks as ready for pickup? Adjust logic.
-            // For now, strictly enforce rider role for these statuses.
             return c.json(
               { error: "Only assigned riders can update to this status" },
               403
@@ -662,45 +713,108 @@ const orderRoute = factory
           }
         }
 
-        // Prepare update data
         const updateData: Partial<typeof orderTable.$inferInsert> = { status };
-
-        // Add timestamps based on status
         const nowISO = new Date().toISOString();
+
         switch (status) {
           case "CONFIRMED":
             updateData.acceptedAt = nowISO;
             break;
-          case "PREPARING":
-            updateData.preparedAt = nowISO;
-            break;
-          // Add READY status handling if needed
-          // case "READY":
-          //   updateData.readyAt = nowISO;
-          //   break;
+          // "PREPARING" case removed
           case "IN_TRANSIT":
             updateData.pickedUpAt = nowISO;
             break;
           case "DELIVERED":
             updateData.deliveredAt = nowISO;
-            // Potentially update payment status if cash on delivery, etc.
             break;
           case "CANCELLED":
             updateData.canceledAt = nowISO;
-            updateData.cancelReason = reason;
-            // Handle potential refunds or payment voiding here or via webhook
+            updateData.cancelReason = cancelReason; // Use validated cancelReason
             break;
         }
 
-        // Update the order
         const updatedOrder = await db
           .update(orderTable)
           .set(updateData)
           .where(eq(orderTable.id, id))
-          .returning()
+          .returning({
+            id: orderTable.id,
+            status: orderTable.status,
+            shopId: orderTable.shopId, // Add shopId for rider notification
+          })
           .get();
 
-        // TODO: Add logic to notify relevant parties (customer, vendor, rider) about the status change
+        try {
+          const workflowInstance = await env.ORDER_WORKFLOW.get(id); // Use order ID as workflow instance ID
+
+          if (workflowInstance) {
+            let eventType = "";
+            let eventPayload: {
+              orderId: string;
+              status: string;
+              timestamp: string;
+              [key: string]: any; // Allow other properties
+            } = {
+              orderId: id,
+              status,
+              timestamp: new Date().toISOString(),
+            };
+
+            switch (status) {
+              case "CONFIRMED":
+                eventType = "vendor_order_response";
+                eventPayload = {
+                  ...eventPayload,
+                  vendorId: session?.activeOrganizationId,
+                  accepted: true,
+                };
+                break;
+              // "PREPARING" case and "order_preparing" event removed
+              case "READY":
+                eventType = "order_ready";
+                break;
+              case "CANCELLED":
+                eventType = "vendor_order_response";
+                eventPayload = {
+                  ...eventPayload,
+                  accepted: false,
+                  reason: cancelReason || "No reason provided",
+                  cancelledBy: user.id,
+                };
+                break;
+            }
+
+            if (eventType) {
+              await workflowInstance.sendEvent({
+                // Changed to sendEvent
+                type: eventType,
+                payload: eventPayload,
+              });
+              console.log(
+                `Sent ${eventType} event to workflow for order: ${id}`
+              );
+            }
+
+            // Automatically trigger rider notification when order is marked as READY
+            if (status === "READY") {
+              console.log(
+                `Order ${id} marked as READY, initiating rider notification process`
+              );
+              // Use the RiderDispatchService to find and notify riders
+              const riderDispatch = new RiderDispatchService();
+
+              // Execute in background to prevent blocking the response
+              c.executionCtx.waitUntil(
+                riderDispatch.findAndNotifyRiders(id, updatedOrder.shopId)
+              );
+            }
+          }
+        } catch (workflowError) {
+          console.error(
+            "Failed to notify workflow about status update:",
+            workflowError
+          );
+        }
 
         return c.json({ data: updatedOrder });
       } catch (error) {
@@ -714,6 +828,44 @@ const orderRoute = factory
         return c.json({ error: "Internal server error" }, 500);
       }
     }
-  );
+  )
+  .post("/test", async (c) => {
+    const db = c.get("db");
+
+    const workflowInput = {
+      orderId: `test-${nanoid(6)}`,
+      timestamp: new Date().toISOString(),
+      customerEmail: "test@example.com",
+      items: [
+        { id: "item1", name: "Test Product", quantity: 2 },
+        { id: "item2", name: "Another Product", quantity: 1 },
+      ],
+    };
+
+    try {
+      const workflowExecution = await env.ORDER_WORKFLOW.create({
+        params: workflowInput,
+      });
+
+      console.log(`Workflow started with ID: ${workflowExecution.id}`);
+
+      return c.json({
+        success: true,
+        message: "Workflow initiated",
+        workflowId: workflowExecution.id,
+        input: workflowInput,
+      });
+    } catch (error) {
+      console.error("Failed to start workflow:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to start workflow",
+          error: error instanceof Error ? error.message : String(error),
+        },
+        500
+      );
+    }
+  });
 
 export default orderRoute;

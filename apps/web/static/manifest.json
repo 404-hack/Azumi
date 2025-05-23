@@ -4,7 +4,7 @@
     "description": "Your go-to food delivery service in Nigeria. Get your favorite meals delivered quickly and reliably from a wide range of restaurants.",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#ffffff",
+    "background_color": "#f58026",
     "theme_color": "#f58026",
     "orientation": "portrait-primary",
     "icons": [

@@ -3,30 +3,35 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Select from '$lib/components/ui/select';
-	import { Bell, Volume2, MapPin, Moon, Languages, Shield, LogOut } from 'lucide-svelte';
+	import { Input } from '$lib/components/ui/input';
+	import { Bike, MapPin, Moon, Languages, LogOut, UserCog, Wallet, Circle } from 'lucide-svelte';
+
+	// Import vehicle types from the constants
+	const VEHICLE_TYPES = ['BICYCLE', 'MOTORCYCLE', 'CAR'] as const;
 
 	let settings = $state({
-		notifications: {
-			newOrders: true,
-			orderUpdates: true,
-			earnings: true,
-			promotions: false
+		profile: {
+			firstName: '',
+			lastName: '',
+			email: '',
+			address: '',
+			addressName: ''
 		},
-		sound: {
-			enabled: true,
-			volume: 80
+		vehicle: {
+			type: 'BICYCLE',
+			license: ''
 		},
-		location: {
-			tracking: true,
-			shareWithCustomer: true
+		delivery: {
+			maxDeliveryDistance: 10
 		},
 		appearance: {
 			theme: 'system',
 			language: 'en'
 		},
-		privacy: {
-			shareRating: true,
-			shareStats: true
+		bankInfo: {
+			accountNumber: '',
+			bankName: '',
+			accountName: ''
 		}
 	});
 
@@ -42,128 +47,135 @@
 		{ value: 'dark', label: 'Dark' },
 		{ value: 'system', label: 'System' }
 	];
+	function saveSettings() {
+		// TODO: Implement save functionality
+	}
 </script>
 
 <div class="space-y-8">
 	<div>
-		<h2 class="text-2xl font-bold">Settings</h2>
-		<p class="text-muted-foreground">Manage your app preferences and account settings</p>
+		<h2 class="text-2xl font-bold">Rider Settings</h2>
+		<p class="text-muted-foreground">Manage your account and delivery preferences</p>
 	</div>
 
-	<!-- Notifications -->
+	<!-- Vehicle Settings -->
 	<Card class="p-6">
 		<div class="mb-6 flex items-center gap-2">
-			<Bell class="h-5 w-5" />
-			<h3 class="font-semibold">Notifications</h3>
+			<Bike class="h-5 w-5" />
+			<h3 class="font-semibold">Vehicle Information</h3>
 		</div>
 		<div class="space-y-4">
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="font-medium">New Orders</div>
-					<div class="text-sm text-muted-foreground">
-						Get notified when new orders are available
-					</div>
-				</div>
-				<Switch
-					checked={settings.notifications.newOrders}
-					onCheckedChange={(v) => (settings.notifications.newOrders = v)}
-				/>
+			<div>
+				<div class="mb-2 font-medium">Vehicle Type</div>
+				<Select.Root
+					value={settings.vehicle.type}
+					onValueChange={(v) => (settings.vehicle.type = v)}
+				>
+					<Select.Trigger class="w-full">
+						<span class="capitalize">{settings.vehicle.type.toLowerCase()}</span>
+					</Select.Trigger>
+					<Select.Content>
+						{#each VEHICLE_TYPES as type}
+							<Select.Item value={type}>{type.toLowerCase()}</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
 			</div>
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="font-medium">Order Updates</div>
-					<div class="text-sm text-muted-foreground">
-						Receive updates about your current delivery
-					</div>
-				</div>
-				<Switch
-					checked={settings.notifications.orderUpdates}
-					onCheckedChange={(v) => (settings.notifications.orderUpdates = v)}
-				/>
-			</div>
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="font-medium">Earnings</div>
-					<div class="text-sm text-muted-foreground">
-						Get notified about your earnings and payouts
-					</div>
-				</div>
-				<Switch
-					checked={settings.notifications.earnings}
-					onCheckedChange={(v) => (settings.notifications.earnings = v)}
-				/>
-			</div>
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="font-medium">Promotions</div>
-					<div class="text-sm text-muted-foreground">
-						Receive updates about bonuses and promotions
-					</div>
-				</div>
-				<Switch
-					checked={settings.notifications.promotions}
-					onCheckedChange={(v) => (settings.notifications.promotions = v)}
+			<div>
+				<div class="mb-2 font-medium">Vehicle License</div>
+				<Input
+					type="text"
+					bind:value={settings.vehicle.license}
+					placeholder="Enter vehicle license number"
 				/>
 			</div>
 		</div>
 	</Card>
 
-	<!-- Sound -->
-	<Card class="p-6">
-		<div class="mb-6 flex items-center gap-2">
-			<Volume2 class="h-5 w-5" />
-			<h3 class="font-semibold">Sound</h3>
-		</div>
-		<div class="space-y-4">
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="font-medium">Sound Effects</div>
-					<div class="text-sm text-muted-foreground">Play sounds for notifications and actions</div>
-				</div>
-				<Switch
-					checked={settings.sound.enabled}
-					onCheckedChange={(v) => (settings.sound.enabled = v)}
-				/>
-			</div>
-			{#if settings.sound.enabled}
-				<div>
-					<div class="mb-2 font-medium">Volume</div>
-					<input type="range" min="0" max="100" bind:value={settings.sound.volume} class="w-full" />
-				</div>
-			{/if}
-		</div>
-	</Card>
-
-	<!-- Location -->
+	<!-- Delivery Preferences -->
 	<Card class="p-6">
 		<div class="mb-6 flex items-center gap-2">
 			<MapPin class="h-5 w-5" />
-			<h3 class="font-semibold">Location</h3>
+			<h3 class="font-semibold">Delivery Preferences</h3>
 		</div>
 		<div class="space-y-4">
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="font-medium">Location Tracking</div>
-					<div class="text-sm text-muted-foreground">
-						Allow app to track your location while delivering
-					</div>
+			<div>
+				<div class="mb-2 font-medium">Maximum Delivery Distance</div>
+				<div class="flex items-center gap-2">
+					<Input
+						type="number"
+						bind:value={settings.delivery.maxDeliveryDistance}
+						min="1"
+						max="50"
+					/>
+					<span class="text-sm text-muted-foreground">km</span>
 				</div>
-				<Switch
-					checked={settings.location.tracking}
-					onCheckedChange={(v) => (settings.location.tracking = v)}
+			</div>
+			<div>
+				<div class="mb-2 font-medium">Default Address</div>
+				<Input
+					type="text"
+					bind:value={settings.profile.address}
+					placeholder="Enter your default address"
 				/>
 			</div>
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="font-medium">Share with Customer</div>
-					<div class="text-sm text-muted-foreground">
-						Let customers track your location during delivery
-					</div>
-				</div>
-				<Switch
-					checked={settings.location.shareWithCustomer}
-					onCheckedChange={(v) => (settings.location.shareWithCustomer = v)}
+		</div>
+	</Card>
+
+	<!-- Bank Information -->
+	<Card class="p-6">
+		<div class="mb-6 flex items-center gap-2">
+			<Wallet class="h-5 w-5" />
+			<h3 class="font-semibold">Payment Information</h3>
+		</div>
+		<div class="space-y-4">
+			<div>
+				<div class="mb-2 font-medium">Bank Name</div>
+				<Input type="text" bind:value={settings.bankInfo.bankName} placeholder="Enter bank name" />
+			</div>
+			<div>
+				<div class="mb-2 font-medium">Account Number</div>
+				<Input
+					type="text"
+					bind:value={settings.bankInfo.accountNumber}
+					placeholder="Enter account number"
 				/>
+			</div>
+			<div>
+				<div class="mb-2 font-medium">Account Name</div>
+				<Input
+					type="text"
+					bind:value={settings.bankInfo.accountName}
+					placeholder="Enter account name"
+				/>
+			</div>
+		</div>
+	</Card>
+
+	<!-- Personal Information -->
+	<Card class="p-6">
+		<div class="mb-6 flex items-center gap-2">
+			<UserCog class="h-5 w-5" />
+			<h3 class="font-semibold">Personal Information</h3>
+		</div>
+		<div class="space-y-4">
+			<div class="grid grid-cols-2 gap-4">
+				<div>
+					<div class="mb-2 font-medium">First Name</div>
+					<Input
+						type="text"
+						bind:value={settings.profile.firstName}
+						placeholder="Enter first name"
+					/>
+				</div>
+				<div>
+					<div class="mb-2 font-medium">Last Name</div>
+					<Input type="text" bind:value={settings.profile.lastName} placeholder="Enter last name" />
+				</div>
+			</div>
+			<div>
+				<div class="mb-2 font-medium">Email</div>
+				<Input type="email" bind:value={settings.profile.email} placeholder="Enter email" />
 			</div>
 		</div>
 	</Card>
@@ -210,35 +222,11 @@
 		</div>
 	</Card>
 
-	<!-- Privacy -->
-	<Card class="p-6">
-		<div class="mb-6 flex items-center gap-2">
-			<Shield class="h-5 w-5" />
-			<h3 class="font-semibold">Privacy</h3>
-		</div>
-		<div class="space-y-4">
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="font-medium">Share Rating</div>
-					<div class="text-sm text-muted-foreground">Show your rating to customers</div>
-				</div>
-				<Switch
-					checked={settings.privacy.shareRating}
-					onCheckedChange={(v) => (settings.privacy.shareRating = v)}
-				/>
-			</div>
-			<div class="flex items-center justify-between">
-				<div>
-					<div class="font-medium">Share Statistics</div>
-					<div class="text-sm text-muted-foreground">Share your delivery statistics publicly</div>
-				</div>
-				<Switch
-					checked={settings.privacy.shareStats}
-					onCheckedChange={(v) => (settings.privacy.shareStats = v)}
-				/>
-			</div>
-		</div>
-	</Card>
+	<!-- Save Changes -->
+	<div class="flex justify-end gap-4">
+		<Button variant="outline">Cancel</Button>
+		<Button on:click={saveSettings}>Save Changes</Button>
+	</div>
 
 	<!-- Account Actions -->
 	<Card class="p-6">

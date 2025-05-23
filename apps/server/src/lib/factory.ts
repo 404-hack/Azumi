@@ -16,6 +16,7 @@ export const factory = createFactory<{
       c.set("db", db);
 
       const auth = await createAuth(db);
+
       const session = await auth.api.getSession({
         headers: c.req.raw.headers,
       });

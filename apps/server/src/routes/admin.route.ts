@@ -2,10 +2,15 @@ import { factory } from "../lib/factory";
 import { shopTable, member } from "../lib/db/schema";
 import { eq, like, and, or } from "drizzle-orm";
 import adminAuthMiddleware from "../middlewares/adminAuth";
-import { SHOP_STATUS } from "../lib/constant";
+import {
+  SHOP_STATUS,
+  RIDER_APPLICATION_STATUS,
+  RIDER_AVAILABILITY_STATUS,
+} from "../lib/constant";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { userTable } from "../lib/db/schema/auth.schema";
+import { riderTable } from "../lib/db/schema/rider.schema";
 
 const adminRoute = factory
   .createApp()
@@ -202,6 +207,201 @@ const adminRoute = factory
     } catch (error) {
       console.error("Error deleting vendor:", error);
       return c.json({ error: "Failed to delete vendor" }, 500);
+    }
+  })
+
+  // RIDER ROUTES
+
+  // Get all riders with filtering
+  .get(
+    "/riders",
+    zValidator(
+      "query",
+      z.object({
+        search: z.string().optional(),
+        applicationStatus: z.enum(RIDER_APPLICATION_STATUS).optional(),
+        isVerified: z.string().optional(),
+        availabilityStatus: z.enum(RIDER_AVAILABILITY_STATUS).optional(),
+        active: z.string().optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        const db = c.get("db");
+        const {
+          search,
+          applicationStatus,
+          isVerified,
+          availabilityStatus,
+          active,
+        } = c.req.valid("query");
+
+        const whereConditions = [];
+
+        if (search) {
+          whereConditions.push(
+            or(
+              like(riderTable.firstName, `%${search}%`),
+              like(riderTable.lastName, `%${search}%`),
+              like(riderTable.email, `%${search}%`)
+            )
+          );
+        }
+
+        if (applicationStatus) {
+          whereConditions.push(
+            eq(riderTable.applicationStatus, applicationStatus)
+          );
+        }
+
+        if (isVerified !== undefined) {
+          whereConditions.push(
+            eq(riderTable.isVerified, isVerified === "true")
+          );
+        }
+
+        if (availabilityStatus) {
+          whereConditions.push(
+            eq(riderTable.availabilityStatus, availabilityStatus)
+          );
+        }
+
+        if (active !== undefined) {
+          whereConditions.push(eq(riderTable.active, active === "true"));
+        }
+
+        // Get riders with their user accounts
+        const riders = await db.query.riderTable.findMany({
+          where:
+            whereConditions.length > 0 ? and(...whereConditions) : undefined,
+          with: {
+            user: {
+              columns: {
+                id: true,
+                name: true,
+                email: true,
+                phoneNumber: true,
+                image: true,
+              },
+            },
+          },
+        });
+
+        return c.json({
+          success: true,
+          data: riders,
+        });
+      } catch (error) {
+        console.error("Error fetching riders:", error);
+        return c.json(
+          {
+            success: false,
+            message: "Failed to fetch riders",
+          },
+          500
+        );
+      }
+    }
+  )
+
+  // Get a specific rider's details
+  .get("/riders/:id", async (c) => {
+    try {
+      const db = c.get("db");
+      const { id } = c.req.param();
+
+      const rider = await db.query.riderTable.findFirst({
+        where: eq(riderTable.id, id),
+        with: {
+          user: true,
+        },
+      });
+
+      if (!rider) {
+        return c.json({ error: "Rider not found" }, 404);
+      }
+
+      return c.json({
+        success: true,
+        data: rider,
+      });
+    } catch (error) {
+      console.error("Error fetching rider details:", error);
+      return c.json({ error: "Failed to fetch rider details" }, 500);
+    }
+  })
+
+  // Update rider status (verification, application status, availability)
+  .patch(
+    "/riders/:id/status",
+    zValidator(
+      "json",
+      z.object({
+        applicationStatus: z.enum(RIDER_APPLICATION_STATUS).optional(),
+        isVerified: z.boolean().optional(),
+        active: z.boolean().optional(),
+        availabilityStatus: z.enum(RIDER_AVAILABILITY_STATUS).optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        const db = c.get("db");
+        const { id } = c.req.param();
+        const updates = c.req.valid("json");
+
+        // Check if rider exists
+        const rider = await db.query.riderTable.findFirst({
+          where: eq(riderTable.id, id),
+        });
+
+        if (!rider) {
+          return c.json({ error: "Rider not found" }, 404);
+        }
+
+        // Update rider status
+        const updatedRider = await db
+          .update(riderTable)
+          .set(updates)
+          .where(eq(riderTable.id, id))
+          .returning()
+          .get();
+
+        return c.json({
+          success: true,
+          data: updatedRider,
+        });
+      } catch (error) {
+        console.error("Error updating rider status:", error);
+        return c.json({ error: "Failed to update rider status" }, 500);
+      }
+    }
+  )
+
+  // Delete rider
+  .delete("/riders/:id", async (c) => {
+    try {
+      const db = c.get("db");
+      const { id } = c.req.param();
+
+      // Check if rider exists
+      const rider = await db.query.riderTable.findFirst({
+        where: eq(riderTable.id, id),
+      });
+
+      if (!rider) {
+        return c.json({ error: "Rider not found" }, 404);
+      }
+
+      // Delete rider
+      await db.delete(riderTable).where(eq(riderTable.id, id));
+
+      return c.json({
+        success: true,
+        message: "Rider deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting rider:", error);
+      return c.json({ error: "Failed to delete rider" }, 500);
     }
   });
 

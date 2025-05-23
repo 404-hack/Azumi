@@ -49,20 +49,19 @@
 					cartId: data.cart.id,
 					userLatitude: activeLocation.current.lat,
 					userLongitude: activeLocation.current.lng,
-					addressName: activeLocation.current.address,
-					contactPhone: '0909888998'
+					addressName: activeLocation.current.address
 				}
 			});
 
 			const responseData = await res.json();
 			console.log('🚀 ~ checkOut ~ responseData:', responseData);
-
-			if (!res.ok || !responseData.data?.accessCode) {
+			const accessCode = responseData?.data?.paymentInfo?.accessCode;
+			if (!res.ok || !accessCode) {
 				throw new Error(responseData.error || 'Failed to initialize payment.');
 			}
 
 			const popup = new PaystackPop();
-			popup.resumeTransaction(responseData.data.accessCode, {
+			popup.resumeTransaction(accessCode, {
 				async onSuccess(transaction) {
 					console.log('Transaction successful:', transaction);
 					const { reference, status, message, trxref } = transaction;
@@ -133,6 +132,13 @@
 	}}
 /> -->
 <ProductModal />
+<button
+	onclick={async () => {
+		// Call the test workflow function here
+		await client.order.test.$post();
+	}}
+	>this button is to test the test workflow
+</button>
 <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 	<div class="mb-8">
 		<div class="relative h-64 overflow-hidden rounded-lg">

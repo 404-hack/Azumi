@@ -54,5 +54,6 @@ export const routes = app
   });
 
 export { OrderNotification } from "./durable-objects/order-notification.do";
+export { OrderWorkflow } from "./workflows/order.workflow";
 
 export default app;

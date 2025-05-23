@@ -32,6 +32,10 @@
 				toast.error('Please select a location from the suggestions.');
 				return;
 			}
+			if (!$session?.data?.user) {
+				loginModalState.open('Sign in to create your rider account');
+				return;
+			}
 
 			if (form.valid) {
 				const res = await client.rider.apply.$post({

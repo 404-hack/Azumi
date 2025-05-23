@@ -13,13 +13,16 @@ export const SHOP_TYPES = ["restaurant", "cafe", "bar"] as const;
 export const ORDER_STATUS = [
   "PENDING",
   "PAYMENT_CONFIRMED",
-  "PREPARING",
+  "CONFIRMED",
   "READY",
+  "RIDER_ASSIGNED",
   "IN_TRANSIT",
   "DELIVERED",
   "COMPLETED",
   "CANCELLED",
 ] as const;
+
+export type OrderStatus = (typeof ORDER_STATUS)[number];
 
 export const PAYMENT_STATUS = [
   "PENDING",

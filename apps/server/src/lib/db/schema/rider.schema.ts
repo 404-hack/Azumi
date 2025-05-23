@@ -8,6 +8,7 @@ import {
   VEHICLE_TYPES,
 } from "../../constant";
 import { nanoid } from "nanoid";
+import { relations } from "drizzle-orm";
 
 export const riderTable = sqliteTable("riders", {
   id: text("id")
@@ -40,6 +41,13 @@ export const riderTable = sqliteTable("riders", {
   totalRatings: integer("total_ratings").default(0),
   isVerified: integer("is_verified", { mode: "boolean" }).default(false),
   bankInfo: text("bank_info", { mode: "json" }),
-  maxDeliveryDistance: integer("max_delivery_distance").default(10000), // in meters
+  maxDeliveryDistance: integer("max_delivery_distance").default(10), // in km
   ...timestamps,
 });
+
+export const riderRelations = relations(riderTable, ({ one }) => ({
+  user: one(userTable, {
+    fields: [riderTable.userId],
+    references: [userTable.id],
+  }),
+}));
