@@ -64,13 +64,13 @@
 			</div>
 			<div class="flex">
 				<button
-					on:click={dismissPrompt}
+					onclick={dismissPrompt}
 					class="mr-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
 				>
 					Not now
 				</button>
 				<button
-					on:click={handleInstall}
+					onclick={handleInstall}
 					class="rounded-md bg-orange-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-600"
 				>
 					Install

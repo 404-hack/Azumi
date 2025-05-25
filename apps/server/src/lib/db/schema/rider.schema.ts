@@ -6,6 +6,7 @@ import {
   RIDER_AVAILABILITY_STATUS,
   RIDER_DOCUMENTS,
   VEHICLE_TYPES,
+  PAYMENT_METHODS,
 } from "../../constant";
 import { nanoid } from "nanoid";
 import { relations } from "drizzle-orm";
@@ -40,14 +41,41 @@ export const riderTable = sqliteTable("riders", {
   rating: real("rating").default(0),
   totalRatings: integer("total_ratings").default(0),
   isVerified: integer("is_verified", { mode: "boolean" }).default(false),
-  bankInfo: text("bank_info", { mode: "json" }),
   maxDeliveryDistance: integer("max_delivery_distance").default(10), // in km
   ...timestamps,
 });
 
-export const riderRelations = relations(riderTable, ({ one }) => ({
+export const riderPaymentMethodTable = sqliteTable("rider_payment_methods", {
+  id: text("id")
+    .primaryKey()
+    .$default(() => nanoid()),
+  riderId: text("rider_id")
+    .notNull()
+    .references(() => riderTable.id, { onDelete: "cascade" }),
+  type: text("type", { enum: PAYMENT_METHODS }).default("BANK_TRANSFER"),
+  accountNumber: text("account_number").notNull(),
+  accountName: text("account_name").notNull(),
+  bankName: text("bank_name").notNull(),
+  bankCode: text("bank_code").notNull(),
+  paystackRecipientCode: text("paystack_recipient_code"),
+  isDefault: integer("is_default", { mode: "boolean" }).default(false),
+  ...timestamps,
+});
+
+export const riderRelations = relations(riderTable, ({ one, many }) => ({
   user: one(userTable, {
     fields: [riderTable.userId],
     references: [userTable.id],
   }),
+  paymentMethods: many(riderPaymentMethodTable),
 }));
+
+export const riderPaymentMethodRelations = relations(
+  riderPaymentMethodTable,
+  ({ one }) => ({
+    rider: one(riderTable, {
+      fields: [riderPaymentMethodTable.riderId],
+      references: [riderTable.id],
+    }),
+  })
+);

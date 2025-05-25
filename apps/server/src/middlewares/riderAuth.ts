@@ -30,11 +30,12 @@ const riderAuthMiddleware = factory.createMiddleware(async (c, next) => {
   // For all other endpoints, verify the user is a registered rider
   const db = c.get("db");
   const riderProfile = await db.query.riderTable.findFirst({
-    where: eq(riderTable.id, user.id),
+    where: eq(riderTable.userId, user.id),
   });
 
   if (!riderProfile) {
     return c.json({ message: "Not registered as a rider" }, 403);
+    console.log("error 1");
   }
 
   // Store rider profile in context for easy access

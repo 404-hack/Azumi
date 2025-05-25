@@ -12,7 +12,8 @@
 	import type { PageData } from './$types';
 	import { client } from '$lib/hc';
 	import { invalidateAll } from '$app/navigation';
-	import { toast } from 'svelte-sonner';	import { goto } from '$app/navigation';
+	import { toast } from 'svelte-sonner';	
+	import { goto } from '$app/navigation';
 	
 	/** @type {import('./$types').PageData} */
 	const { data } = $props();
@@ -316,7 +317,7 @@
 												</Button>
 											</DropdownMenu.Trigger>
 											<DropdownMenu.Content align="end">
-												<DropdownMenu.Item href="/superadmin/riders/{rider.id}">
+												<DropdownMenu.Item onclick={() => goto(`/superadmin/riders/${rider.id}`)}>
 													View Profile
 												</DropdownMenu.Item>
 												{#if rider.vehicleLicense || rider.identificationDocument}

@@ -1,19 +1,26 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { Context, CloudflareBindings } from "../lib/types"; // Added CloudflareBindings
-import { riderTable } from "../lib/db/schema/rider.schema";
-import { orderTable } from "../lib/db/schema/order.schema"; // Added orderTable
+import { Context } from "../lib/types";
+import {
+  riderTable,
+  riderPaymentMethodTable,
+} from "../lib/db/schema/rider.schema";
+import { orderTable } from "../lib/db/schema/order.schema";
 import { factory } from "../lib/factory";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { z } from "zod";
-import { env } from "cloudflare:workers"; // Added env
+import { env } from "cloudflare:workers";
 
 import riderAuthMiddleware from "../middlewares/riderAuth";
+import { RiderTodoService } from "../services/riderTodo.service";
 import {
-  riderApplicationSchema, // Keep for backward compatibility
-  createRiderSchema,
+  riderApplicationSchema,
   updateRiderStatusSchema,
   updateLocationSchema,
+  updateRiderProfileSchema,
+  riderVerifyAccountSchema,
+  createRiderPaymentMethodSchema,
+  updateRiderPaymentMethodSchema,
 } from "../lib/validation/rider.validation";
 
 const riderRoute = factory
@@ -80,6 +87,30 @@ const riderRoute = factory
       return c.json({ error: "Internal server error" }, 500);
     }
   })
+
+  .get("/profile", async (c) => {
+    try {
+      const db = c.get("db");
+      const userId = c.get("userId");
+
+      const rider = await db.query.riderTable.findFirst({
+        where: eq(riderTable.id, userId),
+        with: {
+          paymentMethods: true,
+        },
+      });
+
+      if (!rider) {
+        return c.json({ error: "Rider not found" }, 404);
+      }
+
+      return c.json({ data: rider });
+    } catch (error) {
+      console.error("Error fetching rider profile:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
   .patch("/status", zValidator("json", updateRiderStatusSchema), async (c) => {
     try {
       const db = c.get("db");
@@ -123,6 +154,33 @@ const riderRoute = factory
     }
   })
 
+  .patch(
+    "/profile",
+    zValidator("json", updateRiderProfileSchema),
+    async (c) => {
+      try {
+        const db = c.get("db");
+        const userId = c.get("userId");
+        const data = c.req.valid("json");
+
+        const updatedRider = await db
+          .update(riderTable)
+          .set(data) // data directly matches the schema now
+          .where(eq(riderTable.id, userId))
+          .returning()
+          .get();
+
+        return c.json({
+          message: "Profile updated successfully",
+          data: updatedRider,
+        });
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        return c.json({ error: "Internal server error" }, 500);
+      }
+    }
+  )
+
   // WORKFLOW: Rider order management endpoints
 
   // Get active orders assigned to rider
@@ -146,7 +204,7 @@ const riderRoute = factory
               address: true,
               latitude: true,
               longitude: true,
-              contactPhone: true,
+              phoneNumber: true,
             },
           },
         },
@@ -169,7 +227,7 @@ const riderRoute = factory
         // const { accept } = c.req.valid("json"); // No longer needed
         const db = c.get("db");
         const userId = c.get("userId"); // This is the ID of the accepting rider
-        const honoEnv = c.env as CloudflareBindings; // Renamed to honoEnv to avoid conflict with imported env
+        const honoEnv = env;
 
         // Atomically update the order to assign the rider and change status
         // This ensures only the first rider to accept gets the order.
@@ -256,14 +314,13 @@ const riderRoute = factory
       }
     }
   )
-
   // Mark order as picked up
   .post("/orders/:id/pickup", async (c: Context) => {
     try {
       const { id } = c.req.param();
       const db = c.get("db");
       const userId = c.get("userId");
-      const honoEnv = c.env as CloudflareBindings; // Renamed to honoEnv
+      const honoEnv = env;
 
       // Verify this order is assigned to this rider
       const order = await db.query.orderTable.findFirst({
@@ -346,7 +403,7 @@ const riderRoute = factory
         const { confirmationCode } = c.req.valid("json");
         const db = c.get("db");
         const userId = c.get("userId");
-        const honoEnv = c.env as CloudflareBindings; // Renamed to honoEnv
+        const honoEnv = c.env;
 
         // Verify order, rider, status, and confirmation code
         const order = await db.query.orderTable.findFirst({
@@ -434,6 +491,443 @@ const riderRoute = factory
         return c.json({ error: "Internal server error" }, 500);
       }
     }
-  );
+  )
+
+  // Get computed todos for the rider
+  .get("/todos", async (c) => {
+    try {
+      const db = c.get("db");
+      const userId = c.get("userId");
+
+      const todoService = new RiderTodoService();
+      const todoStatus = await todoService.getComputedTodos(userId, db);
+
+      if (!todoStatus) {
+        return c.json({ error: "Rider not found" }, 404);
+      }
+
+      return c.json({ data: todoStatus });
+    } catch (error) {
+      console.error("Error fetching todos:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
+  // ===== PAYMENT & BANKING ROUTES =====
+
+  // Get banks list from Paystack
+  .get("/banks", async (c) => {
+    try {
+      if (!env.PAYSTACK_SECRET_KEY) {
+        return c.json(
+          {
+            success: false,
+            message: "Payment service not configured",
+          },
+          500
+        );
+      }
+
+      const response = await fetch(
+        "https://api.paystack.co/bank?country=nigeria",
+        {
+          headers: {
+            Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return c.json(
+          {
+            success: false,
+            message: "Failed to fetch bank list",
+            details: errorData.message,
+          },
+          response.status
+        );
+      }
+
+      const data = await response.json();
+
+      // Format banks data to match vendor route structure
+      if (data.status) {
+        const banks = data.data
+          .filter((bank: any) => bank.active)
+          .map((bank: any) => ({
+            id: bank.id,
+            name: bank.name,
+            code: bank.code,
+          }));
+
+        return c.json({ success: true, data: banks });
+      } else {
+        return c.json(
+          {
+            success: false,
+            message: "Failed to process bank list",
+          },
+          400
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching banks:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Internal server error",
+        },
+        500
+      );
+    }
+  })
+
+  // Verify bank account
+  .post(
+    "/verify-account",
+    zValidator("json", riderVerifyAccountSchema),
+    async (c) => {
+      try {
+        const { accountNumber, bankCode } = c.req.valid("json");
+
+        if (!env.PAYSTACK_SECRET_KEY) {
+          return c.json(
+            {
+              success: false,
+              message: "Payment service not configured",
+            },
+            500
+          );
+        }
+
+        // Call Paystack to verify the account
+        const response = await fetch(
+          `https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (data.status) {
+          return c.json({
+            success: true,
+            data: {
+              accountName: data.data.account_name,
+            },
+          });
+        } else {
+          return c.json(
+            {
+              success: false,
+              message: data.message || "Could not verify account",
+            },
+            400
+          );
+        }
+      } catch (error) {
+        console.error("Error verifying account:", error);
+        return c.json(
+          {
+            success: false,
+            message: "Internal server error",
+          },
+          500
+        );
+      }
+    }
+  )
+
+  // Create new payment method
+  .post(
+    "/payment-method",
+    zValidator("json", createRiderPaymentMethodSchema),
+    async (c) => {
+      try {
+        const db = c.get("db");
+        const userId = c.get("userId");
+        const data = c.req.valid("json");
+
+        // Check if we have the Paystack key before proceeding with recipient creation
+        if (!env.PAYSTACK_SECRET_KEY) {
+          return c.json({ error: "Payment service not configured" }, 500);
+        }
+
+        // Create Paystack recipient for the bank account
+        let paystackRecipientCode;
+        if (
+          data.type === "BANK_TRANSFER" &&
+          data.accountNumber &&
+          data.bankCode
+        ) {
+          const response = await fetch(
+            "https://api.paystack.co/transferrecipient",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                type: "nuban",
+                name: data.accountName,
+                account_number: data.accountNumber,
+                bank_code: data.bankCode,
+                currency: "NGN",
+              }),
+            }
+          );
+
+          const paystackData = await response.json();
+          if (!paystackData.status || !paystackData.data?.recipient_code) {
+            return c.json(
+              {
+                error: "Failed to create payment recipient",
+                details: paystackData.message,
+              },
+              400
+            );
+          }
+
+          paystackRecipientCode = paystackData.data.recipient_code;
+        }
+
+        // Insert the payment method into the database
+        const newPaymentMethod = await db
+          .insert(riderPaymentMethodTable)
+          .values({
+            riderId: userId,
+            type: data.type,
+            accountNumber: data.accountNumber,
+            accountName: data.accountName,
+            bankName: data.bankName,
+            bankCode: data.bankCode,
+            paystackRecipientCode,
+          })
+          .returning()
+          .get();
+
+        return c.json(
+          {
+            message: "Payment method added successfully",
+            data: newPaymentMethod,
+          },
+          201
+        );
+      } catch (error) {
+        console.error("Error adding payment method:", error);
+        return c.json({ error: "Internal server error" }, 500);
+      }
+    }
+  )
+
+  .get("/payment-methods", async (c) => {
+    try {
+      const db = c.get("db");
+      const userId = c.get("userId");
+
+      const paymentMethods = await db.query.riderPaymentMethodTable.findMany({
+        where: eq(riderPaymentMethodTable.riderId, userId),
+        orderBy: [desc(riderPaymentMethodTable.createdAt)],
+      });
+
+      return c.json({
+        success: true,
+        data: paymentMethods,
+      });
+    } catch (error) {
+      console.error("Error fetching payment methods:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
+  .put(
+    "/payment-method/:id",
+    zValidator("json", updateRiderPaymentMethodSchema),
+    async (c) => {
+      try {
+        const db = c.get("db");
+        const userId = c.get("userId");
+        const { id } = c.req.param();
+        const data = c.req.valid("json");
+
+        // Check if payment method exists and belongs to this rider
+        const existingMethod = await db.query.riderPaymentMethodTable.findFirst(
+          {
+            where: and(
+              eq(riderPaymentMethodTable.id, id),
+              eq(riderPaymentMethodTable.riderId, userId)
+            ),
+          }
+        );
+
+        if (!existingMethod) {
+          return c.json(
+            {
+              success: false,
+              error:
+                "Payment method not found or you don't have permission to update it",
+            },
+            404
+          );
+        }
+
+        // Update the payment method
+        const updatedMethod = await db
+          .update(riderPaymentMethodTable)
+          .set(data)
+          .where(
+            and(
+              eq(riderPaymentMethodTable.id, id),
+              eq(riderPaymentMethodTable.riderId, userId)
+            )
+          )
+          .returning()
+          .get();
+
+        return c.json({
+          success: true,
+          message: "Payment method updated successfully",
+          data: updatedMethod,
+        });
+      } catch (error) {
+        console.error("Error updating payment method:", error);
+        return c.json({ error: "Internal server error" }, 500);
+      }
+    }
+  )
+
+  .delete("/payment-method/:id", async (c) => {
+    try {
+      const db = c.get("db");
+      const userId = c.get("userId");
+      const { id } = c.req.param();
+
+      // Check if payment method exists and belongs to this rider before deletion
+      const existingMethod = await db.query.riderPaymentMethodTable.findFirst({
+        where: and(
+          eq(riderPaymentMethodTable.id, id),
+          eq(riderPaymentMethodTable.riderId, userId)
+        ),
+      });
+
+      if (!existingMethod) {
+        return c.json(
+          {
+            success: false,
+            error:
+              "Payment method not found or you don't have permission to delete it",
+          },
+          404
+        );
+      }
+
+      // Delete the payment method
+      await db
+        .delete(riderPaymentMethodTable)
+        .where(
+          and(
+            eq(riderPaymentMethodTable.id, id),
+            eq(riderPaymentMethodTable.riderId, userId)
+          )
+        );
+
+      return c.json({
+        success: true,
+        message: "Payment method removed successfully",
+      });
+    } catch (error) {
+      console.error("Error removing payment method:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+  // Request verification (move from DRAFT to PENDING)
+  .post("/request-verification", async (c) => {
+    try {
+      const db = c.get("db");
+      const userId = c.get("userId");
+
+      const todoService = new RiderTodoService();
+      const todoStatus = await todoService.getComputedTodos(userId, db);
+
+      if (!todoStatus) {
+        return c.json(
+          {
+            success: false,
+            message: "Rider not found",
+          },
+          404
+        );
+      }
+
+      const { todo } = todoStatus;
+      const allTasksComplete =
+        todo.personalInformationComplete &&
+        todo.vehicleInformationComplete &&
+        todo.paymentInformationComplete;
+
+      if (!allTasksComplete) {
+        return c.json(
+          {
+            success: false,
+            message:
+              "Please complete all required information before requesting verification.",
+            data: todo,
+          },
+          400
+        );
+      }
+
+      const currentRider = await db.query.riderTable.findFirst({
+        where: eq(riderTable.id, userId),
+        columns: { applicationStatus: true },
+      });
+
+      if (!currentRider) {
+        return c.json(
+          {
+            success: false,
+            message: "Rider not found",
+          },
+          404
+        );
+      }
+
+      if (currentRider.applicationStatus === "APPROVED") {
+        return c.json({
+          success: true,
+          message: "You are already approved as a rider.",
+        });
+      }
+
+      if (currentRider.applicationStatus === "PENDING") {
+        return c.json({
+          success: true,
+          message: "Your verification request is already pending review.",
+        });
+      }
+
+      await db
+        .update(riderTable)
+        .set({ applicationStatus: "PENDING" })
+        .where(eq(riderTable.id, userId));
+
+      return c.json({
+        success: true,
+        message:
+          "Verification request submitted successfully. Your application is now pending review.",
+      });
+    } catch (error) {
+      console.error("Error requesting verification:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  });
 
 export default riderRoute;
