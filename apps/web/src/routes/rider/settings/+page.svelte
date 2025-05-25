@@ -14,7 +14,8 @@
 		UserCog,
 		Wallet,
 		ListTodo,
-		Loader2
+		Loader2,
+		Power
 	} from 'lucide-svelte';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod } from 'sveltekit-superforms/adapters';
@@ -24,8 +25,10 @@
 	import { invalidateAll } from '$app/navigation';
 	import RiderTodoList from '$lib/components/rider/RiderTodoList.svelte';
 	import { goto } from '$app/navigation';
+	import { riderState } from '$lib/states/riderState.svelte';
 
 	let { data } = $props();
+	let isUpdatingActiveStatus = $state(false);
 
 	const VEHICLE_TYPES = ['BICYCLE', 'MOTORCYCLE', 'CAR'] as const;
 
@@ -107,10 +110,51 @@
 
 			const result = await response.json();
 			toast.success(result.message || 'Verification request sent successfully!');
+
+			// Update URL to indicate pending status
+			const url = new URL(window.location.href);
+			url.searchParams.set('status', 'pending');
+			history.replaceState({}, '', url.toString());
+
+			// Update the data
 			await invalidateAll();
 		} catch (error: any) {
 			console.error('Error requesting verification:', error);
 			toast.error(error.message || 'Failed to request verification');
+		}
+	}
+	async function toggleActiveStatus() {
+		try {
+			isUpdatingActiveStatus = true;
+
+			const newActiveStatus = !data.profile.active;
+			console.log('🚀 ~ toggleActiveStatus ~ newActiveStatus:', newActiveStatus);
+
+			// Call our API endpoint
+			const response = await client.rider.profile.$patch({
+				json: {
+					active: newActiveStatus
+				}
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to update status');
+			}
+
+			// Update local data immediately for a responsive UI
+			data.profile.active = newActiveStatus;
+
+			// Show success message
+			toast.success(`You are now ${newActiveStatus ? 'online' : 'offline'}`);
+
+			// Refresh data to get the latest from the server
+			await invalidateAll();
+		} catch (error: any) {
+			console.error('Error toggling active status:', error);
+			toast.error(error.message || 'Failed to update status');
+		} finally {
+			isUpdatingActiveStatus = false;
 		}
 	}
 </script>
@@ -121,6 +165,64 @@
 		<p class="text-muted-foreground">Manage your account and delivery preferences</p>
 	</div>
 
+	<!-- Online/Offline Toggle -->
+	<Card class="p-6">
+		<div class="mb-6 flex items-center gap-2">
+			<Power class="h-5 w-5" />
+			<h3 class="font-semibold">Availability Status</h3>
+		</div>
+		<div class="flex flex-col gap-6">
+			<div class="flex items-center justify-between">
+				<div>
+					<p class="font-medium">Go Online</p>
+					<p class="text-sm text-muted-foreground">
+						Toggle to make yourself available for receiving delivery requests
+					</p>
+				</div>
+				<div class="flex items-center gap-2">
+					<Switch
+						id="online-mode"
+						checked={data.profile?.active || false}
+						onCheckedChange={toggleActiveStatus}
+						disabled={isUpdatingActiveStatus}
+					/>
+					<span
+						class={`text-sm font-medium ${
+							data.profile?.active ? 'text-green-500' : 'text-muted-foreground'
+						}`}
+					>
+						{data.profile?.active ? 'Online' : 'Offline'}
+					</span>
+				</div>
+			</div>
+
+			<div class="rounded-md bg-muted p-4">
+				<div class="flex gap-2">
+					<div
+						class={`mt-1.5 h-2 w-2 rounded-full ${data.profile?.active ? 'bg-green-500' : 'bg-orange-500'}`}
+					></div>
+					<div>
+						<p class="text-sm font-medium">
+							{#if data.profile?.active}
+								You are currently online and can receive delivery requests
+							{:else}
+								You are currently offline and will not receive any delivery requests
+							{/if}
+						</p>
+						<p class="mt-1 text-xs text-muted-foreground">
+							{#if data.profile?.active}
+								Your status will be automatically set to 'Available' when online without an active
+								delivery
+							{:else}
+								You can go online anytime to start receiving delivery requests
+							{/if}
+						</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</Card>
+
 	<!-- Todo Section -->
 	{#if data.todos}
 		<Card class="p-6">
@@ -128,7 +230,11 @@
 				<ListTodo class="h-5 w-5" />
 				<h3 class="font-semibold">Complete Your Profile</h3>
 			</div>
-			<RiderTodoList todos={data.todos} onVerificationRequest={requestVerification} />
+			<RiderTodoList
+				todos={data.todos}
+				onVerificationRequest={requestVerification}
+				applicationStatus={data.profile?.applicationStatus}
+			/>
 		</Card>
 	{/if}
 

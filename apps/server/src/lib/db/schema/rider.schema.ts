@@ -15,9 +15,11 @@ export const riderTable = sqliteTable("riders", {
   id: text("id")
     .primaryKey()
     .$default(() => nanoid()),
-  userId: text("user_id").references(() => userTable.id, {
-    onDelete: "cascade",
-  }),
+  userId: text("user_id")
+    .references(() => userTable.id, {
+      onDelete: "cascade",
+    })
+    .unique(),
 
   firstName: text("first_name"),
   lastName: text("last_name"),
@@ -40,7 +42,6 @@ export const riderTable = sqliteTable("riders", {
   }).default("OFFLINE"),
   rating: real("rating").default(0),
   totalRatings: integer("total_ratings").default(0),
-  isVerified: integer("is_verified", { mode: "boolean" }).default(false),
   maxDeliveryDistance: integer("max_delivery_distance").default(10), // in km
   ...timestamps,
 });
@@ -51,14 +52,14 @@ export const riderPaymentMethodTable = sqliteTable("rider_payment_methods", {
     .$default(() => nanoid()),
   riderId: text("rider_id")
     .notNull()
-    .references(() => riderTable.id, { onDelete: "cascade" }),
+    .references(() => riderTable.id, { onDelete: "cascade" })
+    .unique(), // Ensure one rider can only have one payment method
   type: text("type", { enum: PAYMENT_METHODS }).default("BANK_TRANSFER"),
   accountNumber: text("account_number").notNull(),
   accountName: text("account_name").notNull(),
   bankName: text("bank_name").notNull(),
   bankCode: text("bank_code").notNull(),
   paystackRecipientCode: text("paystack_recipient_code"),
-  isDefault: integer("is_default", { mode: "boolean" }).default(false),
   ...timestamps,
 });
 
@@ -67,7 +68,10 @@ export const riderRelations = relations(riderTable, ({ one, many }) => ({
     fields: [riderTable.userId],
     references: [userTable.id],
   }),
-  paymentMethods: many(riderPaymentMethodTable),
+  paymentMethod: one(riderPaymentMethodTable, {
+    fields: [riderTable.id],
+    references: [riderPaymentMethodTable.riderId],
+  }),
 }));
 
 export const riderPaymentMethodRelations = relations(

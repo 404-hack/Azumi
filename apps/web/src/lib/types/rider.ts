@@ -1,6 +1,6 @@
 import type { Order } from '../routes/vendor/orders/types';
 
-export type RiderStatus = 'offline' | 'available' | 'on_delivery' | 'break';
+export type RiderStatus = 'available' | 'unavailable';
 export type DeliveryStatus = 'pending' | 'accepted' | 'picked_up' | 'completed' | 'cancelled';
 
 export interface Delivery {

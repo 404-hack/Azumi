@@ -1,11 +1,13 @@
 <script lang="ts">
 	import type { TRiderTodo } from '@repo/types/index';
-	import { CheckCircle2, Circle, Loader2 } from 'lucide-svelte';
+	import { CheckCircle2, Circle, Loader2, Clock } from 'lucide-svelte';
 	import { Button } from '$lib/components/ui/button';
+	import * as Badge from '$lib/components/ui/badge';
 
-	let { todos, onVerificationRequest } = $props<{
-		todos: TRiderTodo;
+	let { todos, onVerificationRequest, applicationStatus } = $props<{
+		todos: { todo: TRiderTodo; profileCompletion: number };
 		onVerificationRequest?: () => void;
+		applicationStatus?: string;
 	}>();
 
 	let isLoading = $state(false);
@@ -16,12 +18,13 @@
 		{ field: 'paymentInformationComplete', label: 'Set up payment information' }
 	];
 
+	// Use the profileCompletion value directly from the backend
 	const completionPercentage = $derived.by(() => {
-		const completedCount = taskItems.filter((item) => todos[item.field as keyof TRiderTodo]).length;
-		return Math.round((completedCount / taskItems.length) * 100);
+		if (!todos) return 0;
+		return todos.profileCompletion || 0;
 	});
-
 	const allTasksComplete = $derived.by(() => {
+		if (!todos || !todos.todo) return false;
 		return completionPercentage === 100;
 	});
 
@@ -49,8 +52,47 @@
 			></div>
 		</div>
 	</div>
-
-	{#if allTasksComplete}
+	{#if applicationStatus === 'PENDING'}
+		<div class="rounded-md bg-yellow-50 p-4">
+			<div class="flex">
+				<div class="flex-shrink-0">
+					<Clock class="h-5 w-5 text-yellow-500" />
+				</div>
+				<div class="ml-3">
+					<div class="flex items-center">
+						<h3 class="text-sm font-medium text-yellow-800">Application Pending</h3>
+						<Badge.Root variant="outline" class="ml-2 border-yellow-400 text-yellow-600">
+							PENDING
+						</Badge.Root>
+					</div>
+					<div class="mt-2 text-sm text-yellow-700">
+						Your verification request has been submitted and is being reviewed. You'll be notified
+						when your application is approved.
+					</div>
+				</div>
+			</div>
+		</div>
+	{:else if applicationStatus === 'APPROVED'}
+		<div class="rounded-md bg-green-50 p-4">
+			<div class="flex">
+				<div class="flex-shrink-0">
+					<CheckCircle2 class="h-5 w-5 text-green-500" />
+				</div>
+				<div class="ml-3">
+					<div class="flex items-center">
+						<h3 class="text-sm font-medium text-green-800">Application Approved</h3>
+						<Badge.Root variant="outline" class="ml-2 border-green-400 text-green-600">
+							APPROVED
+						</Badge.Root>
+					</div>
+					<div class="mt-2 text-sm text-green-700">
+						Congratulations! Your application has been approved. You can now start accepting
+						delivery requests.
+					</div>
+				</div>
+			</div>
+		</div>
+	{:else if allTasksComplete}
 		<div class="rounded-md bg-green-50 p-4">
 			<div class="flex">
 				<div class="flex-shrink-0">
@@ -79,7 +121,8 @@
 	{:else}
 		<ul class="space-y-3">
 			{#each taskItems as item}
-				{@const completed = todos[item.field as keyof TRiderTodo]}
+				{@const completed =
+					todos && todos.todo ? todos.todo[item.field as keyof TRiderTodo] : false}
 				<li class="flex items-center space-x-3 rounded-md bg-muted p-3">
 					{#if completed}
 						<CheckCircle2 class="h-5 w-5 text-primary" />

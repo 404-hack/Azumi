@@ -26,6 +26,7 @@ import {
 const riderRoute = factory
   .createApp()
   .use(riderAuthMiddleware)
+
   .post("/apply", zValidator("json", riderApplicationSchema), async (c) => {
     try {
       const db = c.get("db");
@@ -53,7 +54,6 @@ const riderRoute = factory
           latitude: data.latitude,
           vehicleType: data.vehicleType,
           vehicleLicense: data.vehicleLicense,
-          isVerified: false,
         })
         .returning()
         .get();
@@ -93,12 +93,7 @@ const riderRoute = factory
       const db = c.get("db");
       const userId = c.get("userId");
 
-      const rider = await db.query.riderTable.findFirst({
-        where: eq(riderTable.id, userId),
-        with: {
-          paymentMethods: true,
-        },
-      });
+      const rider = c.get("rider");
 
       if (!rider) {
         return c.json({ error: "Rider not found" }, 404);
@@ -166,7 +161,7 @@ const riderRoute = factory
         const updatedRider = await db
           .update(riderTable)
           .set(data) // data directly matches the schema now
-          .where(eq(riderTable.id, userId))
+          .where(eq(riderTable.userId, userId))
           .returning()
           .get();
 
@@ -655,6 +650,25 @@ const riderRoute = factory
         const userId = c.get("userId");
         const data = c.req.valid("json");
 
+        // Get the rider's ID from the riders table
+        const rider = c.get("rider");
+
+        // Check if rider already has a payment method
+        const existingPaymentMethod =
+          await db.query.riderPaymentMethodTable.findFirst({
+            where: eq(riderPaymentMethodTable.riderId, rider.id),
+          });
+
+        if (existingPaymentMethod) {
+          return c.json(
+            {
+              error:
+                "Rider already has a payment method. You can edit it instead.",
+            },
+            409
+          );
+        }
+
         // Check if we have the Paystack key before proceeding with recipient creation
         if (!env.PAYSTACK_SECRET_KEY) {
           return c.json({ error: "Payment service not configured" }, 500);
@@ -697,13 +711,11 @@ const riderRoute = factory
           }
 
           paystackRecipientCode = paystackData.data.recipient_code;
-        }
-
-        // Insert the payment method into the database
+        } // Insert the payment method into the database
         const newPaymentMethod = await db
           .insert(riderPaymentMethodTable)
           .values({
-            riderId: userId,
+            riderId: rider.id, // Using the correct rider ID from context
             type: data.type,
             accountNumber: data.accountNumber,
             accountName: data.accountName,
@@ -728,55 +740,45 @@ const riderRoute = factory
     }
   )
 
-  .get("/payment-methods", async (c) => {
+  .get("/payment-method", async (c) => {
     try {
       const db = c.get("db");
       const userId = c.get("userId");
-
-      const paymentMethods = await db.query.riderPaymentMethodTable.findMany({
-        where: eq(riderPaymentMethodTable.riderId, userId),
-        orderBy: [desc(riderPaymentMethodTable.createdAt)],
+      const rider = c.get("rider");
+      const paymentMethod = await db.query.riderPaymentMethodTable.findFirst({
+        // Changed to findFirst
+        where: eq(riderPaymentMethodTable.riderId, rider.id),
       });
 
       return c.json({
         success: true,
-        data: paymentMethods,
+        data: paymentMethod, // Return single object or null
       });
     } catch (error) {
-      console.error("Error fetching payment methods:", error);
+      console.error("Error fetching payment method:", error); // Updated log message
       return c.json({ error: "Internal server error" }, 500);
     }
   })
 
   .put(
-    "/payment-method/:id",
+    "/payment-method", // Changed route to not include :id
     zValidator("json", updateRiderPaymentMethodSchema),
     async (c) => {
       try {
         const db = c.get("db");
         const userId = c.get("userId");
-        const { id } = c.req.param();
+        const rider = c.get("rider");
         const data = c.req.valid("json");
 
         // Check if payment method exists and belongs to this rider
         const existingMethod = await db.query.riderPaymentMethodTable.findFirst(
           {
-            where: and(
-              eq(riderPaymentMethodTable.id, id),
-              eq(riderPaymentMethodTable.riderId, userId)
-            ),
+            where: eq(riderPaymentMethodTable.riderId, rider.id),
           }
         );
 
         if (!existingMethod) {
-          return c.json(
-            {
-              success: false,
-              error:
-                "Payment method not found or you don't have permission to update it",
-            },
-            404
-          );
+          return c.json({ error: "Payment method not found" }, 404);
         }
 
         // Update the payment method
@@ -784,16 +786,12 @@ const riderRoute = factory
           .update(riderPaymentMethodTable)
           .set(data)
           .where(
-            and(
-              eq(riderPaymentMethodTable.id, id),
-              eq(riderPaymentMethodTable.riderId, userId)
-            )
+            eq(riderPaymentMethodTable.riderId, rider.id) // Use riderId to update
           )
           .returning()
           .get();
 
         return c.json({
-          success: true,
           message: "Payment method updated successfully",
           data: updatedMethod,
         });
@@ -804,47 +802,30 @@ const riderRoute = factory
     }
   )
 
-  .delete("/payment-method/:id", async (c) => {
+  .delete("/payment-method", async (c) => {
+    // Changed route to not include :id
     try {
       const db = c.get("db");
-      const userId = c.get("userId");
-      const { id } = c.req.param();
-
-      // Check if payment method exists and belongs to this rider before deletion
+      const userId = c.get("userId"); // Check if payment method exists and belongs to this rider
+      const rider = c.get("rider");
       const existingMethod = await db.query.riderPaymentMethodTable.findFirst({
-        where: and(
-          eq(riderPaymentMethodTable.id, id),
-          eq(riderPaymentMethodTable.riderId, userId)
-        ),
+        where: eq(riderPaymentMethodTable.riderId, rider.id),
       });
 
       if (!existingMethod) {
-        return c.json(
-          {
-            success: false,
-            error:
-              "Payment method not found or you don't have permission to delete it",
-          },
-          404
-        );
+        return c.json({ error: "Payment method not found" }, 404);
       }
 
-      // Delete the payment method
       await db
         .delete(riderPaymentMethodTable)
-        .where(
-          and(
-            eq(riderPaymentMethodTable.id, id),
-            eq(riderPaymentMethodTable.riderId, userId)
-          )
-        );
+        .where(eq(riderPaymentMethodTable.riderId, rider.id)); // Use riderId to delete
 
       return c.json({
         success: true,
-        message: "Payment method removed successfully",
+        message: "Payment method deleted successfully",
       });
     } catch (error) {
-      console.error("Error removing payment method:", error);
+      console.error("Error deleting payment method:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
   })
@@ -853,6 +834,10 @@ const riderRoute = factory
     try {
       const db = c.get("db");
       const userId = c.get("userId");
+      const rider = c.get("rider"); // Get the rider from context for consistency
+
+      // Log the rider info to ensure we have correct data
+      console.log("Requesting verification for rider:", rider.id);
 
       const todoService = new RiderTodoService();
       const todoStatus = await todoService.getComputedTodos(userId, db);
@@ -885,12 +870,15 @@ const riderRoute = factory
         );
       }
 
-      const currentRider = await db.query.riderTable.findFirst({
-        where: eq(riderTable.id, userId),
-        columns: { applicationStatus: true },
-      });
+      // We already have the rider object from context, no need to query again
+      const riderId = rider.id;
 
-      if (!currentRider) {
+      // For debugging
+      console.log("Rider application status:", rider.applicationStatus);
+
+      // Check if rider exists - this is redundant since we have rider from context,
+      // but keeping it for safety
+      if (!riderId) {
         return c.json(
           {
             success: false,
@@ -900,29 +888,46 @@ const riderRoute = factory
         );
       }
 
-      if (currentRider.applicationStatus === "APPROVED") {
+      if (rider.applicationStatus === "APPROVED") {
         return c.json({
           success: true,
           message: "You are already approved as a rider.",
         });
       }
 
-      if (currentRider.applicationStatus === "PENDING") {
+      if (rider.applicationStatus === "PENDING") {
         return c.json({
           success: true,
           message: "Your verification request is already pending review.",
         });
       }
 
+      // Update the rider status to PENDING
+      console.log("Updating rider status to PENDING for rider:", riderId);
+
       await db
         .update(riderTable)
         .set({ applicationStatus: "PENDING" })
-        .where(eq(riderTable.id, userId));
+        .where(eq(riderTable.id, riderId));
+
+      // Get the updated rider to confirm changes were applied
+      const updatedRider = await db.query.riderTable.findFirst({
+        where: eq(riderTable.id, riderId),
+        columns: { applicationStatus: true },
+      });
+
+      console.log(
+        "Rider status after update:",
+        updatedRider?.applicationStatus
+      );
 
       return c.json({
         success: true,
         message:
           "Verification request submitted successfully. Your application is now pending review.",
+        data: {
+          applicationStatus: updatedRider?.applicationStatus || "PENDING",
+        },
       });
     } catch (error) {
       console.error("Error requesting verification:", error);

@@ -9,11 +9,11 @@ export class RiderTodoService {
   /**
    * Get computed todo items for a rider
    */
-  async getComputedTodos(riderId: string, db: Variables["db"]) {
+  async getComputedTodos(userId: string, db: Variables["db"]) {
     const rider = await db.query.riderTable.findFirst({
-      where: eq(riderTable.userId, riderId),
+      where: eq(riderTable.userId, userId),
       with: {
-        paymentMethods: true, // Eager load payment methods
+        paymentMethod: true, // Eager load payment methods
       },
     });
 
@@ -30,18 +30,14 @@ export class RiderTodoService {
       rider.longitude
     );
 
-    const vehicleInformationComplete = !!(
-      rider.vehicleType && rider.vehicleLicense
-    );
+    const vehicleInformationComplete = !!rider.vehicleType;
 
     // Use the eagerly loaded paymentMethods
-    const paymentInformationComplete = !!(
-      rider.paymentMethods && rider.paymentMethods.length > 0
-    );
+    const paymentInformationComplete = !!rider.paymentMethod;
 
     const todoData = {
-      id: `todo-${riderId}`,
-      riderId: riderId,
+      id: `todo-${rider.id}`,
+      riderId: rider.id,
       personalInformationComplete,
       vehicleInformationComplete,
       paymentInformationComplete,
@@ -79,7 +75,7 @@ export class RiderTodoService {
     const rider = await db.query.riderTable.findFirst({
       where: eq(riderTable.id, riderId), // Assuming riderId here is the direct riderTable.id
       with: {
-        paymentMethods: true,
+        paymentMethod: true,
       },
     });
 
@@ -100,7 +96,7 @@ export class RiderTodoService {
       case "vehicle":
         return !!(rider.vehicleType && rider.vehicleLicense);
       case "payment":
-        return !!(rider.paymentMethods && rider.paymentMethods.length > 0);
+        return !!rider.paymentMethod;
       default:
         return false;
     }

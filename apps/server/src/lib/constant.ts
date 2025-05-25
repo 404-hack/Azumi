@@ -46,8 +46,8 @@ export const RIDER_APPLICATION_STATUS = [
 
 export const RIDER_AVAILABILITY_STATUS = [
   "AVAILABLE",
+  "UNAVAILABLE",
   "BUSY",
-  "OFFLINE",
 ] as const;
 
 export const VEHICLE_TYPES = [

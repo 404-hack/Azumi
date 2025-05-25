@@ -309,11 +309,11 @@ const adminRoute = factory
     try {
       const db = c.get("db");
       const { id } = c.req.param();
-
       const rider = await db.query.riderTable.findFirst({
         where: eq(riderTable.id, id),
         with: {
           user: true,
+          paymentMethod: true,
         },
       });
 

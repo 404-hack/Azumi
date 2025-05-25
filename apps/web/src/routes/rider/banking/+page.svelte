@@ -33,7 +33,7 @@
 	let accountName = $state('');
 	let savingAccount = $state(false);
 
-	let paymentMethods = $state(data.paymentMethods || []);
+	let paymentMethod = $derived(data.paymentMethod);
 	let banks = $state(data.banks || []);
 	type Bank = {
 		id: number;
@@ -76,22 +76,18 @@
 		const lastFour = accountNumber.slice(-4);
 		const maskedPart = '*'.repeat(accountNumber.length - 4);
 		return `${maskedPart}${lastFour}`;
-	}
-	// Delete payment method
-	async function deletePaymentMethod(id: string) {
+	} // Delete payment method
+	async function deletePaymentMethod() {
 		try {
 			if (confirm('Are you sure you want to delete this payment method?')) {
 				deletingPaymentMethod = true;
-				const response = await client.rider['payment-method'][':id'].$delete({ param: { id } });
+				const response = await client.rider['payment-method'].$delete();
 
 				if (response.ok) {
 					toast.success('Payment method deleted successfully');
 					await invalidateAll();
-					const freshData = await client.rider['payment-methods'].$get();
-					const freshPaymentMethods = await freshData.json();
-					if ('data' in freshPaymentMethods) {
-						paymentMethods = freshPaymentMethods.data || [];
-					}
+					// Reset payment method to null directly
+					paymentMethod = null;
 				} else {
 					const errorData = await response.json();
 					const message =
@@ -165,17 +161,15 @@
 					bankCode
 				}
 			});
-
 			const data = (await response.json()) as SaveAccountResponse;
 
-			if (data.success) {
-				toast.success('Banking information saved successfully');
-				// Refresh the payment methods
+			if (response.ok) {
+				toast.success(data.message || 'Banking information saved successfully'); // Refresh the payment method
 				await invalidateAll();
-				const freshData = await client.rider['payment-methods'].$get();
-				const freshPaymentMethods = await freshData.json();
-				if ('data' in freshPaymentMethods) {
-					paymentMethods = freshPaymentMethods.data || [];
+				const freshData = await client.rider['payment-method'].$get();
+				const freshPaymentMethod = await freshData.json();
+				if ('data' in freshPaymentMethod) {
+					paymentMethod = freshPaymentMethod.data;
 				}
 
 				resetForm();
@@ -189,7 +183,7 @@
 					}, 2000);
 				}
 			} else {
-				const errorMessage = data.message || data.error || 'Failed to save banking information';
+				const errorMessage = data.error || data.message || 'Failed to save banking information';
 				toast.error(errorMessage);
 			}
 		} catch (error) {
@@ -221,155 +215,153 @@
 		</p>
 	</div>
 
-	{#if paymentMethods.length > 0}
+	{#if paymentMethod}
 		<div class="mb-8">
-			<h2 class="mb-4 text-xl font-semibold">Your Payment Methods</h2>
+			<h2 class="mb-4 text-xl font-semibold">Your Payment Method</h2>
 
-			{#each paymentMethods as method}
-				<Card.Root class="mb-4 max-w-md">
-					<Card.Header>
-						<Card.Title class="flex items-center">
-							{#if method.type === 'BANK_TRANSFER'}
-								<Landmark class="mr-2 h-5 w-5" />
-							{:else}
-								<CreditCard class="mr-2 h-5 w-5" />
-							{/if}
-							{method.bankName || 'Bank Account'}
-						</Card.Title>
-						<Card.Description>
-							{method.type === 'BANK_TRANSFER' ? 'Bank Account' : method.type}
-						</Card.Description>
-					</Card.Header>
-					<Card.Content>
-						<div class="space-y-2">
-							{#if method.accountName}
-								<p class="text-sm">
-									<span class="font-medium">Account Name:</span>
-									{method.accountName}
-								</p>
-							{/if}
-							{#if method.accountNumber}
-								<p class="text-sm">
-									<span class="font-medium">Account Number:</span>
-									{formatMaskedAccount(method.accountNumber)}
-								</p>
-							{/if}
-						</div>
-					</Card.Content>
-					<Card.Footer>
-						<Button
-							variant="outline"
-							size="sm"
-							class="text-destructive hover:bg-destructive/10"
-							onclick={() => deletePaymentMethod(method.id)}
-							disabled={deletingPaymentMethod}
-						>
-							{#if deletingPaymentMethod}
-								<Loader2 class="mr-2 h-4 w-4 animate-spin" />
-							{:else}
-								<Trash2 class="mr-2 h-4 w-4" />
-							{/if}
-							Remove
-						</Button>
-					</Card.Footer>
-				</Card.Root>
-			{/each}
-		</div>
-	{/if}
-
-	<!-- Add New Bank Account -->
-	<Card.Root class="max-w-md">
-		<Card.Header>
-			<Card.Title>Add Bank Account</Card.Title>
-			<Card.Description>Connect your bank account to receive payments</Card.Description>
-		</Card.Header>
-		<Card.Content>
-			<form
-				class="space-y-4"
-				onsubmit={(e) => {
-					e.preventDefault();
-					if (accountVerified) {
-						saveAccountDetails();
-					} else {
-						verifyAccount();
-					}
-				}}
-			>
-				<div class="space-y-2">
-					<Label for="account-number">Account Number</Label>
-					<Input
-						id="account-number"
-						placeholder="Enter your 10-digit account number"
-						bind:value={accountNumber}
-						disabled={accountVerified}
-						maxlength={10}
-						type="text"
-						inputmode="numeric"
-					/>
-				</div>
-
-				<div class="space-y-2">
-					<Label for="bank-name">Bank Name</Label>
-					<Select.Root type="single" bind:value={bankCode} disabled={accountVerified}>
-						<Select.Trigger id="bank-name" class="w-full">
-							{bankCode
-								? banks.find((bank: Bank) => bank.code === bankCode)?.name
-								: 'Select your bank'}
-						</Select.Trigger>
-						<Select.Content>
-							<Select.Group>
-								<Select.GroupHeading>Nigerian Banks</Select.GroupHeading>
-								{#each banks as bank}
-									<Select.Item value={bank.code}>{bank.name}</Select.Item>
-								{/each}
-							</Select.Group>
-						</Select.Content>
-					</Select.Root>
-				</div>
-
-				{#if accountVerified}
+			<Card.Root class="mb-4 max-w-md">
+				<Card.Header>
+					<Card.Title class="flex items-center">
+						{#if paymentMethod.type === 'BANK_TRANSFER'}
+							<Landmark class="mr-2 h-5 w-5" />
+						{:else}
+							<CreditCard class="mr-2 h-5 w-5" />
+						{/if}
+						{paymentMethod.bankName || 'Bank Account'}
+					</Card.Title>
+					<Card.Description>
+						{paymentMethod.type === 'BANK_TRANSFER' ? 'Bank Account' : paymentMethod.type}
+					</Card.Description>
+				</Card.Header>
+				<Card.Content>
 					<div class="space-y-2">
-						<Label for="account-name">Account Name</Label>
-						<div class="flex items-center gap-2">
-							<Input id="account-name" value={accountName} disabled />
-							<CheckCircle2 class="h-5 w-5 text-green-500" />
-						</div>
-						<p class="text-xs text-muted-foreground">Account verified with bank</p>
+						{#if paymentMethod.accountName}
+							<p class="text-sm">
+								<span class="font-medium">Account Name:</span>
+								{paymentMethod.accountName}
+							</p>
+						{/if}
+						{#if paymentMethod.accountNumber}
+							<p class="text-sm">
+								<span class="font-medium">Account Number:</span>
+								{formatMaskedAccount(paymentMethod.accountNumber)}
+							</p>
+						{/if}
+					</div>
+				</Card.Content>
+				<Card.Footer>
+					<Button
+						variant="outline"
+						size="sm"
+						class="text-destructive hover:bg-destructive/10"
+						onclick={() => deletePaymentMethod()}
+						disabled={deletingPaymentMethod}
+					>
+						{#if deletingPaymentMethod}
+							<Loader2 class="mr-2 h-4 w-4 animate-spin" />
+						{:else}
+							<Trash2 class="mr-2 h-4 w-4" />
+						{/if}
+						Remove
+					</Button>
+				</Card.Footer>
+			</Card.Root>
+		</div>
+	{:else}
+		<!-- Add New Bank Account -->
+		<Card.Root class="max-w-md">
+			<Card.Header>
+				<Card.Title>Add Bank Account</Card.Title>
+				<Card.Description>Connect your bank account to receive payments</Card.Description>
+			</Card.Header>
+			<Card.Content>
+				<form
+					class="space-y-4"
+					onsubmit={(e) => {
+						e.preventDefault();
+						if (accountVerified) {
+							saveAccountDetails();
+						} else {
+							verifyAccount();
+						}
+					}}
+				>
+					<div class="space-y-2">
+						<Label for="account-number">Account Number</Label>
+						<Input
+							id="account-number"
+							placeholder="Enter your 10-digit account number"
+							bind:value={accountNumber}
+							disabled={accountVerified}
+							maxlength={10}
+							type="text"
+							inputmode="numeric"
+						/>
 					</div>
 
-					<Alert.Root variant="default" class="bg-primary/10">
-						<Alert.Description class="text-xs">
-							Your banking information is securely stored and used only for processing payments.
-							Your details will never be shared with customers.
-						</Alert.Description>
-					</Alert.Root>
-				{/if}
+					<div class="space-y-2">
+						<Label for="bank-name">Bank Name</Label>
+						<Select.Root type="single" bind:value={bankCode} disabled={accountVerified}>
+							<Select.Trigger id="bank-name" class="w-full">
+								{bankCode
+									? banks.find((bank: Bank) => bank.code === bankCode)?.name
+									: 'Select your bank'}
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Group>
+									<Select.GroupHeading>Nigerian Banks</Select.GroupHeading>
+									{#each banks as bank}
+										<Select.Item value={bank.code}>{bank.name}</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
+					</div>
 
-				<div class="pt-2">
-					{#if !accountVerified}
-						<Button type="submit" disabled={verifyingAccount || !accountNumber || !bankCode}>
-							{#if verifyingAccount}
-								<Loader2 class="mr-2 h-4 w-4 animate-spin" />
-								Verifying...
-							{:else}
-								Verify Account
-							{/if}
-						</Button>
-					{:else}
-						<div class="flex gap-2">
-							<Button variant="outline" type="button" onclick={resetForm}>Reset</Button>
-							<Button type="submit" disabled={savingAccount}>
-								{#if savingAccount}
+					{#if accountVerified}
+						<div class="space-y-2">
+							<Label for="account-name">Account Name</Label>
+							<div class="flex items-center gap-2">
+								<Input id="account-name" value={accountName} disabled />
+								<CheckCircle2 class="h-5 w-5 text-green-500" />
+							</div>
+							<p class="text-xs text-muted-foreground">Account verified with bank</p>
+						</div>
+
+						<Alert.Root variant="default" class="bg-primary/10">
+							<Alert.Description class="text-xs">
+								Your banking information is securely stored and used only for processing payments.
+								Your details will never be shared with customers.
+							</Alert.Description>
+						</Alert.Root>
+					{/if}
+
+					<div class="pt-2">
+						{#if !accountVerified}
+							<Button type="submit" disabled={verifyingAccount || !accountNumber || !bankCode}>
+								{#if verifyingAccount}
 									<Loader2 class="mr-2 h-4 w-4 animate-spin" />
-									Saving...
+									Verifying...
 								{:else}
-									Save Bank Account
+									Verify Account
 								{/if}
 							</Button>
-						</div>
-					{/if}
-				</div>
-			</form>
-		</Card.Content>
-	</Card.Root>
+						{:else}
+							<div class="flex gap-2">
+								<Button variant="outline" type="button" onclick={resetForm}>Reset</Button>
+								<Button type="submit" disabled={savingAccount}>
+									{#if savingAccount}
+										<Loader2 class="mr-2 h-4 w-4 animate-spin" />
+										Saving...
+									{:else}
+										Save Bank Account
+									{/if}
+								</Button>
+							</div>
+						{/if}
+					</div>
+				</form>
+			</Card.Content>
+		</Card.Root>
+	{/if}
 </div>

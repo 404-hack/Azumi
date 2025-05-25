@@ -4,13 +4,12 @@ export const load = async () => {
 	// Fetch list of banks from Paystack through our backend API
 	const banksRes = await client.rider.banks.$get();
 	const banks = await banksRes.json();
-
-	// Fetch existing payment methods
-	const paymentMethodsRes = await client.rider['payment-methods'].$get();
-	const paymentMethods = await paymentMethodsRes.json();
+	// Fetch existing payment method
+	const paymentMethodRes = await client.rider['payment-method'].$get();
+	const paymentMethod = await paymentMethodRes.json();
 
 	return {
 		banks: banks.data,
-		paymentMethods: paymentMethods.data || []
+		paymentMethod: paymentMethod.data
 	};
 };

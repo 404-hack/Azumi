@@ -60,7 +60,13 @@ export type TCart = typeof schema.cartTable.$inferSelect & {
 export type TOperatingHours =
   typeof schema.shopOperatingHoursTable.$inferSelect;
 
-export type TRider = typeof schema.riderTable.$inferSelect;
+export type TRiderPaymentMethod =
+  typeof schema.riderPaymentMethodTable.$inferSelect;
+export type TRider = typeof schema.riderTable.$inferSelect & {
+  paymentMethod: TRiderPaymentMethod | null;
+  user: TUser | null; // Include user details
+  // Add any additional fields you need from the rider table
+};
 
 // Hono Context Variables
 export type Variables = {

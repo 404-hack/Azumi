@@ -19,7 +19,7 @@
 	import { formatCurrency, formatDate, formatTime } from '$lib/utils';
 
 	let { data } = $props();
-	const  rider  = $derived(data.rider);
+	const rider = $derived(data.rider);
 
 	const recentDeliveries = [
 		{
@@ -43,9 +43,7 @@
 	];
 
 	let selectedTab = $state('overview');
-	function getStatusBadgeVariant(
-		status: boolean
-	): 'default' | 'destructive' | 'outline' {
+	function getStatusBadgeVariant(status: boolean): 'default' | 'destructive' | 'outline' {
 		return status ? 'default' : 'destructive';
 	}
 
@@ -107,11 +105,12 @@
 							alt="{rider.name}'s avatar"
 							class="h-full w-full"
 						/>
-					</div>					<div class="text-center">
+					</div>
+					<div class="text-center">
 						<h3 class="font-semibold">{rider.firstName} {rider.lastName}</h3>
 						<p class="text-sm capitalize text-muted-foreground">{rider.vehicleType} Rider</p>
 					</div>
-					<div class="flex gap-2 flex-wrap justify-center">
+					<div class="flex flex-wrap justify-center gap-2">
 						<Badge variant={getAvailabilityStatusBadgeVariant(rider.availabilityStatus)}>
 							{rider.availabilityStatus}
 						</Badge>
@@ -144,12 +143,15 @@
 						<Clock class="h-4 w-4 text-muted-foreground" />
 						<span class="text-sm">Created at {formatDate(rider.createdAt)}</span>
 					</div>
-				</div>				<div class="space-y-2">
+				</div>
+				<div class="space-y-2">
 					<div class="flex items-center justify-between">
 						<span class="text-sm text-muted-foreground">Rating</span>
 						<div class="flex items-center gap-1">
 							<Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
-							<span class="font-medium">{rider.rating.toFixed(1)} ({rider.totalRatings} ratings)</span>
+							<span class="font-medium"
+								>{rider.rating.toFixed(1)} ({rider.totalRatings} ratings)</span
+							>
 						</div>
 					</div>
 					<div class="flex items-center justify-between">
@@ -171,7 +173,8 @@
 			</Tabs.Root>
 
 			{#if selectedTab === 'overview'}
-				<div class="grid gap-6">					<!-- Vehicle Information -->
+				<div class="grid gap-6">
+					<!-- Vehicle Information -->
 					<Card class="p-6">
 						<h3 class="mb-4 font-semibold">Vehicle Information</h3>
 						<div class="grid gap-4">
@@ -222,33 +225,34 @@
 							</Table.Root>
 						</div>
 					</Card>
-				</div>			{:else if selectedTab === 'documents'}
+				</div>
+			{:else if selectedTab === 'documents'}
 				<Card class="p-6">
 					<h3 class="mb-4 font-semibold">Documents</h3>
-				
-				</Card>			{:else if selectedTab === 'banking'}
+				</Card>
+			{:else if selectedTab === 'banking'}
 				<Card class="p-6">
 					<h3 class="mb-4 font-semibold">Banking Information</h3>
 					<div class="space-y-4">
-						{#if rider.bankInfo}
+						{#if rider.paymentMethod}
 							<div class="rounded-lg border p-4">
 								<div class="mb-4 grid gap-2">
 									<div>
 										<div class="text-sm text-muted-foreground">Bank Name</div>
-										<div class="font-medium">{rider.bankInfo.bankName}</div>
+										<div class="font-medium">{rider.paymentMethod.bankName}</div>
 									</div>
 									<div>
 										<div class="text-sm text-muted-foreground">Account Number</div>
-										<div class="font-medium">{rider.bankInfo.accountNumber}</div>
+										<div class="font-medium">{rider.paymentMethod.accountNumber}</div>
 									</div>
 									<div>
 										<div class="text-sm text-muted-foreground">Account Name</div>
-										<div class="font-medium">{rider.bankInfo.accountName}</div>
+										<div class="font-medium">{rider.paymentMethod.accountName}</div>
 									</div>
 								</div>
 							</div>
 						{:else}
-							<div class="text-center p-8 text-muted-foreground">
+							<div class="p-8 text-center text-muted-foreground">
 								<p>No banking information available</p>
 							</div>
 						{/if}

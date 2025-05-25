@@ -64,6 +64,7 @@ export const updateRiderProfileSchema = z.object({
     .optional(),
   vehicleLicense: z.string().optional(),
   maxDeliveryDistance: z.number().min(1).max(50).optional(),
+  active: z.boolean().optional(),
 });
 
 export const riderVerifyAccountSchema = z.object({
