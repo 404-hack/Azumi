@@ -19,6 +19,7 @@ import { userTable } from "./auth.schema";
 import { relations } from "drizzle-orm";
 import { menuItemTable, menuCategoryTable } from "./menu.schema";
 import { TCoordinates } from "../../types";
+import { promotions } from "./promotion.schema";
 
 export const shopTypeTable = sqliteTable("shopType", {
   id: text("id")
@@ -198,6 +199,7 @@ export const shopRelations = relations(shopTable, ({ one, many }) => ({
   agreements: many(shopAgreementsTable),
   paymentMethods: many(shopPaymentMethodTable),
   operatingHours: many(shopOperatingHoursTable),
+  promotions: many(promotions),
 }));
 export const shopAgreementRelations = relations(
   shopAgreementsTable,

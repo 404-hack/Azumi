@@ -1,6 +1,8 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { shopTable } from "./shop.schema";
 import { timestamps } from "./utils.schema";
+import { relations } from "drizzle-orm";
+import { PROMOTION_COST_BEARER } from "../../constant";
 
 export const promotions = sqliteTable("promotions", {
   id: text("id").primaryKey(),
@@ -21,6 +23,11 @@ export const promotions = sqliteTable("promotions", {
   usageLimit: integer("usage_limit"),
   usageCount: integer("usage_count").default(0),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
+  costBearer: text("cost_bearer", {
+    enum: PROMOTION_COST_BEARER,
+  })
+    .default("VENDOR")
+    .notNull(),
   ...timestamps,
 });
 
@@ -30,3 +37,22 @@ export const promotionProducts = sqliteTable("promotion_products", {
   productId: text("product_id").notNull(),
   ...timestamps,
 });
+
+// Define relations
+export const promotionsRelations = relations(promotions, ({ one, many }) => ({
+  shop: one(shopTable, {
+    fields: [promotions.shopId],
+    references: [shopTable.id],
+  }),
+  products: many(promotionProducts),
+}));
+
+export const promotionProductsRelations = relations(
+  promotionProducts,
+  ({ one }) => ({
+    promotion: one(promotions, {
+      fields: [promotionProducts.promotionId],
+      references: [promotions.id],
+    }),
+  })
+);

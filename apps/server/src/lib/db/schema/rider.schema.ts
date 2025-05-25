@@ -39,7 +39,7 @@ export const riderTable = sqliteTable("riders", {
   active: integer("active", { mode: "boolean" }).default(false),
   availabilityStatus: text("availability_status", {
     enum: RIDER_AVAILABILITY_STATUS,
-  }).default("OFFLINE"),
+  }).default("AVAILABLE"),
   rating: real("rating").default(0),
   totalRatings: integer("total_ratings").default(0),
   maxDeliveryDistance: integer("max_delivery_distance").default(10), // in km

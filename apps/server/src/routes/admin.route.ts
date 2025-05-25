@@ -1,6 +1,6 @@
 import { factory } from "../lib/factory";
 import { shopTable, member } from "../lib/db/schema";
-import { eq, like, and, or } from "drizzle-orm";
+import { eq, like, and, or, not as dbNot, sql } from "drizzle-orm";
 import adminAuthMiddleware from "../middlewares/adminAuth";
 import {
   SHOP_STATUS,
@@ -11,6 +11,15 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { userTable } from "../lib/db/schema/auth.schema";
 import { riderTable } from "../lib/db/schema/rider.schema";
+import {
+  promotions,
+  promotionProducts,
+} from "../lib/db/schema/promotion.schema";
+import {
+  createPromotionSchema,
+  updatePromotionSchema,
+} from "../lib/validation/index";
+import { nanoid } from "nanoid";
 
 const adminRoute = factory
   .createApp()
@@ -253,11 +262,8 @@ const adminRoute = factory
             eq(riderTable.applicationStatus, applicationStatus)
           );
         }
-
         if (isVerified !== undefined) {
-          whereConditions.push(
-            eq(riderTable.isVerified, isVerified === "true")
-          );
+          whereConditions.push(eq(riderTable.verified, isVerified === "true"));
         }
 
         if (availabilityStatus) {
@@ -402,6 +408,344 @@ const adminRoute = factory
     } catch (error) {
       console.error("Error deleting rider:", error);
       return c.json({ error: "Failed to delete rider" }, 500);
+    }
+  })
+
+  // PROMOTION ROUTES
+
+  // List all promotions (admin)
+  .get("/promotions", async (c) => {
+    try {
+      const db = c.get("db");
+
+      // Pagination parameters
+      const limit = Number(c.req.query("limit")) || 20;
+      const page = Number(c.req.query("page")) || 1;
+      const offset = (page - 1) * limit;
+      const shopId = c.req.query("shopId");
+
+      const whereCondition = shopId ? eq(promotions.shopId, shopId) : undefined;
+
+      // Get promotions
+      const allPromotions = await db.query.promotions.findMany({
+        where: whereCondition,
+        orderBy: (promotions) => [promotions.createdAt],
+        limit,
+        offset,
+        with: {
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              email: true,
+              phoneNumber: true,
+            },
+          },
+        },
+      });
+
+      // Get total count for pagination
+      const countResult = await db
+        .select({ count: sql`count(*)` })
+        .from(promotions)
+        .where(whereCondition || undefined);
+
+      const totalCount = Number(countResult[0]?.count || 0);
+
+      return c.json({
+        success: true,
+        data: allPromotions,
+        pagination: {
+          total: totalCount,
+          page,
+          limit,
+          pages: Math.ceil(totalCount / limit),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching promotions:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to fetch promotions",
+        },
+        500
+      );
+    }
+  })
+
+  // Get a specific promotion by ID
+  .get("/promotions/:id", async (c) => {
+    try {
+      const db = c.get("db");
+      const { id } = c.req.param();
+
+      // Get the promotion
+      const promotion = await db.query.promotions.findFirst({
+        where: eq(promotions.id, id),
+        with: {
+          products: true,
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              email: true,
+              phoneNumber: true,
+            },
+          },
+        },
+      });
+
+      if (!promotion) {
+        return c.json(
+          {
+            success: false,
+            message: "Promotion not found",
+          },
+          404
+        );
+      }
+
+      return c.json({
+        success: true,
+        data: promotion,
+      });
+    } catch (error) {
+      console.error("Error fetching promotion:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to fetch promotion",
+        },
+        500
+      );
+    }
+  })
+
+  // Create a new promotion for a specific shop
+  .post("/promotions", zValidator("json", createPromotionSchema), async (c) => {
+    try {
+      const data = c.req.valid("json");
+      const db = c.get("db");
+      const shopId = c.req.query("shopId");
+
+      if (!shopId) {
+        return c.json(
+          {
+            success: false,
+            message: "Shop ID is required",
+          },
+          400
+        );
+      }
+
+      // Check if code is already in use
+      const existingPromotion = await db.query.promotions.findFirst({
+        where: and(
+          eq(promotions.code, data.code),
+          eq(promotions.shopId, shopId)
+        ),
+      });
+
+      if (existingPromotion) {
+        return c.json(
+          {
+            success: false,
+            message: "This coupon code is already in use",
+          },
+          400
+        );
+      }
+
+      // Extract product IDs if provided
+      const { productIds, ...promotionData } = data;
+
+      // Create the promotion
+      const promotionId = nanoid();
+      const now = new Date();
+
+      const newPromotion = await db
+        .insert(promotions)
+        .values({
+          id: promotionId,
+          shopId,
+          ...promotionData,
+          usageCount: 0,
+        })
+        .returning()
+        .get();
+
+      // Link products if specified
+      if (productIds && productIds.length > 0) {
+        await db.insert(promotionProducts).values(
+          productIds.map((productId) => ({
+            id: nanoid(),
+            promotionId: promotionId,
+            productId: productId,
+            createdAt: now,
+          }))
+        );
+      }
+
+      return c.json(
+        {
+          success: true,
+          data: newPromotion,
+        },
+        201
+      );
+    } catch (error) {
+      console.error("Error creating promotion:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to create promotion",
+        },
+        500
+      );
+    }
+  })
+
+  // Update an existing promotion
+  .patch(
+    "/promotions/:id",
+    zValidator("json", updatePromotionSchema),
+    async (c) => {
+      try {
+        const { id } = c.req.param();
+        const data = c.req.valid("json");
+        const db = c.get("db");
+
+        // Check if promotion exists
+        const existingPromotion = await db.query.promotions.findFirst({
+          where: eq(promotions.id, id),
+        });
+
+        if (!existingPromotion) {
+          return c.json(
+            {
+              success: false,
+              message: "Promotion not found",
+            },
+            404
+          );
+        }
+
+        // If updating code, check if it's unique
+        if (data.code && data.code !== existingPromotion.code) {
+          const codeExists = await db.query.promotions.findFirst({
+            where: and(
+              eq(promotions.code, data.code),
+              eq(promotions.shopId, existingPromotion.shopId),
+              dbNot(eq(promotions.id, id))
+            ),
+          });
+
+          if (codeExists) {
+            return c.json(
+              {
+                success: false,
+                message: "This coupon code is already in use",
+              },
+              400
+            );
+          }
+        }
+
+        // Extract product IDs if provided
+        const { productIds, ...promotionData } = data;
+
+        // Update the promotion
+        const now = new Date();
+        const updatedPromotion = await db
+          .update(promotions)
+          .set({
+            ...promotionData,
+            updatedAt: now,
+          })
+          .where(eq(promotions.id, id))
+          .returning()
+          .get();
+
+        // Update product links if specified
+        if (productIds !== undefined) {
+          // Remove existing product links
+          await db
+            .delete(promotionProducts)
+            .where(eq(promotionProducts.promotionId, id));
+
+          // Add new product links
+          if (productIds.length > 0) {
+            await db.insert(promotionProducts).values(
+              productIds.map((productId) => ({
+                id: nanoid(),
+                promotionId: id,
+                productId: productId,
+                createdAt: now,
+              }))
+            );
+          }
+        }
+
+        return c.json({
+          success: true,
+          data: updatedPromotion,
+        });
+      } catch (error) {
+        console.error("Error updating promotion:", error);
+        return c.json(
+          {
+            success: false,
+            message: "Failed to update promotion",
+          },
+          500
+        );
+      }
+    }
+  )
+
+  // Delete a promotion
+  .delete("/promotions/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+
+      // Check if promotion exists
+      const existingPromotion = await db.query.promotions.findFirst({
+        where: eq(promotions.id, id),
+      });
+
+      if (!existingPromotion) {
+        return c.json(
+          {
+            success: false,
+            message: "Promotion not found",
+          },
+          404
+        );
+      }
+
+      // Delete product links first
+      await db
+        .delete(promotionProducts)
+        .where(eq(promotionProducts.promotionId, id));
+
+      // Delete the promotion
+      await db.delete(promotions).where(eq(promotions.id, id));
+
+      return c.json({
+        success: true,
+        message: "Promotion deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting promotion:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to delete promotion",
+        },
+        500
+      );
     }
   });
 

@@ -85,6 +85,15 @@ export const SHOP_STATUS = [
 
 export const SHOP_AGREEMENTS_TYPE = ["VENDOR_TERMS"] as const;
 
+export const PROMOTION_TYPES = [
+  "percentage",
+  "fixed",
+  "bogo",
+  "minimum_spend",
+] as const;
+
+export const PROMOTION_COST_BEARER = ["VENDOR", "ADMIN", "SHARED"] as const;
+
 export const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",

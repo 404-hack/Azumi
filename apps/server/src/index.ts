@@ -17,6 +17,7 @@ import deliveryFeeRoute from "./routes/fee.route";
 import wsRoute from "./routes/ws.route";
 import adminRoute from "./routes/admin.route";
 import riderRoute from "./routes/rider.route";
+import promotionRoute from "./routes/promotion.route";
 
 // Create app instance using factory
 const app = factory
@@ -47,6 +48,7 @@ export const routes = app
   .route("/delivery-fee", deliveryFeeRoute)
   .route("/webhook/paystack", paystackWebhookRoute)
   .route("/rider", riderRoute)
+  .route("promotions", promotionRoute)
   .route("/", bucketRoute)
   .route("/ws", wsRoute)
   .get("/love", (c) => {
