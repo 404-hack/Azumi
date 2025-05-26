@@ -379,7 +379,6 @@ const orderRoute = factory
           cartId: data.cartId,
           deliveryNotes: data.deliveryNotes,
           vendorNotes: data.vendorNotes,
-          contactPhone: data.contactPhone,
           status: "PENDING",
           paymentStatus: "PENDING",
           subtotal,

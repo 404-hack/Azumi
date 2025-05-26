@@ -36,7 +36,7 @@ export const orderTable = sqliteTable("order", {
   // ),
   deliveryNotes: text("delivery_notes"),
   vendorNotes: text("vendor_notes"),
-  contactPhone: text("contact_phone").notNull(),
+  // contactPhone: text("contact_phone").notNull(),
 
   // Payment information
   paymentMethod: text("payment_method", { enum: PAYMENT_METHODS })
