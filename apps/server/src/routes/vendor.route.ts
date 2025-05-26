@@ -33,6 +33,7 @@ import {
 import { packTable } from "../lib/db/schema/pack.schema";
 import {
   orderTable,
+  promotions,
   shopAgreementsTable,
   shopOperatingHoursTable,
   shopPaymentMethodTable,

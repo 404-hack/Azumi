@@ -92,7 +92,7 @@ export const PROMOTION_TYPES = [
   "minimum_spend",
 ] as const;
 
-export const PROMOTION_COST_BEARER = ["VENDOR", "ADMIN", "SHARED"] as const;
+export const PROMOTION_COST_BEARER = ["VENDOR", "PLATFORM", "SHARED"] as const;
 
 export const ALLOWED_ORIGINS = [
   "http://localhost:5173",

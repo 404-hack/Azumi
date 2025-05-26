@@ -42,7 +42,7 @@
 
 	let promotions = $state(data.promotions || []);
 	let pagination = $state(data.pagination || { page: 1, limit: 10, total: 0, pages: 1 });
-	let overview = $state(
+	let overview = $derived(
 		data.overview || {
 			activePromotions: 0,
 			upcomingPromotions: 0,
@@ -58,7 +58,7 @@
 	);
 
 	// Calculate average discount value (simplified approximation)
-	const totalDiscount = $derived(
+	let totalDiscount = $derived(
 		promotions.reduce((acc, promo) => {
 			if (promo.type === 'fixed') return acc + promo.value * (promo.usageCount || 0);
 			if (promo.type === 'percentage')
@@ -67,7 +67,7 @@
 		}, 0)
 	);
 	// Average order value - this would ideally come from the backend
-	const averageOrderValue = $derived(
+	let averageOrderValue = $derived(
 		totalDiscount > 0 && overview.totalRedemptions > 0
 			? totalDiscount / overview.totalRedemptions
 			: 2500 // fallback value
@@ -114,7 +114,7 @@
 	};
 
 	// Using state for navigation
-	const currentPage = $state(Number(pagination.page));
+	let currentPage = $state(Number(pagination.page));
 	const navigateToPage = (pageNum: number) => {
 		currentPage = pageNum;
 		const url = new URL(window.location.href);

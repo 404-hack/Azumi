@@ -21,7 +21,7 @@ export const load = (async ({ fetch, url }) => {
 
 		if (!promotionsRes.ok) {
 			const errorData = await promotionsRes.json();
-			throw error(promotionsRes.status, {
+			error(promotionsRes.status, {
 				message: errorData.message || 'Failed to fetch promotions'
 			});
 		}
@@ -72,8 +72,8 @@ export const load = (async ({ fetch, url }) => {
 	} catch (err) {
 		console.error('Error loading promotions:', err);
 		if (err instanceof Error) {
-			throw error(500, { message: err.message || 'Failed to load promotions data' });
+			error(500, { message: err.message || 'Failed to load promotions data' });
 		}
-		throw error(500, { message: 'Failed to load promotions data' });
+		error(500, { message: 'Failed to load promotions data' });
 	}
 }) satisfies PageLoad;

@@ -3,9 +3,10 @@ import { zValidator } from "@hono/zod-validator";
 import { eq, and, inArray, or, lt, gt, sql, not } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { createAuth } from "../lib/auth";
-import { promotions } from "../lib/db/schema/promotion.schema";
+import { promotions, promotionShops } from "../lib/db/schema/promotion.schema";
 import { validateCouponSchema } from "../lib/validation/index";
 import vendorAuthMiddleware from "../middlewares/vendorAuth";
+import { orderTable } from "../lib/db/schema/order.schema";
 
 // Public routes
 const promotionRoute = factory
@@ -48,19 +49,27 @@ const promotionRoute = factory
       return c.json({ error: "Internal server error" }, 500);
     }
   })
-
   // Validate a coupon code
   .post("/validate", zValidator("json", validateCouponSchema), async (c) => {
     try {
       const { code, shopId, cartTotal } = c.req.valid("json");
       const db = c.get("db");
-      const now = new Date();
-
-      // Find the promotion
+      const user = c.get("user");
+      const now = new Date(); // Find the promotion
       const promotion = await db.query.promotions.findFirst({
         where: and(
           eq(promotions.code, code.toUpperCase()),
-          eq(promotions.shopId, shopId),
+          // Allow promotions that apply to all shops or specifically to this shop
+          or(
+            eq(promotions.appliesToAllShops, true),
+            inArray(
+              promotions.id,
+              db
+                .select({ id: promotionShops.promotionId })
+                .from(promotionShops)
+                .where(eq(promotionShops.shopId, shopId))
+            )
+          ),
           eq(promotions.isActive, true),
           lt(promotions.startDate, now),
           gt(promotions.endDate, now)
@@ -81,6 +90,53 @@ const promotionRoute = factory
           { error: "This coupon has reached its usage limit" },
           400
         );
+      } // Check if promotion is first-order only
+      if (promotion.isFirstOrderOnly) {
+        const { userId } = c.req.valid("json");
+        const userIdToCheck = userId || (user ? user.id : undefined);
+
+        if (!userIdToCheck) {
+          return c.json(
+            { error: "User ID is required for first order promotions" },
+            400
+          );
+        }
+
+        let whereCondition;
+
+        if (promotion.appliesToAllShops) {
+          // For "first order anywhere" - check if user has any completed orders on the platform
+          whereCondition = and(
+            eq(orderTable.customerId, userIdToCheck),
+            or(
+              eq(orderTable.status, "COMPLETED"),
+              eq(orderTable.status, "DELIVERED")
+            )
+          );
+        } else {
+          // For shop-specific first order check
+          whereCondition = and(
+            eq(orderTable.customerId, userIdToCheck),
+            eq(orderTable.shopId, shopId),
+            or(
+              eq(orderTable.status, "COMPLETED"),
+              eq(orderTable.status, "DELIVERED")
+            )
+          );
+        }
+
+        // Check previous orders based on the condition
+        const previousOrders = await db.query.orderTable.findFirst({
+          where: whereCondition,
+        });
+
+        if (previousOrders) {
+          const errorMsg = promotion.appliesToAllShops
+            ? "This promotion is only valid for first-time customers on our platform"
+            : "This promotion is only valid for first-time customers at this shop";
+
+          return c.json({ error: errorMsg }, 400);
+        }
       }
 
       // Check minimum order value

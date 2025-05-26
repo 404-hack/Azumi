@@ -1,6 +1,6 @@
 import { factory } from "../lib/factory";
 import { shopTable, member } from "../lib/db/schema";
-import { eq, like, and, or, not as dbNot, sql } from "drizzle-orm";
+import { eq, like, and, or, not as dbNot, sql, inArray } from "drizzle-orm";
 import adminAuthMiddleware from "../middlewares/adminAuth";
 import {
   SHOP_STATUS,
@@ -14,6 +14,7 @@ import { riderTable } from "../lib/db/schema/rider.schema";
 import {
   promotions,
   promotionProducts,
+  promotionShops,
 } from "../lib/db/schema/promotion.schema";
 import {
   createPromotionSchema,
@@ -411,9 +412,7 @@ const adminRoute = factory
     }
   })
 
-  // PROMOTION ROUTES
-
-  // List all promotions (admin)
+  // PROMOTION ROUTES  // List all promotions (admin)
   .get("/promotions", async (c) => {
     try {
       const db = c.get("db");
@@ -424,21 +423,46 @@ const adminRoute = factory
       const offset = (page - 1) * limit;
       const shopId = c.req.query("shopId");
 
-      const whereCondition = shopId ? eq(promotions.shopId, shopId) : undefined;
+      let whereCondition;
+      if (shopId) {
+        // For filtering by specific shop, we need to join with promotionShops
+        const promotionIdsForShop = await db
+          .select({ promotionId: promotionShops.promotionId })
+          .from(promotionShops)
+          .where(eq(promotionShops.shopId, shopId));
+
+        const promotionIds = promotionIdsForShop.map((p) => p.promotionId);
+        if (promotionIds.length > 0) {
+          whereCondition = inArray(promotions.id, promotionIds);
+        } else {
+          whereCondition = sql`1 = 0`; // No promotions found for this shop
+        }
+      }
 
       // Get promotions
       const allPromotions = await db.query.promotions.findMany({
         where: whereCondition,
-        orderBy: (promotions) => [promotions.createdAt],
+        orderBy: (promotions, { desc }) => [desc(promotions.createdAt)],
         limit,
         offset,
         with: {
-          shop: {
+          creator: {
             columns: {
               id: true,
               name: true,
               email: true,
-              phoneNumber: true,
+            },
+          },
+          shops: {
+            with: {
+              shop: {
+                columns: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  phoneNumber: true,
+                },
+              },
             },
           },
         },
@@ -473,7 +497,6 @@ const adminRoute = factory
       );
     }
   })
-
   // Get a specific promotion by ID
   .get("/promotions/:id", async (c) => {
     try {
@@ -485,12 +508,23 @@ const adminRoute = factory
         where: eq(promotions.id, id),
         with: {
           products: true,
-          shop: {
+          creator: {
             columns: {
               id: true,
               name: true,
               email: true,
-              phoneNumber: true,
+            },
+          },
+          shops: {
+            with: {
+              shop: {
+                columns: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  phoneNumber: true,
+                },
+              },
             },
           },
         },
@@ -521,30 +555,26 @@ const adminRoute = factory
       );
     }
   })
-
-  // Create a new promotion for a specific shop
+  // Create a new promotion (admin can assign to multiple shops)
   .post("/promotions", zValidator("json", createPromotionSchema), async (c) => {
     try {
       const data = c.req.valid("json");
       const db = c.get("db");
-      const shopId = c.req.query("shopId");
+      const user = c.get("user");
 
-      if (!shopId) {
+      if (!user) {
         return c.json(
           {
             success: false,
-            message: "Shop ID is required",
+            message: "Unauthorized",
           },
-          400
+          401
         );
       }
 
-      // Check if code is already in use
+      // Check if code is already in use (globally unique)
       const existingPromotion = await db.query.promotions.findFirst({
-        where: and(
-          eq(promotions.code, data.code),
-          eq(promotions.shopId, shopId)
-        ),
+        where: eq(promotions.code, data.code),
       });
 
       if (existingPromotion) {
@@ -557,8 +587,8 @@ const adminRoute = factory
         );
       }
 
-      // Extract product IDs if provided
-      const { productIds, ...promotionData } = data;
+      // Extract fields for processing
+      const { productIds, shopIds, ...promotionData } = data;
 
       // Create the promotion
       const promotionId = nanoid();
@@ -568,12 +598,23 @@ const adminRoute = factory
         .insert(promotions)
         .values({
           id: promotionId,
-          shopId,
           ...promotionData,
+          startDate: new Date(promotionData.startDate),
+          endDate: new Date(promotionData.endDate),
+          createdBy: user.id,
           usageCount: 0,
         })
         .returning()
-        .get();
+        .get(); // Link shops to promotion - but skip if applies to all shops
+      if (!promotionData.appliesToAllShops && shopIds && shopIds.length > 0) {
+        await db.insert(promotionShops).values(
+          shopIds.map((shopId) => ({
+            id: nanoid(),
+            promotionId: promotionId,
+            shopId: shopId,
+          }))
+        );
+      }
 
       // Link products if specified
       if (productIds && productIds.length > 0) {
@@ -582,7 +623,6 @@ const adminRoute = factory
             id: nanoid(),
             promotionId: promotionId,
             productId: productId,
-            createdAt: now,
           }))
         );
       }
@@ -605,7 +645,6 @@ const adminRoute = factory
       );
     }
   })
-
   // Update an existing promotion
   .patch(
     "/promotions/:id",
@@ -636,7 +675,6 @@ const adminRoute = factory
           const codeExists = await db.query.promotions.findFirst({
             where: and(
               eq(promotions.code, data.code),
-              eq(promotions.shopId, existingPromotion.shopId),
               dbNot(eq(promotions.id, id))
             ),
           });
@@ -652,8 +690,8 @@ const adminRoute = factory
           }
         }
 
-        // Extract product IDs if provided
-        const { productIds, ...promotionData } = data;
+        // Extract fields for processing
+        const { productIds, shopIds, ...promotionData } = data;
 
         // Update the promotion
         const now = new Date();
@@ -665,7 +703,26 @@ const adminRoute = factory
           })
           .where(eq(promotions.id, id))
           .returning()
-          .get();
+          .get(); // Update shop links if specified
+        if (shopIds !== undefined) {
+          // Remove existing shop links
+          await db
+            .delete(promotionShops)
+            .where(eq(promotionShops.promotionId, id));
+
+          // Add new shop links if not "applies to all shops"
+          if (!promotionData.appliesToAllShops && shopIds.length > 0) {
+            await db.insert(promotionShops).values(
+              shopIds.map((shopId) => ({
+                id: nanoid(),
+                promotionId: id,
+                shopId: shopId,
+                createdAt: now,
+                updatedAt: now,
+              }))
+            );
+          }
+        }
 
         // Update product links if specified
         if (productIds !== undefined) {
@@ -682,6 +739,7 @@ const adminRoute = factory
                 promotionId: id,
                 productId: productId,
                 createdAt: now,
+                updatedAt: now,
               }))
             );
           }
@@ -703,7 +761,6 @@ const adminRoute = factory
       }
     }
   )
-
   // Delete a promotion
   .delete("/promotions/:id", async (c) => {
     try {
@@ -725,7 +782,10 @@ const adminRoute = factory
         );
       }
 
-      // Delete product links first
+      // Delete shop links first
+      await db.delete(promotionShops).where(eq(promotionShops.promotionId, id));
+
+      // Delete product links
       await db
         .delete(promotionProducts)
         .where(eq(promotionProducts.promotionId, id));
