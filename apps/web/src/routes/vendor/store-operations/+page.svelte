@@ -93,13 +93,6 @@
 							onCheckedChange={updateStoreStatus}
 							class="flex items-center justify-between"
 						/>
-						<div>
-							<Label>Automatic Status Updates</Label>
-							<p class="text-sm text-muted-foreground">
-								Automatically update status based on operating hours
-							</p>
-						</div>
-						<Switch checked={automaticStatus} />
 					</div>
 				</div>
 			</Card.Content>

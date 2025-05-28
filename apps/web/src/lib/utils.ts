@@ -27,17 +27,41 @@ export function formatDate(date: string | number | Date | null | undefined) {
 
 // Updated formatTime to accept "HH:MM" string
 export function formatTime(timeString: string | null | undefined): string {
-	if (!timeString) return ''; // Return empty string if input is null or undefined
+	if (!timeString) return '';
+
 	try {
-		const [hours, minutes] = timeString.split(':').map(Number);
-		// Create a dummy date object and set the time
-		const date = new Date();
-		date.setHours(hours, minutes, 0, 0);
-		// Format using Intl.DateTimeFormat
+		let date: Date;
+
+		if (timeString.includes('T') || timeString.includes('Z')) {
+			date = new Date(timeString);
+		} else {
+			const parts = timeString.split(':');
+			if (parts.length < 2) return 'Invalid Time';
+
+			const [hours, minutes] = parts.map(Number);
+
+			if (
+				isNaN(hours) ||
+				isNaN(minutes) ||
+				hours < 0 ||
+				hours > 23 ||
+				minutes < 0 ||
+				minutes > 59
+			) {
+				return 'Invalid Time';
+			}
+
+			date = new Date();
+			date.setHours(hours, minutes, 0, 0);
+		}
+
+		if (isNaN(date.getTime())) {
+			return 'Invalid Time';
+		}
+
 		return new Intl.DateTimeFormat('en-US', { timeStyle: 'short' }).format(date);
 	} catch (error) {
-		console.error(`Error formatting time string "${timeString}":`, error);
-		return 'Invalid Time'; // Return an error indicator
+		return 'Invalid Time';
 	}
 }
 

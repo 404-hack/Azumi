@@ -1,40 +1,12 @@
 <script lang="ts">
 	import OrderTable from './order-table.svelte';
-	import type { Order } from '../types';
 	import * as Select from '$lib/components/ui/select';
 	import { Calendar } from 'lucide-svelte';
 
-	const { searchQuery } = $props();
+	let { searchQuery = '', orders = [] } = $props();
 
 	let selectedDate = $state<string>(new Date().toISOString().split('T')[0]);
 	let selectedTimeRange = $state<string>('all');
-
-	let orders = $state<Order[]>([
-		{
-			id: '4',
-			orderNumber: 'ORD-004',
-			customerName: 'Emma Williams',
-			customerPhone: '+234 123 456 7893',
-			items: [
-				{
-					id: '5',
-					name: 'Pounded Yam and Vegetable Soup',
-					quantity: 1,
-					price: 22.99,
-					options: [{ name: 'Extra Fish', price: 6.99 }]
-				}
-			],
-			status: 'completed',
-			total: 29.98,
-			createdAt: new Date(Date.now() - 3600000), // 1 hour ago
-			updatedAt: new Date(),
-			estimatedReadyTime: new Date(Date.now() - 1800000), // 30 minutes ago
-			paymentStatus: 'paid',
-			paymentMethod: 'card',
-			deliveryAddress: '101 Lekki Phase 1, Lagos',
-			deliveryInstructions: 'Yellow building'
-		}
-	]);
 
 	const timeRanges = [
 		{ value: 'all', label: 'All Time' },
@@ -66,14 +38,14 @@
 				return true;
 		}
 	}
-
 	let filteredOrders = $derived(
 		orders.filter((order) => {
 			if (!searchQuery) return true;
 			const searchLower = searchQuery.toLowerCase();
 			const matchesSearch =
-				order.orderNumber.toLowerCase().includes(searchLower) ||
-				order.customerName.toLowerCase().includes(searchLower);
+				order.code?.toLowerCase().includes(searchLower) ||
+				order.customer?.name?.toLowerCase().includes(searchLower) ||
+				order.customer?.phoneNumber?.includes(searchLower);
 
 			const orderDate = new Date(order.createdAt);
 			const matchesDate = !selectedDate || orderDate.toISOString().split('T')[0] === selectedDate;
@@ -83,7 +55,6 @@
 			return matchesSearch && matchesDate && matchesTimeRange;
 		})
 	);
-
 	let totalRevenue = $derived(filteredOrders.reduce((sum, order) => sum + order.total, 0));
 
 	let averageOrderValue = $derived(
@@ -134,6 +105,6 @@
 			</div>
 		</div>
 	{:else}
-		<OrderTable orders={filteredOrders} showActions={false} />
+		<OrderTable orders={filteredOrders} {searchQuery} showActions={false} />
 	{/if}
 </div>

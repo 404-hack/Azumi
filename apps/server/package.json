@@ -30,6 +30,7 @@
 		"dotenv": "^16.4.7",
 		"drizzle-kit": "^0.30.4",
 		"drizzle-orm": "^0.39.3",
+		"firebase-admin": "^13.4.0",
 		"hono": "^4.7.9",
 		"hono-openapi": "^0.4.6",
 		"nanoid": "^5.1.0",

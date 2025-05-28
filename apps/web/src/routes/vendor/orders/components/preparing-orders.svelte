@@ -1,40 +1,11 @@
 <script lang="ts">
 	import OrderTable from './order-table.svelte';
-	import type { Order } from '../types';
 
-	const { searchQuery } = $props();
+	let { searchQuery = '', orders = [] } = $props();
 
-	let orders = $state<Order[]>([
-		{
-			id: '2',
-			orderNumber: 'ORD-002',
-			customerName: 'Sarah Johnson',
-			customerPhone: '+234 123 456 7891',
-			items: [
-				{
-					id: '2',
-					name: 'Egusi Soup with Pounded Yam',
-					quantity: 1,
-					price: 25.99,
-					options: [{ name: 'Extra Meat', price: 7.99 }],
-					specialInstructions: 'Extra pepper please'
-				}
-			],
-			status: 'preparing',
-			total: 33.98,
-			createdAt: new Date(),
-			updatedAt: new Date(),
-			estimatedReadyTime: new Date(Date.now() + 30 * 60000), // 30 minutes from now
-			paymentStatus: 'paid',
-			paymentMethod: 'card',
-			deliveryAddress: '456 Park Ave, Lagos',
-			deliveryInstructions: 'Building with blue gate'
-		}
-	]);
-
-	async function handleStatusChange(orderId: string, newStatus: Order['status']) {
+	async function handleStatusChange(orderId: string, newStatus: string) {
 		try {
-			const response = await fetch(`/api/orders/${orderId}/status`, {
+			const response = await fetch(`/api/vendor/orders/${orderId}/status`, {
 				method: 'PATCH',
 				body: JSON.stringify({ status: newStatus }),
 				headers: {
@@ -43,24 +14,18 @@
 			});
 
 			if (!response.ok) throw new Error('Failed to update order status');
-
-			// Update local state
-			orders = orders.map((order) =>
-				order.id === orderId ? { ...order, status: newStatus } : order
-			);
 		} catch (error) {
 			console.error('Error updating order status:', error);
-			// TODO: Show error toast
 		}
 	}
-
 	let filteredOrders = $derived(
 		orders.filter((order) => {
 			if (!searchQuery) return true;
 			const searchLower = searchQuery.toLowerCase();
 			return (
-				order.orderNumber.toLowerCase().includes(searchLower) ||
-				order.customerName.toLowerCase().includes(searchLower)
+				order.code?.toLowerCase().includes(searchLower) ||
+				order.customer?.name?.toLowerCase().includes(searchLower) ||
+				order.customer?.phoneNumber?.includes(searchLower)
 			);
 		})
 	);
@@ -75,6 +40,11 @@
 			</div>
 		</div>
 	{:else}
-		<OrderTable orders={filteredOrders} onStatusChange={handleStatusChange} showActions={true} />
+		<OrderTable
+			orders={filteredOrders}
+			{searchQuery}
+			showActions={true}
+			onStatusChange={handleStatusChange}
+		/>
 	{/if}
 </div>

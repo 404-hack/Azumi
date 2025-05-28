@@ -1081,87 +1081,111 @@ const vendorRoute = factory
     ),
     async (c) => {
       try {
-        if (c.req.header("upgrade") !== "websocket") {
-          return c.text("Not a websocket request", 426);
-        }
+        // if (c.req.header("upgrade") !== "websocket") {
+        //   return c.text("Not a websocket request", 426);
+        // }
         const db = c.get("db");
         const orgId = c.get("orgId");
         console.log("🚀 ~ orgId:", orgId);
         const { status } = c.req.valid("query");
-        const id = env.ORDER_NOTIFICATION.idFromName(orgId);
-        const stub = env.ORDER_NOTIFICATION.get(id);
-        const response = await stub.fetch(c.req.raw);
-        return new Response(null, {
-          status: response.status,
-          headers: response.headers,
-          webSocket: response.webSocket,
+        // const id = env.ORDER_NOTIFICATION.idFromName(orgId);
+        // const stub = env.ORDER_NOTIFICATION.get(id);
+        // const response = await stub.fetch(c.req.raw);
+        // return new Response(null, {
+        //   status: response.status,
+        //   headers: response.headers,
+        //   webSocket: response.webSocket,
+        // });
+        let query = db.query.orderTable.findMany({
+          where: (orders, { eq, and }) => {
+            const conditions = [eq(orders.shopId, orgId)];
+            if (status) {
+              conditions.push(eq(orders.status, status));
+            }
+            return and(...conditions);
+          },
+
+          with: {
+            customer: true,
+            items: {
+              columns: {
+                id: true,
+                menuItemId: true,
+                menuItemName: true,
+                quantity: true,
+                unitPrice: true,
+                totalPrice: true,
+                specialInstructions: true,
+              },
+              with: {
+                options: true,
+              },
+            },
+            rider: true,
+          },
         });
-        // let query = db.query.orderTable.findMany({
-        //   where: (orders, { eq, and }) => {
-        //     const conditions = [eq(orders.shopId, orgId)];
-        //     if (status) {
-        //       conditions.push(eq(orders.status, status));
-        //     }
-        //     return and(...conditions);
-        //   },
-        //   columns: {
-        //     id: true,
-        //     code: true,
-        //     status: true,
-        //     customerId: true,
-        //     riderId: true,
-        //     riderConfirmationCode: true,
-        //     cartId: true,
-        //     contactPhone: true,
-        //     paymentMethod: true,
-        //     paymentStatus: true,
-        //     paymentTransactionId: true,
-        //     subtotal: true,
-        //     deliveryFee: true,
-        //     serviceFee: true,
-        //     discount: true,
-        //     total: true,
-        //     acceptedAt: true,
-        //     preparedAt: true,
-        //     pickedUpAt: true,
-        //     deliveredAt: true,
-        //     canceledAt: true,
-        //     cancelReason: true,
-        //     createdAt: true,
-        //     updatedAt: true,
-        //   },
-        //   with: {
-        //     customer: true,
-        //     items: {
-        //       columns: {
-        //         id: true,
-        //         menuItemId: true,
-        //         menuItemName: true,
-        //         quantity: true,
-        //         unitPrice: true,
-        //         totalPrice: true,
-        //         specialInstructions: true,
-        //       },
-        //       with: {
-        //         options: true,
-        //       },
-        //     },
-        //     rider: true,
-        //   },
-        // });
 
-        // const orders = await query;
+        const orders = await query;
 
-        // return c.json({
-        //   message: "success",
-        //   data: orders,
-        // });
+        return c.json({
+          message: "success",
+          data: orders,
+        });
       } catch (error) {
         console.error("Error fetching orders:", error);
         return c.json({ message: "Internal server error" }, 500);
       }
     }
   )
+
+  // Get single order by ID
+  .get("/order/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+      const order = await db.query.orderTable.findFirst({
+        where: (orders, { and, eq }) =>
+          and(eq(orders.id, id), eq(orders.shopId, orgId)),
+        with: {
+          customer: true,
+          items: {
+            columns: {
+              id: true,
+              menuItemId: true,
+              menuItemName: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              specialInstructions: true,
+            },
+            with: {
+              options: true,
+              menuItem: {
+                columns: {
+                  imageUrl: true,
+                },
+              },
+            },
+          },
+          rider: true,
+        },
+      });
+
+      if (!order) {
+        return c.json({ message: "Order not found" }, 404);
+      }
+
+      return c.json({
+        message: "success",
+        data: order,
+      });
+    } catch (error) {
+      console.error("Error fetching order:", error);
+      return c.json({ message: "Internal server error" }, 500);
+    }
+  })
+
   // Operating hours
   .patch("/", zValidator("json", updateShopSchema), async (c) => {
     try {
