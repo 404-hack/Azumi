@@ -25,6 +25,9 @@ export * from "./loyalty.schema";
 // Notification schemas
 export * from "./notification.schema";
 
+// FCM schemas
+export * from "./push-notification.schema";
+
 // Utility schemas
 export * from "./utils.schema";
 
