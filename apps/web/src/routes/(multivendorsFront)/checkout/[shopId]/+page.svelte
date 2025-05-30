@@ -1,4 +1,5 @@
-<script lang="ts">	import { Badge } from '$lib/components/ui/badge';
+<script lang="ts">
+	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import Switch from '$lib/components/ui/switch/switch.svelte';
@@ -21,7 +22,7 @@
 	import { getShopOpeningInfo } from '$lib/utils/shop.utils'; // Import the new utility function
 	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 
-	let loading = false;
+	let loading = $state(false);
 	let couponCode = '';
 	let { data } = $props(); // data no longer includes deliveryFee
 	let deliveryNotes = $state('');
@@ -133,13 +134,7 @@
 	}}
 /> -->
 <ProductModal />
-<button
-	onclick={async () => {
-		// Call the test workflow function here
-		await client.order.test.$post();
-	}}
-	>this button is to test the test workflow
-</button>
+
 <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 	<NotificationPermissionBanner context="customer" />
 	<div class="mb-8">
@@ -224,15 +219,15 @@
 			{/if}
 		</div>
 
+		<!-- TODO: Replace with dynamic tags -->
 		<!-- Shop Tags -->
-		<div class="mt-3 flex flex-wrap gap-2">
+		<!-- <div class="mt-3 flex flex-wrap gap-2">
 			{#each ['Mediterranean', 'Kebab', 'Halal', 'Falafel'] as tag}
-				<!-- TODO: Replace with dynamic tags -->
 				<Badge variant="outline" class="rounded-full">
 					{tag}
 				</Badge>
 			{/each}
-		</div>
+		</div> -->
 
 		<!-- Additional Information Box -->
 		{#if !openingInfo.isOpenNow}
@@ -275,13 +270,13 @@
 									</span>
 								</div>
 							</div>
-							<Button
+							<!-- <Button
 								variant="ghost"
 								size="sm"
 								onclick={() => {
 									/* Logic to open location change modal */
 								}}>Change</Button
-							>
+							> -->
 						</div>
 
 						{#if activeLocation.current.lat && activeLocation.current.lng}
@@ -388,7 +383,8 @@
 							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
 								{formatCurrency(data.cart.subtotal)}
 							</span>
-						</li>						<li class="flex items-center justify-between">
+						</li>
+						<li class="flex items-center justify-between">
 							<div class="flex items-center gap-1">
 								<p class="text-sm font-medium lg:text-base">Service Fee</p>
 								<Popover.Root>
@@ -403,14 +399,15 @@
 											<h4 class="font-medium leading-none">Service Fee</h4>
 											<p class="text-sm text-muted-foreground">
 												The service fee helps us maintain the platform and provide customer support.
-												This fee supports our operations to ensure a reliable and quality experience for all users.
+												This fee supports our operations to ensure a reliable and quality experience
+												for all users.
 											</p>
 										</div>
 									</Popover.Content>
 								</Popover.Root>
 							</div>
 							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
-								<span class="line-through text-muted-foreground">₦500</span>
+								<span class="text-muted-foreground line-through">₦500</span>
 								<span class="ml-2 text-green-600">{formatCurrency(serviceFee)}</span>
 							</span>
 						</li>

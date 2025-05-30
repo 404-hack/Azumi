@@ -4,7 +4,7 @@
 	import {
 		loginModalState,
 		cartsSheetStore,
-		addDeliveryAddressModalState,
+		addDeliveryAddressModalState
 	} from '$lib/states/modalState.svelte';
 	import ResponsiveDropdown from '$lib/components/ResponsiveDropdown.svelte';
 
@@ -64,7 +64,7 @@
 				>
 					<MapPin class="h-4 w-4" />
 					<span class="max-w-[200px] truncate border border-red-600"
-						>{activeLocation.current.name}</span
+						>{activeLocation.current.address}</span
 					>
 					<ChevronDown class="h-4 w-4 transition-transform group-hover:rotate-180" />
 				</button>
@@ -155,11 +155,13 @@
 							{:else}
 								{#each $organizations.data as organization}
 									<DropdownMenu.Item
-										onclick={() => {
-											authClient.organization.setActive({
+										onclick={async () => {
+											await authClient.organization.setActive({
 												organizationSlug: organization.slug
 											});
-											goto('/vendor/menu');
+											await goto('/vendor/menu', {
+												invalidateAll: true
+											});
 										}}
 									>
 										<Store />

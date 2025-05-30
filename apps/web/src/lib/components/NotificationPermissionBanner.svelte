@@ -5,12 +5,12 @@
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Bell, X } from 'lucide-svelte';
 
-    interface Props {
-        context?: 'vendor' | 'rider' | 'admin' | 'customer';
-        showOnlyIfNotGranted?: boolean;
-    }
+	interface Props {
+		context?: 'vendor' | 'rider' | 'admin' | 'customer';
+		showOnlyIfNotGranted?: boolean;
+	}
 
-    let { context = 'customer', showOnlyIfNotGranted = true }: Props = $props();
+	let { context = 'customer', showOnlyIfNotGranted = true }: Props = $props();
 
 	const fcmStore = createFCMStore();
 	let showBanner = $state(false);
@@ -19,7 +19,8 @@
 	const contextMessages = {
 		vendor: {
 			title: 'Stay updated on your orders',
-			description: 'Get instant notifications when you receive new orders and when they\'re ready for pickup.'
+			description:
+				"Get instant notifications when you receive new orders and when they're ready for pickup."
 		},
 		rider: {
 			title: 'Never miss a delivery opportunity',
@@ -31,13 +32,14 @@
 		},
 		customer: {
 			title: 'Track your orders in real-time',
-			description: 'Get notified when your order is confirmed, being prepared, and out for delivery.'
+			description:
+				'Get notified when your order is confirmed, being prepared, and out for delivery.'
 		}
 	};
 
 	onMount(() => {
 		fcmStore.initialize();
-		
+
 		if (showOnlyIfNotGranted) {
 			showBanner = !fcmStore.hasPermission && fcmStore.canRequestPermission;
 		} else {
@@ -65,41 +67,56 @@
 </script>
 
 {#if showBanner}
-	<Card class="border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 mb-4">
-		<CardContent class="flex items-center justify-between p-4">
-			<div class="flex items-start gap-3">
-				<Bell class="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-				<div class="flex-1">
-					<h3 class="font-medium text-blue-900 dark:text-blue-100">
-						{contextMessages[context].title}
-					</h3>
-					<p class="text-sm text-blue-700 dark:text-blue-200 mt-1">
-						{contextMessages[context].description}
-					</p>
+	<!-- Fixed position side popup -->
+	<div
+		class="fixed bottom-4 right-4 z-50 max-w-sm duration-300 animate-in fade-in slide-in-from-right-5"
+	>
+		<Card class="border border-border bg-card text-card-foreground shadow-lg">
+			<CardContent class="p-4">
+				<div class="mb-3 flex items-start gap-3">
+					<Bell class="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
+					<div class="flex-1">
+						<h3 class="text-sm font-medium text-foreground">
+							{contextMessages[context].title}
+						</h3>
+						<p class="mt-1 text-xs leading-relaxed text-muted-foreground">
+							{contextMessages[context].description}
+						</p>
+					</div>
+					<Button
+						variant="ghost"
+						size="sm"
+						onclick={handleDismiss}
+						class="h-6 w-6 p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+					>
+						<X class="h-3 w-3" />
+					</Button>
 				</div>
-			</div>
-			<div class="flex items-center gap-2 ml-4">
-				<Button
-					size="sm"
-					onclick={handleEnableNotifications}
-					disabled={isLoading}
-					class="bg-blue-600 hover:bg-blue-700 text-white"
-				>
-					{#if isLoading}
-						<div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-					{:else}
-						Enable Notifications
-					{/if}
-				</Button>
-				<Button
-					variant="ghost"
-					size="sm"
-					onclick={handleDismiss}
-					class="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
-				>
-					<X class="h-4 w-4" />
-				</Button>
-			</div>
-		</CardContent>
-	</Card>
+				<div class="flex gap-2">
+					<Button
+						size="sm"
+						onclick={handleEnableNotifications}
+						disabled={isLoading}
+						class="h-auto flex-1 bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90"
+					>
+						{#if isLoading}
+							<div
+								class="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"
+							></div>
+						{:else}
+							Enable
+						{/if}
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						onclick={handleDismiss}
+						class="h-auto px-3 py-1.5 text-xs text-muted-foreground"
+					>
+						Later
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
+	</div>
 {/if}
