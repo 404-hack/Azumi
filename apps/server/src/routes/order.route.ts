@@ -211,6 +211,7 @@ const orderRoute = factory
               latitude: true,
               longitude: true,
               active: true,
+              status: true,
               name: true,
             },
             with: {
@@ -256,7 +257,17 @@ const orderRoute = factory
         );
       }
 
-      // 2. Check if Shop is Open
+      // 2. Check if Shop is Approved
+      if (cart.shop.status !== "APPROVED") {
+        return c.json(
+          {
+            error: `Sorry, the shop "${cart.shop.name}" is not approved to accept orders. Please try again later.`,
+          },
+          400
+        );
+      }
+
+      // 3. Check if Shop is Open
       const now = new Date();
       const currentDay = now.getDay();
       const currentHour = now.getHours();
@@ -289,7 +300,7 @@ const orderRoute = factory
         );
       }
 
-      // 3. Check Item and Option Availability (In Stock)
+      // 4. Check Item and Option Availability (In Stock)
       for (const item of cart.items) {
         if (!item.menuItem) {
           return c.json(

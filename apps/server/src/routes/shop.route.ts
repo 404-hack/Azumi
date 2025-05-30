@@ -11,7 +11,7 @@ import {
   shopTable,
   shopTodoTable,
 } from "../lib/db/schema/shop.schema";
-import { and, between, eq, gte, in_, lte, sql } from "drizzle-orm";
+import { and, between, eq, gte, lte, sql } from "drizzle-orm";
 import { createAuth } from "../lib/auth";
 import { nanoid } from "nanoid";
 import { factory } from "../lib/factory";
@@ -97,7 +97,8 @@ const shopRoute = factory
             lte(shops.latitude, maxLat),
             gte(shops.longitude, minLon),
             lte(shops.longitude, maxLon),
-            // eq(shops.active, true), // Only active shops
+            eq(shops.active, true),
+            eq(shops.status, "APPROVED"),
           ];
 
           // Add shop type filter if provided
@@ -123,6 +124,7 @@ const shopRoute = factory
           averageRating: true,
           totalRatings: true,
           active: true,
+          status: true,
           longitude: true,
           latitude: true,
           createdAt: true,
@@ -224,8 +226,12 @@ const shopRoute = factory
         case "newest":
           // Sort by creation date (newest first)
           nearbyShops.sort((a, b) => {
-            const aCreatedAt = a.createdAt ? new Date(aCreatedAt).getTime() : 0;
-            const bCreatedAt = b.createdAt ? new Date(bCreatedAt).getTime() : 0;
+            const aCreatedAt = a.createdAt
+              ? new Date(a.createdAt).getTime()
+              : 0;
+            const bCreatedAt = b.createdAt
+              ? new Date(b.createdAt).getTime()
+              : 0;
             return bCreatedAt - aCreatedAt;
           });
           break;
@@ -395,8 +401,33 @@ const shopRoute = factory
         const { slug } = c.req.param();
         const { latitude: userLat, longitude: userLng } = c.req.valid("query");
         const db = c.get("db");
-        const shop = await db.query.shopTable.findFirst({
+        const session = c.get("session");
+        const orgId = c.get("orgId");
+
+        // First, get the shop without restrictions to check ownership
+        const shopForOwnershipCheck = await db.query.shopTable.findFirst({
           where: eq(shopTable.slug, slug),
+          columns: { id: true },
+        });
+
+        if (!shopForOwnershipCheck) {
+          return c.json({ message: "Shop not found" }, 404);
+        }
+
+        // Check if user owns this shop
+        const isOwner = orgId === shopForOwnershipCheck.id;
+
+        // Build where conditions based on ownership
+        const whereConditions = isOwner
+          ? eq(shopTable.slug, slug) // No restrictions for owner
+          : and(
+              eq(shopTable.slug, slug),
+              eq(shopTable.active, true),
+              eq(shopTable.status, "APPROVED")
+            );
+
+        const shop = await db.query.shopTable.findFirst({
+          where: whereConditions,
           with: {
             operatingHours: true,
             menuCategories: {
