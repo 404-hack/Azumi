@@ -1,6 +1,6 @@
 import { client } from '$lib/hc';
 import { error, redirect } from '@sveltejs/kit';
-// import { activeLocation } from '$lib/states/locationState.svelte';
+import { activeLocation } from '$lib/states/locationState.svelte';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ url }) => {
