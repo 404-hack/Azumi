@@ -4,9 +4,7 @@
 	import {
 		loginModalState,
 		cartsSheetStore,
-		registerModalState,
 		addDeliveryAddressModalState,
-		verifyOtpModalState
 	} from '$lib/states/modalState.svelte';
 	import ResponsiveDropdown from '$lib/components/ResponsiveDropdown.svelte';
 

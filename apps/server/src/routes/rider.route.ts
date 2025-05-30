@@ -10,6 +10,7 @@ import { factory } from "../lib/factory";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { z } from "zod";
 import { env } from "cloudflare:workers";
+import { PushNotificationService } from "../services/push-notification.service";
 
 import riderAuthMiddleware from "../middlewares/riderAuth";
 import { RiderTodoService } from "../services/riderTodo.service";
@@ -22,6 +23,7 @@ import {
   createRiderPaymentMethodSchema,
   updateRiderPaymentMethodSchema,
 } from "../lib/validation/rider.validation";
+import { RiderDispatchService } from "../services/riderDispatch.service";
 
 const riderRoute = factory
   .createApp()
@@ -288,15 +290,32 @@ const riderRoute = factory
             workflowError
           );
           // Even if workflow notification fails, the rider is assigned. Consider retry or logging.
-        }
+        } // Notify other riders that this order is now taken
+        try {
+          const riderDispatch = new RiderDispatchService();
+          // We don't have a direct way to get the previously notified riders
+          // So we'll find nearby riders and notify them (excluding the assigned rider)
+          // TODO: may have to remove finding nearby riders and notifying them that a order has been assgned
+          const { availableRiders } =
+            await riderDispatch.findAvailableRiders(orderId);
+          const otherRiders = availableRiders
+            .map((r) => r.rider)
+            .filter((rider) => rider.userId !== userId);
 
-        // TODO: Notify other (e.g., 4) riders that this order is now taken.
-        // This would involve looking up which riders were initially offered the order
-        // (perhaps from a temporary cache or a related DB table if you store offers)
-        // and sending them a push notification or WebSocket message.
-        console.log(
-          `RIDER_NOTIFICATION: Would notify other offered riders that order ${orderId} is now taken.`
-        );
+          if (otherRiders.length > 0) {
+            c.executionCtx.waitUntil(
+              riderDispatch.notifyRidersOrderTaken(otherRiders, orderId)
+            );
+            console.log(
+              `✅ Notified ${otherRiders.length} other riders that order ${orderId} is taken`
+            );
+          }
+        } catch (notificationError) {
+          console.error(
+            `Failed to notify other riders about order ${orderId} being taken:`,
+            notificationError
+          );
+        }
 
         return c.json({
           success: true,
@@ -349,20 +368,19 @@ const riderRoute = factory
           status: orderTable.status,
         })
         .get();
-
       console.log(`Rider ${userId} picked up order ${id}`);
 
       // WORKFLOW: Notify workflow about pickup
       if (updatedOrder) {
         try {
-          const workflowInstance = await honoEnv.ORDER_WORKFLOW.get(id); // Use order ID as workflow instance ID
+          const workflowInstance = await honoEnv.ORDER_WORKFLOW.get(id);
           if (workflowInstance) {
             await workflowInstance.sendEvent({
-              type: "order_picked_up", // Event type for pickup
+              type: "order_picked_up",
               payload: {
                 orderId: id,
                 riderId: userId,
-                status: updatedOrder.status, // Should be IN_TRANSIT
+                status: updatedOrder.status,
                 timestamp: new Date().toISOString(),
               },
             });
@@ -378,6 +396,38 @@ const riderRoute = factory
           console.error(
             "Failed to notify workflow about order pickup:",
             workflowError
+          );
+        } // Notify vendor about pickup
+        try {
+          const pushNotificationService = new PushNotificationService();
+
+          const orderInfo = await db.query.orderTable.findFirst({
+            where: eq(orderTable.id, id),
+            columns: { shopId: true },
+          });
+
+          if (orderInfo?.shopId) {
+            c.executionCtx.waitUntil(
+              pushNotificationService.sendNotificationToShop(orderInfo.shopId, {
+                title: "Order Picked Up! 📦",
+                body: `Order #${id.slice(-6)} has been picked up by the rider and is on its way to the customer`,
+                data: {
+                  type: "order_picked_up",
+                  orderId: id,
+                  riderId: userId,
+                  action: "view_order",
+                  link: `/vendor/orders/${id}`,
+                },
+              })
+            );
+            console.log(
+              `✅ Pickup notification sent to vendor for order: ${id}`
+            );
+          }
+        } catch (vendorNotificationError) {
+          console.error(
+            `Failed to send pickup notification to vendor for order ${id}:`,
+            vendorNotificationError
           );
         }
       }
@@ -447,20 +497,19 @@ const riderRoute = factory
             status: orderTable.status,
           })
           .get();
-
         console.log(`Rider ${userId} delivered order ${id}`);
 
         // WORKFLOW: Notify workflow about delivery
         if (updatedOrder) {
           try {
-            const workflowInstance = await honoEnv.ORDER_WORKFLOW.get(id); // Use order ID as workflow instance ID
+            const workflowInstance = await honoEnv.ORDER_WORKFLOW.get(id);
             if (workflowInstance) {
               await workflowInstance.sendEvent({
-                type: "order_delivered", // Event type for delivery
+                type: "order_delivered",
                 payload: {
                   orderId: id,
                   riderId: userId,
-                  status: updatedOrder.status, // Should be DELIVERED
+                  status: updatedOrder.status,
                   timestamp: new Date().toISOString(),
                 },
               });
@@ -476,6 +525,41 @@ const riderRoute = factory
             console.error(
               "Failed to notify workflow about order delivery:",
               workflowError
+            );
+          } // Notify vendor about successful delivery
+          try {
+            const pushNotificationService = new PushNotificationService();
+
+            const orderInfo = await db.query.orderTable.findFirst({
+              where: eq(orderTable.id, id),
+              columns: { shopId: true },
+            });
+
+            if (orderInfo?.shopId) {
+              c.executionCtx.waitUntil(
+                pushNotificationService.sendNotificationToShop(
+                  orderInfo.shopId,
+                  {
+                    title: "Order Delivered Successfully! ✅",
+                    body: `Order #${id.slice(-6)} has been delivered to the customer. Well done!`,
+                    data: {
+                      type: "order_delivered",
+                      orderId: id,
+                      riderId: userId,
+                      action: "view_order",
+                      link: `/vendor/orders/${id}`,
+                    },
+                  }
+                )
+              );
+              console.log(
+                `✅ Delivery confirmation notification sent to vendor for order: ${id}`
+              );
+            }
+          } catch (vendorNotificationError) {
+            console.error(
+              `Failed to send delivery notification to vendor for order ${id}:`,
+              vendorNotificationError
             );
           }
         }

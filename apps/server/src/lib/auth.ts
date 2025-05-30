@@ -135,7 +135,7 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
             to: phoneNumber.startsWith("0")
               ? `234${phoneNumber.slice(1)}`
               : phoneNumber,
-            sender_name: "Azumi",
+            sender_name: "Schamp",
             message: `Your azumi otp code is ${code}. expires in 5 minutes. Thank you.`,
             route: "dnd",
           };

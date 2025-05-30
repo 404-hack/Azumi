@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createFCMStore } from '$lib/stores/fcm.svelte.ts';
+	import { createFCMStore } from '$lib/stores/fcm.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import {
 		Card,
@@ -15,6 +15,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { Bell, BellOff, CheckCircle, AlertTriangle, Loader2, Send, Users } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 
 	const fcmStore = createFCMStore();
 
@@ -22,15 +23,19 @@
 	let demoBody = $state('This is a test notification from your Azumi app!');
 	let topicName = $state('general');
 	let isSubscribedToTopic = $state(false);
+	let tokenData = $state(null);
+	let showTokenDebug = $state(false);
 
 	onMount(() => {
 		fcmStore.initialize();
 		return () => fcmStore.destroy();
 	});
-
 	async function handleEnableNotifications() {
+		console.log('Enable notifications clicked');
 		try {
+			console.log('Requesting notification token...');
 			const token = await fcmStore.requestNotificationAndGetToken();
+			console.log('Token received:', token);
 			if (token) {
 				toast.success('Notifications enabled successfully!');
 			} else {
@@ -86,6 +91,78 @@
 			}
 		} catch (error) {
 			toast.error('Error managing topic subscription');
+			console.error('Error:', error);
+		}
+	}
+
+	async function fetchTokenDebugInfo() {
+		try {
+			const response = await fetch(`${PUBLIC_API_BASE_URL}/api/push-notifications/tokens`, {
+				credentials: 'include'
+			});
+
+			if (response.ok) {
+				tokenData = await response.json();
+				showTokenDebug = true;
+			} else {
+				toast.error('Failed to fetch token info');
+			}
+		} catch (error) {
+			toast.error('Error fetching token info');
+			console.error('Error:', error);
+		}
+	}
+	async function testBrowserNotification() {
+		try {
+			console.log('🔥 Testing browser notification...');
+			console.log('🔥 Notification permission:', Notification.permission);
+
+			if (Notification.permission === 'granted') {
+				const notification = new Notification('Browser Test', {
+					body: 'This is a direct browser notification test',
+					icon: '/favicon.png',
+					tag: 'browser-test'
+				});
+
+				notification.onclick = () => {
+					console.log('🔥 Browser notification clicked');
+					notification.close();
+				};
+
+				toast.success('Browser notification sent!');
+			} else {
+				toast.error('Need notification permission first');
+			}
+		} catch (error) {
+			toast.error('Browser notification failed');
+			console.error('Error:', error);
+		}
+	}
+
+	async function testServiceWorkerNotification() {
+		try {
+			console.log('🔥 Testing service worker notification...');
+
+			if ('serviceWorker' in navigator) {
+				const registration = await navigator.serviceWorker.ready;
+				console.log('🔥 Service worker ready:', registration);
+
+				await registration.showNotification('Service Worker Test', {
+					body: 'This is a direct service worker notification test',
+					icon: '/favicon.png',
+					badge: '/favicon.png',
+					tag: 'sw-direct-test',
+					requireInteraction: true,
+					timestamp: Date.now()
+				});
+
+				console.log('✅ Service worker notification sent');
+				toast.success('Service worker notification sent!');
+			} else {
+				toast.error('Service worker not supported');
+			}
+		} catch (error) {
+			toast.error('Service worker notification failed');
 			console.error('Error:', error);
 		}
 	}
@@ -155,16 +232,13 @@
 					<p class="font-medium">Status</p>
 					<Badge variant={statusInfo.variant}>{statusInfo.text}</Badge>
 				</div>
-				{#if fcmStore.canRequestPermission}
-					<Button onclick={handleEnableNotifications} disabled={fcmStore.isLoading}>
-						{#if fcmStore.isLoading}
-							<Loader2 class="mr-2 h-4 w-4 animate-spin" />
-						{:else}
-							<Bell class="mr-2 h-4 w-4" />
-						{/if}
-						Enable Notifications
-					</Button>
-				{/if}
+				<Button onclick={handleEnableNotifications}>
+					<Bell class="mr-2 h-4 w-4" />
+					Enable Notifications
+				</Button>
+				<p class="text-sm text-gray-500">
+					Permission: {fcmStore.notificationPermissionStatus || 'null'} | Can Request: {fcmStore.canRequestPermission}
+				</p>
 			</div>
 
 			{#if fcmStore.token}
@@ -190,15 +264,6 @@
 					</div>
 				</div>
 			{/if}
-
-			{#if fcmStore.error}
-				<div class="rounded-md bg-destructive/10 p-3 text-destructive">
-					<p class="text-sm">{fcmStore.error}</p>
-					<Button variant="ghost" size="sm" class="mt-2" onclick={() => fcmStore.clearError()}>
-						Dismiss
-					</Button>
-				</div>
-			{/if}
 		</CardContent>
 	</Card>
 
@@ -222,14 +287,37 @@
 						<Input id="demo-body" bind:value={demoBody} placeholder="Notification body" />
 					</div>
 				</div>
-				<Button onclick={handleSendDemo} disabled={fcmStore.isLoading} class="w-full">
-					{#if fcmStore.isLoading}
-						<Loader2 class="mr-2 h-4 w-4 animate-spin" />
-					{:else}
-						<Send class="mr-2 h-4 w-4" />
-					{/if}
-					Send Demo Notification
-				</Button>
+				<div class="space-y-3">
+					<Button
+						onclick={() => {
+							setTimeout(() => {
+								handleSendDemo();
+							}, 5000); // Delay to ensure UI updates before sending
+							// handleSendDemo
+						}}
+						disabled={fcmStore.isLoading}
+						class="w-full"
+					>
+						{#if fcmStore.isLoading}
+							<Loader2 class="mr-2 h-4 w-4 animate-spin" />
+						{:else}
+							<Send class="mr-2 h-4 w-4" />
+						{/if}
+						Send Demo Notification (5s delay)
+					</Button>
+
+					<div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+						<Button onclick={testBrowserNotification} variant="outline" class="w-full">
+							<Bell class="mr-2 h-4 w-4" />
+							Test Browser Notification
+						</Button>
+
+						<Button onclick={testServiceWorkerNotification} variant="outline" class="w-full">
+							<Bell class="mr-2 h-4 w-4" />
+							Test Service Worker Notification
+						</Button>
+					</div>
+				</div>
 			</CardContent>
 		</Card>
 
@@ -266,6 +354,80 @@
 						variant="outline">promotions</Badge
 					>
 				</div>
+			</CardContent>
+		</Card>
+
+		<!-- Token Debug Section -->
+		<Card>
+			<CardHeader>
+				<CardTitle class="flex items-center gap-2">
+					<AlertTriangle class="h-5 w-5" />
+					Token Debug Info
+				</CardTitle>
+				<CardDescription>
+					Understand why notifications sometimes work and sometimes don't
+				</CardDescription>
+			</CardHeader>
+			<CardContent class="space-y-4">
+				<Button onclick={fetchTokenDebugInfo} variant="outline" class="w-full">
+					View My FCM Tokens
+				</Button>
+
+				{#if showTokenDebug && tokenData}
+					<div class="space-y-4">
+						<div class="rounded-lg bg-gray-50 p-4">
+							<h4 class="mb-2 font-semibold">📊 Token Summary</h4>
+							<div class="grid grid-cols-2 gap-2 text-sm">
+								<div>Total Tokens: <Badge>{tokenData.summary.total}</Badge></div>
+								<div>Active: <Badge variant="default">{tokenData.summary.active}</Badge></div>
+								<div>
+									Inactive: <Badge variant="destructive">{tokenData.summary.inactive}</Badge>
+								</div>
+								<div>
+									Current: <Badge variant="secondary"
+										>{fcmStore.token ? fcmStore.token.substring(0, 20) + '...' : 'None'}</Badge
+									>
+								</div>
+							</div>
+						</div>
+
+						<div class="space-y-2">
+							<h4 class="font-semibold">📱 All Your Tokens:</h4>
+							{#each tokenData.tokens as token}
+								<div
+									class="rounded-lg border p-3 {token.isActive
+										? 'border-green-200 bg-green-50'
+										: 'border-red-200 bg-red-50'}"
+								>
+									<div class="flex items-center justify-between">
+										<div>
+											<div class="font-mono text-sm">{token.token}</div>
+											<div class="text-xs text-gray-500">
+												Created: {new Date(token.createdAt).toLocaleString()}
+												{#if token.lastUsedAt}
+													| Last used: {new Date(token.lastUsedAt).toLocaleString()}
+												{/if}
+											</div>
+										</div>
+										<Badge variant={token.isActive ? 'default' : 'destructive'}>
+											{token.isActive ? 'Active' : 'Inactive'}
+										</Badge>
+									</div>
+								</div>
+							{/each}
+						</div>
+
+						<div class="rounded-lg bg-blue-50 p-4 text-sm">
+							<h4 class="mb-2 font-semibold">💡 Why Multiple Tokens?</h4>
+							<ul class="space-y-1 text-gray-700">
+								<li>• Each browser session creates a new token</li>
+								<li>• Clearing browser data invalidates old tokens</li>
+								<li>• Firebase auto-rotates tokens for security</li>
+								<li>• Old tokens become "invalid" over time</li>
+							</ul>
+						</div>
+					</div>
+				{/if}
 			</CardContent>
 		</Card>
 	{/if}

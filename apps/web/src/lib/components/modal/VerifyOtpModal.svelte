@@ -23,6 +23,8 @@
 	});
 	let { title, phoneNumber }: Props = $props();
 
+	let otpInputRef = $state<HTMLElement>();
+
 	let countdown = $state(50);
 	let canResend = $state(false);
 	let intervalId: ReturnType<typeof setInterval>;
@@ -40,10 +42,17 @@
 			}
 		}, 1000);
 	}
-
 	$effect(() => {
 		if (verifyOtpModalState.value) {
 			startCountdown();
+			setTimeout(() => {
+				// if (otpInputRef) {
+				// 	const firstInput = otpInputRef.querySelector('input');
+				// 	if (firstInput) {
+				// 		firstInput.focus();
+				// 	}
+				// }
+			}, 100);
 		}
 		return () => clearInterval(intervalId);
 	});
@@ -111,9 +120,14 @@
 			<Form.Control>
 				{#snippet children({ props })}
 					<InputOTP.Root
+						
 						maxlength={6}
 						bind:value={$formData.otp}
 						class="flex items-center justify-center gap-2"
+						type="tel"
+						inputmode="numeric"
+						pattern="[0-9]*"
+						autocomplete="one-time-code"
 					>
 						{#snippet children({ cells })}
 							<InputOTP.Group>

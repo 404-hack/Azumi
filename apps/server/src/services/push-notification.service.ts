@@ -1,9 +1,20 @@
-import { messaging } from "../lib/firebase-admin";
-import type {
-  Message,
-  MulticastMessage,
-  TopicMessage,
-} from "firebase-admin/messaging";
+import { eq } from "drizzle-orm";
+import { createClient } from "../lib/db";
+import { pushTokenTable, member } from "../lib/db/schema";
+import {
+  sendFirebaseMessage,
+  sendToMultipleTokens,
+  subscribeToTopic,
+  unsubscribeFromTopic,
+  type FirebaseMessage,
+} from "../lib/firebase-admin";
+import { env } from "cloudflare:workers";
+
+export interface NotificationPayload {
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}
 
 export interface NotificationData {
   title: string;
@@ -12,6 +23,13 @@ export interface NotificationData {
   image?: string;
   data?: Record<string, string>;
   clickAction?: string;
+}
+
+export interface RetryConfig {
+  maxRetries: number;
+  initialDelayMs: number;
+  backoffMultiplier: number;
+  maxDelayMs: number;
 }
 
 export interface SendToTokenOptions extends NotificationData {
@@ -26,7 +44,105 @@ export interface SendToMultipleTokensOptions extends NotificationData {
   tokens: string[];
 }
 
+export interface SendToTokenResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  invalidToken?: boolean;
+}
+
 export class PushNotificationService {
+  private defaultRetryConfig: RetryConfig = {
+    maxRetries: 3,
+    initialDelayMs: 1000,
+    backoffMultiplier: 2,
+    maxDelayMs: 10000,
+  };
+
+  private getFirebaseConfig() {
+    return {
+      projectId: env.FIREBASE_PROJECT_ID,
+      clientEmail: env.FIREBASE_CLIENT_EMAIL,
+      privateKey: env.FIREBASE_PRIVATE_KEY,
+    };
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private shouldRetry(error: Error): boolean {
+    const retryableErrors = [
+      "unavailable",
+      "internal-error",
+      "timeout",
+      "server-error",
+      "rate-limited",
+    ];
+    return retryableErrors.some((retryable) =>
+      error.message.toLowerCase().includes(retryable)
+    );
+  }
+  private async retryOperation<T>(
+    operation: () => Promise<T>,
+    retryConfig: RetryConfig = this.defaultRetryConfig
+  ): Promise<T> {
+    let lastError: Error = new Error("Operation failed after all retries");
+    let delay = retryConfig.initialDelayMs;
+
+    for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (attempt === retryConfig.maxRetries) {
+          break;
+        }
+
+        const shouldRetry = this.shouldRetry(lastError);
+        if (!shouldRetry) {
+          throw lastError;
+        }
+
+        console.warn(
+          `Notification attempt ${attempt + 1} failed, retrying in ${delay}ms:`,
+          lastError.message
+        );
+        await this.sleep(delay);
+
+        delay = Math.min(
+          delay * retryConfig.backoffMultiplier,
+          retryConfig.maxDelayMs
+        );
+      }
+    }
+
+    throw lastError;
+  }
+
+  async sendNotification(
+    token: string,
+    payload: NotificationPayload
+  ): Promise<boolean> {
+    try {
+      const message: FirebaseMessage = {
+        token,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+        },
+        data: payload.data || {},
+      };
+
+      await sendFirebaseMessage(this.getFirebaseConfig(), message);
+      return true;
+    } catch (error) {
+      console.error("Failed to send FCM notification:", error);
+      return false;
+    }
+  }
+
   async sendToToken({
     token,
     title,
@@ -35,41 +151,67 @@ export class PushNotificationService {
     image,
     data,
     clickAction,
-  }: SendToTokenOptions) {
+  }: SendToTokenOptions): Promise<SendToTokenResult> {
     try {
-      const message: Message = {
+      const message: FirebaseMessage = {
+        token,
         notification: {
           title,
           body,
-          imageUrl: image,
+          image,
         },
-        data: {
-          ...data,
-          click_action: clickAction || "/",
-          icon: icon || "/favicon.png",
-        },
-        token,
-        webpush: {
-          notification: {
-            title,
-            body,
-            icon: icon || "/favicon.png",
-            image,
-            click_action: clickAction || "/",
-          },
-          fcmOptions: {
-            link: clickAction || "/",
-          },
-        },
+        data: data || {},
       };
 
-      const response = await messaging().send(message);
-      console.log("Successfully sent message:", response);
-      return { success: true, messageId: response };
+      const result = await sendFirebaseMessage(
+        this.getFirebaseConfig(),
+        message
+      );
+
+      return {
+        success: true,
+        messageId: result.name,
+      };
     } catch (error) {
-      console.error("Error sending message:", error);
-      throw error;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const isInvalidToken =
+        errorMessage.includes("invalid-registration-token") ||
+        errorMessage.includes("registration-token-not-registered");
+
+      return {
+        success: false,
+        error: errorMessage,
+        invalidToken: isInvalidToken,
+      };
     }
+  }
+
+  async sendToTokenWithRetry({
+    token,
+    title,
+    body,
+    icon,
+    image,
+    data,
+    clickAction,
+    retryConfig,
+  }: SendToTokenOptions & {
+    retryConfig?: RetryConfig;
+  }): Promise<SendToTokenResult> {
+    return this.retryOperation(
+      () =>
+        this.sendToToken({
+          token,
+          title,
+          body,
+          icon,
+          image,
+          data,
+          clickAction,
+        }),
+      retryConfig
+    );
   }
 
   async sendToMultipleTokens({
@@ -80,46 +222,49 @@ export class PushNotificationService {
     image,
     data,
     clickAction,
-  }: SendToMultipleTokensOptions) {
-    try {
-      const message: MulticastMessage = {
-        notification: {
-          title,
-          body,
-          imageUrl: image,
-        },
-        data: {
-          ...data,
-          click_action: clickAction || "/",
-          icon: icon || "/favicon.png",
-        },
-        tokens,
-        webpush: {
-          notification: {
-            title,
-            body,
-            icon: icon || "/favicon.png",
-            image,
-            click_action: clickAction || "/",
-          },
-          fcmOptions: {
-            link: clickAction || "/",
-          },
-        },
-      };
+  }: SendToMultipleTokensOptions): Promise<{
+    successCount: number;
+    failureCount: number;
+    responses: SendToTokenResult[];
+  }> {
+    const message = {
+      notification: {
+        title,
+        body,
+        image,
+      },
+      data: data || {},
+      tokens,
+    };
 
-      const response = await messaging().sendEachForMulticast(message);
-      console.log("Successfully sent messages:", response);
+    try {
+      const result = await sendToMultipleTokens(
+        this.getFirebaseConfig(),
+        message
+      );
 
       return {
-        success: true,
-        successCount: response.successCount,
-        failureCount: response.failureCount,
-        responses: response.responses,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        responses: result.responses.map((response) => ({
+          success: !response.error,
+          messageId: response.name,
+          error: response.error?.message,
+          invalidToken:
+            response.error?.code === "invalid-registration-token" ||
+            response.error?.code === "registration-token-not-registered",
+        })),
       };
     } catch (error) {
-      console.error("Error sending messages:", error);
-      throw error;
+      console.error("Failed to send to multiple tokens:", error);
+      return {
+        successCount: 0,
+        failureCount: tokens.length,
+        responses: tokens.map(() => ({
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        })),
+      };
     }
   }
 
@@ -131,79 +276,122 @@ export class PushNotificationService {
     image,
     data,
     clickAction,
-  }: SendToTopicOptions) {
+  }: SendToTopicOptions): Promise<SendToTokenResult> {
     try {
-      const message: TopicMessage = {
+      const message: FirebaseMessage = {
+        topic,
         notification: {
           title,
           body,
-          imageUrl: image,
+          image,
         },
-        data: {
-          ...data,
-          click_action: clickAction || "/",
-          icon: icon || "/favicon.png",
-        },
-        topic,
-        webpush: {
-          notification: {
-            title,
-            body,
-            icon: icon || "/favicon.png",
-            image,
-            click_action: clickAction || "/",
-          },
-          fcmOptions: {
-            link: clickAction || "/",
-          },
-        },
+        data: data || {},
       };
 
-      const response = await messaging().send(message);
-      console.log("Successfully sent topic message:", response);
-      return { success: true, messageId: response };
+      const result = await sendFirebaseMessage(
+        this.getFirebaseConfig(),
+        message
+      );
+
+      return {
+        success: true,
+        messageId: result.name,
+      };
     } catch (error) {
-      console.error("Error sending topic message:", error);
-      throw error;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
   async subscribeToTopic(tokens: string[], topic: string) {
     try {
-      const response = await messaging().subscribeToTopic(tokens, topic);
-      console.log("Successfully subscribed to topic:", response);
-      return { success: true, response };
+      const result = await subscribeToTopic(
+        this.getFirebaseConfig(),
+        tokens,
+        topic
+      );
+      return {
+        success: true,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+      };
     } catch (error) {
-      console.error("Error subscribing to topic:", error);
-      throw error;
+      console.error("Failed to subscribe to topic:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
   async unsubscribeFromTopic(tokens: string[], topic: string) {
     try {
-      const response = await messaging().unsubscribeFromTopic(tokens, topic);
-      console.log("Successfully unsubscribed from topic:", response);
-      return { success: true, response };
+      const result = await unsubscribeFromTopic(
+        this.getFirebaseConfig(),
+        tokens,
+        topic
+      );
+      return {
+        success: true,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+      };
     } catch (error) {
-      console.error("Error unsubscribing from topic:", error);
-      throw error;
+      console.error("Failed to unsubscribe from topic:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
-  async validateToken(token: string): Promise<boolean> {
+  async sendNotificationToUser(
+    userId: string,
+    payload: NotificationPayload
+  ): Promise<boolean> {
     try {
-      await messaging().send(
-        {
-          token,
-          data: { test: "true" },
-        },
-        true
-      );
-      return true;
+      const db = createClient(env.DB);
+      const tokenRecord = await db
+        .select({ token: pushTokenTable.token })
+        .from(pushTokenTable)
+        .where(eq(pushTokenTable.userId, userId))
+        .limit(1);
+
+      if (tokenRecord.length > 0) {
+        return await this.sendNotification(tokenRecord[0].token, payload);
+      }
     } catch (error) {
-      console.log("Token validation failed:", error);
-      return false;
+      console.error("Failed to send notification to user:", error);
     }
+    return false;
+  }
+
+  async sendNotificationToShop(
+    shopId: string,
+    payload: NotificationPayload
+  ): Promise<boolean> {
+    try {
+      const db = createClient(env.DB);
+      const shopMembers = await db
+        .select({ userId: member.userId })
+        .from(member)
+        .where(eq(member.organizationId, shopId));
+
+      let success = false;
+      for (const shopMember of shopMembers) {
+        const sent = await this.sendNotificationToUser(
+          shopMember.userId,
+          payload
+        );
+        if (sent) success = true;
+      }
+      return success;
+    } catch (error) {
+      console.error("Failed to send notification to shop:", error);
+    }
+    return false;
   }
 }
 

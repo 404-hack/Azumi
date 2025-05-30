@@ -31,7 +31,7 @@
 
 	async function sendTokenToServer(token: string) {
 		try {
-			const response = await fetch('/api/fcm/register', {
+			const response = await fetch('/api/push-notifications/register', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'

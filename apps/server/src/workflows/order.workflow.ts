@@ -4,6 +4,11 @@ import {
   WorkflowStep,
   WorkflowStepEvent,
 } from "cloudflare:workers";
+import { PushNotificationService } from "../services/push-notification.service";
+import { createClient } from "../lib/db";
+import { env } from "cloudflare:workers";
+import { orderTable } from "../lib/db/schema/order.schema";
+import { eq } from "drizzle-orm";
 
 /**
  * Input parameters for the order workflow
@@ -153,16 +158,36 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
     console.log(`Vendor notified about order: ${params.orderId}`);
   }
-
   /**
    * Notify vendor about new order
-   * This would integrate with notification services
+   * This integrates with FCM push notification services
    */
   private async notifyVendor(params: OrderParams): Promise<void> {
     console.log(
       `Sending notification to vendor (${params.shopId}) for order: ${params.orderId}`
     );
-    // Would integrate with push notification, SMS, or email services
+    try {
+      const pushNotificationService = new PushNotificationService();
+      await pushNotificationService.sendNotificationToShop(params.shopId, {
+        title: "New Order Received!",
+        body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for $${params.total}`,
+        data: {
+          type: "new_order",
+          orderId: params.orderId,
+          action: "view_order",
+          link: `/vendor/orders/${params.orderId}`,
+        },
+      });
+
+      console.log(
+        `✅ Push notification sent to vendor for order: ${params.orderId}`
+      );
+    } catch (error) {
+      console.error(
+        `❌ Failed to send vendor notification for order ${params.orderId}:`,
+        error
+      );
+    }
   }
 
   /**
@@ -178,21 +203,20 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     const vendorResponse = await step.waitForEvent("vendor_order_response", {
       type: "vendor_order_response",
       timeout: "2 hours",
-    });
-
-    // Extract data from event
-    const responseData = vendorResponse.data as {
+    }); // Extract data from event
+    const responseData = vendorResponse.payload as {
       orderId: string;
       status: string;
       vendorId?: string;
-    };
-
-    // Notify customer about vendor's decision
-    await this.notifyCustomer({
-      id: params.orderId,
-      status: responseData.status,
-      updatedAt: new Date().toISOString(),
-    });
+    }; // Notify customer about vendor's decision
+    await this.notifyCustomer(
+      {
+        id: params.orderId,
+        status: responseData.status,
+        updatedAt: new Date().toISOString(),
+      },
+      params
+    );
 
     console.log(`Vendor responded with status: ${responseData.status}`);
     return {
@@ -218,14 +242,15 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     // Process refund if payment was completed
     if (params.paymentMethod !== "CASH") {
       await this.processRefund(params);
-    }
-
-    // Notify customer about cancellation
-    await this.notifyCustomer({
-      id: params.orderId,
-      status: "CANCELLED",
-      updatedAt: new Date().toISOString(),
-    });
+    } // Notify customer about cancellation
+    await this.notifyCustomer(
+      {
+        id: params.orderId,
+        status: "CANCELLED",
+        updatedAt: new Date().toISOString(),
+      },
+      params
+    );
   }
 
   /**
@@ -252,14 +277,15 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
     console.log(
       `Order ${params.orderId} is ready for pickup at ${readyEvent.payload.timestamp}`
+    ); // Notify customer that order is ready
+    await this.notifyCustomer(
+      {
+        id: params.orderId,
+        status: "READY",
+        updatedAt: new Date().toISOString(),
+      },
+      params
     );
-
-    // Notify customer that order is ready
-    await this.notifyCustomer({
-      id: params.orderId,
-      status: "READY",
-      updatedAt: new Date().toISOString(),
-    });
   }
   /**
    * Phase 4: Assign rider for delivery
@@ -285,16 +311,53 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     console.log(
       `Rider ${riderData.riderId} assigned to order: ${params.orderId}`
     ); // Notify customer about rider assignment
-    await this.notifyCustomer({
-      id: params.orderId,
-      status: "RIDER_ASSIGNED",
-      updatedAt: new Date().toISOString(),
-      riderId: riderData.riderId,
-    });
+    await this.notifyCustomer(
+      {
+        id: params.orderId,
+        status: "RIDER_ASSIGNED",
+        updatedAt: new Date().toISOString(),
+        riderId: riderData.riderId,
+      },
+      params
+    );
+
+    // Notify assigned rider about their new delivery
+    await this.notifyAssignedRider(params, riderData.riderId);
 
     return riderAssignment;
   }
+  /**
+   * Notify assigned rider about their new delivery
+   */
+  private async notifyAssignedRider(
+    params: OrderParams,
+    riderId: string
+  ): Promise<void> {
+    try {
+      const pushNotificationService = new PushNotificationService();
 
+      await pushNotificationService.sendNotificationToUser(riderId, {
+        title: "🎉 New Delivery Assigned!",
+        body: `You've been assigned order #${params.orderId.slice(-6)}. Please head to the pickup location.`,
+        data: {
+          type: "delivery_assigned",
+          orderId: params.orderId,
+          shopId: params.shopId,
+          action: "start_pickup",
+          link: `/rider/orders/${params.orderId}/pickup`,
+        },
+      });
+
+      console.log(
+        `✅ Assignment notification sent to rider ${riderId} for order: ${params.orderId}`
+      );
+    } catch (error) {
+      console.error(
+        `❌ Failed to send assignment notification to rider ${riderId}:`,
+        error
+      );
+    }
+  }
   /**
    * Phase 5: Wait for rider pickup
    */
@@ -311,17 +374,17 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
     console.log(
       `Order ${params.orderId} picked up by rider ${riderAssignment.riderId}`
+    ); // Notify customer that order is in transit
+    await this.notifyCustomer(
+      {
+        id: params.orderId,
+        status: "IN_TRANSIT",
+        updatedAt: new Date().toISOString(),
+        riderId: riderAssignment.riderId,
+      },
+      params
     );
-
-    // Notify customer that order is in transit
-    await this.notifyCustomer({
-      id: params.orderId,
-      status: "IN_TRANSIT",
-      updatedAt: new Date().toISOString(),
-      riderId: riderAssignment.riderId,
-    });
   }
-
   /**
    * Wait for delivery confirmation with rider code
    */
@@ -337,14 +400,15 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       timeout: "3 hours",
     });
 
-    console.log(`Order ${params.orderId} delivered successfully`);
-
-    // Notify customer about successful delivery
-    await this.notifyCustomer({
-      id: params.orderId,
-      status: "DELIVERED",
-      updatedAt: new Date().toISOString(),
-    });
+    console.log(`Order ${params.orderId} delivered successfully`); // Notify customer about successful delivery
+    await this.notifyCustomer(
+      {
+        id: params.orderId,
+        status: "DELIVERED",
+        updatedAt: new Date().toISOString(),
+      },
+      params
+    );
   }
 
   /**
@@ -360,7 +424,6 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     // Process vendor payout
     // Process rider payout
   }
-
   /**
    * Request customer feedback after delivery
    */
@@ -368,35 +431,185 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     params: OrderParams,
     step: WorkflowStep
   ): Promise<void> {
-    console.log(`Requesting feedback for order: ${params.orderId}`);
-
-    // Send feedback request notification to customer
-    await this.notifyCustomer({
-      id: params.orderId,
-      status: "COMPLETED",
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  /**
-   * Send notification to customer
+    console.log(`Requesting feedback for order: ${params.orderId}`); // Send feedback request notification to customer
+    await this.notifyCustomer(
+      {
+        id: params.orderId,
+        status: "COMPLETED",
+        updatedAt: new Date().toISOString(),
+      },
+      params
+    );
+  } /**
+   * Send notification to customer with FCM integration
    */
-  private async notifyCustomer(order: OrderStatus): Promise<void> {
+  private async notifyCustomer(
+    order: OrderStatus,
+    params?: OrderParams
+  ): Promise<void> {
     console.log(
       `Sending notification for order: ${order.id}, status: ${order.status}`
     );
+    try {
+      const pushNotificationService = new PushNotificationService();
+      const { title, body, data } = this.getCustomerNotificationContent(order);
+      // Get customer ID from order in database if not provided in params
+      let customerId = params?.customerId;
+      if (!customerId) {
+        const db = createClient(env.DB);
 
-    const channels = ["email", "sms", "push"];
+        const orderRecord = await db.query.orderTable.findFirst({
+          where: eq(orderTable.id, order.id),
+          columns: { customerId: true },
+        });
 
-    for (const channel of channels) {
-      try {
-        console.log(`Attempting to notify via ${channel}...`);
-        // Would integrate with notification services
-        console.log(`Successfully notified customer via ${channel}`);
-        break;
-      } catch (error) {
-        console.log(`Notification failed via ${channel}, trying next method`);
+        customerId = orderRecord?.customerId || undefined;
       }
+
+      if (!customerId) {
+        console.error(`No customer ID found for order ${order.id}`);
+        return;
+      }
+      await pushNotificationService.sendNotificationToUser(customerId, {
+        title,
+        body,
+        data,
+      });
+
+      console.log(
+        `✅ Push notification sent to customer for order: ${order.id}`
+      );
+    } catch (error) {
+      console.error(
+        `❌ Failed to send customer notification for order ${order.id}:`,
+        error
+      );
+
+      // Fallback notification methods
+      const channels = ["email", "sms"];
+      for (const channel of channels) {
+        try {
+          console.log(`Attempting fallback notification via ${channel}...`);
+          // Would integrate with email/SMS services
+          console.log(`Successfully notified customer via ${channel}`);
+          break;
+        } catch (fallbackError) {
+          console.log(
+            `Fallback notification failed via ${channel}, trying next method`
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Get notification content based on order status
+   */
+  private getCustomerNotificationContent(order: OrderStatus): {
+    title: string;
+    body: string;
+    data: Record<string, string>;
+  } {
+    const orderNumber = `#${order.id.slice(-6)}`;
+
+    switch (order.status) {
+      case "CONFIRMED":
+        return {
+          title: "Order Confirmed! 🎉",
+          body: `Your order ${orderNumber} has been confirmed and is being prepared`,
+          data: {
+            type: "order_confirmed",
+            orderId: order.id,
+            status: order.status,
+            action: "view_order",
+          },
+        };
+
+      case "READY":
+        return {
+          title: "Order Ready for Pickup! 📦",
+          body: `Your order ${orderNumber} is ready and a rider will pick it up soon`,
+          data: {
+            type: "order_ready",
+            orderId: order.id,
+            status: order.status,
+            action: "track_order",
+          },
+        };
+
+      case "RIDER_ASSIGNED":
+        return {
+          title: "Rider Assigned! 🚴‍♂️",
+          body: `A rider has been assigned to deliver your order ${orderNumber}`,
+          data: {
+            type: "rider_assigned",
+            orderId: order.id,
+            status: order.status,
+            riderId: order.riderId || "",
+            action: "track_order",
+          },
+        };
+
+      case "IN_TRANSIT":
+        return {
+          title: "Order On The Way! 🚀",
+          body: `Your order ${orderNumber} has been picked up and is on its way to you`,
+          data: {
+            type: "order_in_transit",
+            orderId: order.id,
+            status: order.status,
+            riderId: order.riderId || "",
+            action: "track_order",
+          },
+        };
+
+      case "DELIVERED":
+        return {
+          title: "Order Delivered! ✅",
+          body: `Your order ${orderNumber} has been successfully delivered`,
+          data: {
+            type: "order_delivered",
+            orderId: order.id,
+            status: order.status,
+            action: "rate_order",
+          },
+        };
+
+      case "CANCELLED":
+        return {
+          title: "Order Cancelled ❌",
+          body: `Your order ${orderNumber} has been cancelled. You will receive a refund if applicable`,
+          data: {
+            type: "order_cancelled",
+            orderId: order.id,
+            status: order.status,
+            action: "view_order",
+          },
+        };
+
+      case "COMPLETED":
+        return {
+          title: "How was your order? ⭐",
+          body: `Please rate your experience with order ${orderNumber}`,
+          data: {
+            type: "feedback_request",
+            orderId: order.id,
+            status: order.status,
+            action: "rate_order",
+          },
+        };
+
+      default:
+        return {
+          title: "Order Update",
+          body: `Your order ${orderNumber} status has been updated to ${order.status}`,
+          data: {
+            type: "order_update",
+            orderId: order.id,
+            status: order.status,
+            action: "view_order",
+          },
+        };
     }
   }
 }

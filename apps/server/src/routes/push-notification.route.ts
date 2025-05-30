@@ -2,7 +2,7 @@ import { factory } from "../lib/factory";
 import { pushNotificationService } from "../services/push-notification.service";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import {
   pushTokenTable,
   topicSubscriptionTable,
@@ -140,7 +140,7 @@ pushNotificationRoute.post(
   async (c) => {
     const session = c.get("session");
     if (!session) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: "Unauthorized for anything" }, 401);
     }
 
     const db = c.get("db");
@@ -257,7 +257,7 @@ pushNotificationRoute.post(
             data: data ? JSON.stringify(data) : null,
             messageId: response.messageId || null,
             status: response.success ? "sent" : "failed",
-            errorMessage: response.error?.message || null,
+            errorMessage: response.error || null,
             sentAt: new Date(),
           });
         }
@@ -280,6 +280,7 @@ pushNotificationRoute.post(
       body: z.string().default("This is a test notification from your app!"),
       icon: z.string().optional(),
       data: z.record(z.string()).optional(),
+      token: z.string().min(1),
     })
   ),
   async (c) => {
@@ -288,78 +289,98 @@ pushNotificationRoute.post(
       return c.json({ error: "Unauthorized" }, 401);
     }
 
-    const { title, body, icon, data } = c.req.valid("json");
+    const { title, body, icon, data, token } = c.req.valid("json");
     const db = c.get("db");
 
     try {
-      const userTokens = await db
+      const tokenExists = await db
         .select({ token: pushTokenTable.token })
         .from(pushTokenTable)
         .where(
           and(
             eq(pushTokenTable.userId, session.userId),
+            eq(pushTokenTable.token, token),
             eq(pushTokenTable.isActive, true)
           )
+        )
+        .get();
+
+      if (!tokenExists) {
+        return c.json(
+          { error: "Token not found or not associated with user" },
+          400
         );
-
-      if (userTokens.length === 0) {
-        return c.json({ error: "No active FCM tokens found for user" }, 400);
       }
 
-      const results = [];
-      for (const { token } of userTokens) {
-        try {
-          const result = await pushNotificationService.sendToToken({
-            token,
-            title,
-            body,
-            icon: icon || "/favicon.png",
-            data: {
-              ...data,
-              demo: "true",
-              timestamp: new Date().toISOString(),
-            },
-            clickAction: "/",
-          });
+      console.log(
+        `🚀 Sending demo notification to current device token: ${token.substring(0, 20)}...`
+      );
 
-          await db.insert(notificationLogTable).values({
-            id: nanoid(),
-            userId: session.userId,
-            token,
-            title,
-            body,
-            data: JSON.stringify({ ...data, demo: "true" }),
-            messageId: result.messageId,
-            status: "sent",
-            sentAt: new Date(),
-          });
+      const result = await pushNotificationService.sendToToken({
+        token,
+        title,
+        body,
+        icon: icon || "/favicon.png",
+        data: {
+          ...data,
+          demo: "true",
+          timestamp: new Date().toISOString(),
+        },
+        clickAction: "/",
+      });
 
-          results.push({ token, success: true, messageId: result.messageId });
-        } catch (error) {
-          console.error("Error sending to token:", token, error);
+      if (result.success) {
+        console.log(`✅ Demo notification sent successfully`);
 
-          await db.insert(notificationLogTable).values({
-            id: nanoid(),
-            userId: session.userId,
-            token,
-            title,
-            body,
-            data: JSON.stringify({ ...data, demo: "true" }),
-            status: "failed",
-            errorMessage:
-              error instanceof Error ? error.message : "Unknown error",
-            sentAt: new Date(),
-          });
+        await db.insert(notificationLogTable).values({
+          id: nanoid(),
+          userId: session.userId,
+          token,
+          title,
+          body,
+          data: JSON.stringify({ ...data, demo: "true" }),
+          messageId: result.messageId,
+          status: "sent",
+          sentAt: new Date(),
+        });
 
-          results.push({
-            token,
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-          });
+        return c.json({
+          success: true,
+          message: "Demo notification sent successfully",
+          messageId: result.messageId,
+        });
+      } else {
+        console.error(`❌ Error sending demo notification:`, result.error);
+
+        if (result.invalidToken) {
+          await db
+            .update(pushTokenTable)
+            .set({ isActive: false, updatedAt: new Date() })
+            .where(
+              and(
+                eq(pushTokenTable.userId, session.userId),
+                eq(pushTokenTable.token, token)
+              )
+            );
         }
-      }
 
-      return c.json({ success: true, results, totalTokens: userTokens.length });
+        await db.insert(notificationLogTable).values({
+          id: nanoid(),
+          userId: session.userId,
+          token,
+          title,
+          body,
+          data: JSON.stringify({ ...data, demo: "true" }),
+          status: "failed",
+          errorMessage: result.error || "Unknown error",
+          sentAt: new Date(),
+        });
+
+        return c.json(
+          { error: result.error || "Failed to send notification" },
+          500
+        );
+      }
     } catch (error) {
       console.error("Error sending demo notification:", error);
       return c.json({ error: "Failed to send demo notification" }, 500);
@@ -459,7 +480,23 @@ pushNotificationRoute.get("/tokens", async (c) => {
       .where(eq(pushTokenTable.userId, session.userId))
       .orderBy(desc(pushTokenTable.createdAt));
 
-    return c.json({ tokens });
+    const summary = {
+      total: tokens.length,
+      active: tokens.filter((t) => t.isActive).length,
+      inactive: tokens.filter((t) => !t.isActive).length,
+      oldest: tokens[tokens.length - 1]?.createdAt,
+      newest: tokens[0]?.createdAt,
+    };
+
+    console.log(`📊 Token summary for user ${session.userId}:`, summary);
+
+    return c.json({
+      tokens: tokens.map((token) => ({
+        ...token,
+        token: token.token.substring(0, 20) + "...", // Hide full token for security
+      })),
+      summary,
+    });
   } catch (error) {
     console.error("Error fetching FCM tokens:", error);
     return c.json({ error: "Failed to fetch tokens" }, 500);
@@ -491,5 +528,79 @@ pushNotificationRoute.get("/notifications", async (c) => {
     return c.json({ error: "Failed to fetch notifications" }, 500);
   }
 });
+
+pushNotificationRoute.post(
+  "/demo-register-token",
+  zValidator("json", registerTokenSchema),
+  async (c) => {
+    const { token, deviceId, deviceType, userAgent } = c.req.valid("json");
+    const db = c.get("db");
+    const session = c.get("session");
+
+    if (!session) {
+      return c.json(
+        { error: "Authentication required. Please login first." },
+        401
+      );
+    }
+
+    const userId = session.userId;
+
+    try {
+      const existingToken = await db
+        .select()
+        .from(pushTokenTable)
+        .where(
+          and(
+            eq(pushTokenTable.userId, userId),
+            eq(pushTokenTable.token, token)
+          )
+        )
+        .get();
+
+      if (existingToken) {
+        await db
+          .update(pushTokenTable)
+          .set({
+            isActive: true,
+            lastUsedAt: new Date(),
+            updatedAt: new Date(),
+            deviceId,
+            deviceType,
+            userAgent,
+          })
+          .where(eq(pushTokenTable.id, existingToken.id));
+
+        return c.json({
+          success: true,
+          message: "Demo token updated successfully",
+          userId: existingToken.userId,
+        });
+      }
+
+      await db.insert(pushTokenTable).values({
+        id: nanoid(),
+        userId: userId,
+        token,
+        deviceId,
+        deviceType,
+        userAgent,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastUsedAt: new Date(),
+      });
+
+      return c.json({
+        success: true,
+        message: "Demo token registered successfully",
+        userId,
+      });
+    } catch (error) {
+      console.error("Error registering demo FCM token:", error);
+      return c.json({ error: "Failed to register demo token" }, 500);
+    }
+  }
+);
 
 export default pushNotificationRoute;

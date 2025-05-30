@@ -1,10 +1,11 @@
 import { Context } from "../lib/types";
-import { and, eq, isNotNull, not, gte, lte } from "drizzle-orm"; // Added gte and lte
+import { and, eq, isNotNull, not, gte, lte } from "drizzle-orm";
 import { orderTable } from "../lib/db/schema/order.schema";
 import { riderTable } from "../lib/db/schema/rider.schema";
 import { calculateDistance } from "../lib/utils/geo";
 import { createClient } from "../lib/db";
 import { env } from "cloudflare:workers";
+import { PushNotificationService } from "./push-notification.service";
 
 interface RiderForNotification {
   id: string;
@@ -123,7 +124,6 @@ export class RiderDispatchService {
       where: and(
         eq(riderTable.availabilityStatus, "AVAILABLE"),
         eq(riderTable.active, true),
-        eq(riderTable.isVerified, true),
         gte(riderTable.latitude, minLat),
         lte(riderTable.latitude, maxLat),
         gte(riderTable.longitude, minLon),
@@ -270,7 +270,7 @@ export class RiderDispatchService {
           shopId,
           "Tier 1 Offer"
         );
-
+        // TODO: this simulation should not be here
         // Simulate waiting for acceptance. In a real system, this would involve:
         // 1. Storing the offer state (e.g., in Redis or a database table) with an expiry.
         // 2. The rider's app would call an API to accept/reject.
@@ -540,7 +540,6 @@ export class RiderDispatchService {
       };
     }
   }
-
   /**
    * Sends notifications to selected riders
    * @param riders Array of riders to notify
@@ -553,12 +552,73 @@ export class RiderDispatchService {
     riders: RiderForNotification[],
     orderId: string,
     shopId: string | null | undefined,
-    offerType: string // Added to distinguish offer types in logs
+    offerType: string
   ): Promise<void> {
+    const db = createClient(env.DB);
+
     for (const rider of riders) {
       console.log(
         `RiderDispatchService: [${offerType}] Sending notification to rider ${rider.id} (${rider.firstName} ${rider.lastName}) for order ${orderId}. Shop: ${shopId || "N/A"}.`
       );
+      try {
+        const pushNotificationService = new PushNotificationService();
+        await pushNotificationService.sendNotificationToUser(rider.userId, {
+          title: "🚴‍♂️ New Delivery Opportunity!",
+          body: `New order available for pickup. Tap to accept and start earning!`,
+          data: {
+            type: "delivery_opportunity",
+            orderId: orderId,
+            shopId: shopId || "",
+            offerType: offerType.toLowerCase().replace(/\s+/g, "_"),
+            action: "accept_delivery",
+            link: `/rider/orders/${orderId}/accept`,
+          },
+        });
+
+        console.log(
+          `✅ Push notification sent to rider ${rider.id} for order ${orderId}`
+        );
+      } catch (error) {
+        console.error(
+          `❌ Failed to send notification to rider ${rider.id} for order ${orderId}:`,
+          error
+        );
+      }
+    }
+  }
+
+  /**
+   * Notify riders that an order is no longer available
+   * @param riders Array of riders to notify
+   * @param orderId The order ID that was taken
+   * @returns Promise<void>
+   */
+  public async notifyRidersOrderTaken(
+    riders: RiderForNotification[],
+    orderId: string
+  ): Promise<void> {
+    const db = createClient(env.DB);
+    for (const rider of riders) {
+      try {
+        const pushNotificationService = new PushNotificationService();
+        await pushNotificationService.sendNotificationToUser(rider.userId, {
+          title: "Order No Longer Available",
+          body: `The delivery opportunity for order #${orderId.slice(-6)} has been taken by another rider.`,
+          data: {
+            type: "order_taken",
+            orderId: orderId,
+            action: "view_available_orders",
+            link: `/rider/orders/available`,
+          },
+        });
+
+        console.log(`✅ Order-taken notification sent to rider ${rider.id}`);
+      } catch (error) {
+        console.error(
+          `❌ Failed to send order-taken notification to rider ${rider.id}:`,
+          error
+        );
+      }
     }
   }
 }
