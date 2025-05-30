@@ -76,6 +76,7 @@
     "better-auth": "^1.1.18",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.39.0",
+    "firebase": "^11.8.1",
     "mapbox-gl": "^3.10.0",
     "maplibre-gl": "^5.2.0",
     "nanoid": "^5.0.9",

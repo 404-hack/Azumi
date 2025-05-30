@@ -8,6 +8,7 @@ export * from "./shop.validation";
 
 // Rider related validations
 export * from "./rider.validation";
+export * from "./promotion.validation";
 
 // address vaidations
 export * from "./address.validation";

@@ -9,7 +9,10 @@ import {
   createPackSchema,
   updateShopSchema,
   updatePackSchema,
+  createPromotionSchema,
+  updatePromotionSchema,
 } from "../lib/validation/index";
+
 import {
   menuItemTable,
   menuCategoryTable,
@@ -30,6 +33,7 @@ import {
 import { packTable } from "../lib/db/schema/pack.schema";
 import {
   orderTable,
+  promotions,
   shopAgreementsTable,
   shopOperatingHoursTable,
   shopPaymentMethodTable,
@@ -1077,87 +1081,111 @@ const vendorRoute = factory
     ),
     async (c) => {
       try {
-        if (c.req.header("upgrade") !== "websocket") {
-          return c.text("Not a websocket request", 426);
-        }
+        // if (c.req.header("upgrade") !== "websocket") {
+        //   return c.text("Not a websocket request", 426);
+        // }
         const db = c.get("db");
         const orgId = c.get("orgId");
         console.log("🚀 ~ orgId:", orgId);
         const { status } = c.req.valid("query");
-        const id = env.ORDER_NOTIFICATION.idFromName(orgId);
-        const stub = env.ORDER_NOTIFICATION.get(id);
-        const response = await stub.fetch(c.req.raw);
-        return new Response(null, {
-          status: response.status,
-          headers: response.headers,
-          webSocket: response.webSocket,
+        // const id = env.ORDER_NOTIFICATION.idFromName(orgId);
+        // const stub = env.ORDER_NOTIFICATION.get(id);
+        // const response = await stub.fetch(c.req.raw);
+        // return new Response(null, {
+        //   status: response.status,
+        //   headers: response.headers,
+        //   webSocket: response.webSocket,
+        // });
+        let query = db.query.orderTable.findMany({
+          where: (orders, { eq, and }) => {
+            const conditions = [eq(orders.shopId, orgId)];
+            if (status) {
+              conditions.push(eq(orders.status, status));
+            }
+            return and(...conditions);
+          },
+
+          with: {
+            customer: true,
+            items: {
+              columns: {
+                id: true,
+                menuItemId: true,
+                menuItemName: true,
+                quantity: true,
+                unitPrice: true,
+                totalPrice: true,
+                specialInstructions: true,
+              },
+              with: {
+                options: true,
+              },
+            },
+            rider: true,
+          },
         });
-        // let query = db.query.orderTable.findMany({
-        //   where: (orders, { eq, and }) => {
-        //     const conditions = [eq(orders.shopId, orgId)];
-        //     if (status) {
-        //       conditions.push(eq(orders.status, status));
-        //     }
-        //     return and(...conditions);
-        //   },
-        //   columns: {
-        //     id: true,
-        //     code: true,
-        //     status: true,
-        //     customerId: true,
-        //     riderId: true,
-        //     riderConfirmationCode: true,
-        //     cartId: true,
-        //     contactPhone: true,
-        //     paymentMethod: true,
-        //     paymentStatus: true,
-        //     paymentTransactionId: true,
-        //     subtotal: true,
-        //     deliveryFee: true,
-        //     serviceFee: true,
-        //     discount: true,
-        //     total: true,
-        //     acceptedAt: true,
-        //     preparedAt: true,
-        //     pickedUpAt: true,
-        //     deliveredAt: true,
-        //     canceledAt: true,
-        //     cancelReason: true,
-        //     createdAt: true,
-        //     updatedAt: true,
-        //   },
-        //   with: {
-        //     customer: true,
-        //     items: {
-        //       columns: {
-        //         id: true,
-        //         menuItemId: true,
-        //         menuItemName: true,
-        //         quantity: true,
-        //         unitPrice: true,
-        //         totalPrice: true,
-        //         specialInstructions: true,
-        //       },
-        //       with: {
-        //         options: true,
-        //       },
-        //     },
-        //     rider: true,
-        //   },
-        // });
 
-        // const orders = await query;
+        const orders = await query;
 
-        // return c.json({
-        //   message: "success",
-        //   data: orders,
-        // });
+        return c.json({
+          message: "success",
+          data: orders,
+        });
       } catch (error) {
         console.error("Error fetching orders:", error);
         return c.json({ message: "Internal server error" }, 500);
       }
     }
   )
+
+  // Get single order by ID
+  .get("/order/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+      const order = await db.query.orderTable.findFirst({
+        where: (orders, { and, eq }) =>
+          and(eq(orders.id, id), eq(orders.shopId, orgId)),
+        with: {
+          customer: true,
+          items: {
+            columns: {
+              id: true,
+              menuItemId: true,
+              menuItemName: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              specialInstructions: true,
+            },
+            with: {
+              options: true,
+              menuItem: {
+                columns: {
+                  imageUrl: true,
+                },
+              },
+            },
+          },
+          rider: true,
+        },
+      });
+
+      if (!order) {
+        return c.json({ message: "Order not found" }, 404);
+      }
+
+      return c.json({
+        message: "success",
+        data: order,
+      });
+    } catch (error) {
+      console.error("Error fetching order:", error);
+      return c.json({ message: "Internal server error" }, 500);
+    }
+  })
+
   // Operating hours
   .patch("/", zValidator("json", updateShopSchema), async (c) => {
     try {
@@ -1997,6 +2025,301 @@ const vendorRoute = factory
         500
       );
     }
-  });
+  })
+  // || Promotion routes
+  // List all promotions for the vendor's shop
+  .get("/", async (c) => {
+    try {
+      const db = c.get("db");
+      const session = c.get("session");
 
+      if (!session?.activeOrganizationId) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Pagination parameters
+      const limit = Number(c.req.query("limit")) || 20;
+      const page = Number(c.req.query("page")) || 1;
+      const offset = (page - 1) * limit;
+
+      // Get promotions for the active shop
+      const shopPromotions = await db.query.promotions.findMany({
+        where: eq(promotions.shopId, session.activeOrganizationId),
+        orderBy: (promotions) => [promotions.createdAt],
+        limit,
+        offset,
+      });
+
+      // Get total count for pagination
+      const countResult = await db
+        .select({ count: sql`count(*)` })
+        .from(promotions)
+        .where(eq(promotions.shopId, session.activeOrganizationId));
+
+      const totalCount = Number(countResult[0]?.count || 0);
+
+      return c.json({
+        data: shopPromotions,
+        pagination: {
+          total: totalCount,
+          page,
+          limit,
+          pages: Math.ceil(totalCount / limit),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching promotions:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
+  // Get a single promotion by ID
+  .get("/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const session = c.get("session");
+
+      if (!session?.activeOrganizationId) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Get the promotion
+      const promotion = await db.query.promotions.findFirst({
+        where: and(
+          eq(promotions.id, id),
+          eq(promotions.shopId, session.activeOrganizationId)
+        ),
+        with: {
+          products: true,
+        },
+      });
+
+      if (!promotion) {
+        return c.json({ error: "Promotion not found" }, 404);
+      }
+
+      return c.json({ data: promotion });
+    } catch (error) {
+      console.error("Error fetching promotion:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
+  // Create a new promotion
+  .post("/", zValidator("json", createPromotionSchema), async (c) => {
+    try {
+      const data = c.req.valid("json");
+      const db = c.get("db");
+      const user = c.get("user");
+      const session = c.get("session");
+      const auth = await createAuth(db);
+
+      if (!user || !session?.activeOrganizationId) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Check organization membership and role
+      const member = await auth.api.getActiveMember();
+      if (!member || member.role !== "admin") {
+        return c.json({ error: "Only admins can create promotions" }, 403);
+      }
+
+      // Check if code is already in use
+      const existingPromotion = await db.query.promotions.findFirst({
+        where: and(
+          eq(promotions.code, data.code),
+          eq(promotions.shopId, session.activeOrganizationId)
+        ),
+      });
+
+      if (existingPromotion) {
+        return c.json({ error: "This coupon code is already in use" }, 400);
+      }
+
+      // Extract product IDs if provided
+      const { productIds, ...promotionData } = data;
+
+      // Create the promotion
+      const promotionId = nanoid();
+      const now = new Date();
+
+      const newPromotion = await db
+        .insert(promotions)
+        .values({
+          id: promotionId,
+          shopId: session.activeOrganizationId,
+          ...promotionData,
+          startDate: new Date(promotionData.startDate),
+          endDate: new Date(promotionData.endDate),
+          usageCount: 0,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning()
+        .get();
+
+      // Link products if specified
+      if (productIds && productIds.length > 0) {
+        await db.insert(promotionProducts).values(
+          productIds.map((productId) => ({
+            id: nanoid(),
+            promotionId: promotionId,
+            productId: productId,
+            createdAt: now,
+          }))
+        );
+      }
+
+      return c.json({ data: newPromotion }, 201);
+    } catch (error) {
+      console.error("Error creating promotion:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
+  // Update an existing promotion
+  .patch("/:id", zValidator("json", updatePromotionSchema), async (c) => {
+    try {
+      const { id } = c.req.param();
+      const data = c.req.valid("json");
+      const db = c.get("db");
+      const user = c.get("user");
+      const session = c.get("session");
+      const auth = await createAuth(db);
+
+      if (!user || !session?.activeOrganizationId) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Check organization membership and role
+      const member = await auth.api.getActiveMember();
+      if (!member || member.role !== "admin") {
+        return c.json({ error: "Only admins can update promotions" }, 403);
+      }
+
+      // Check if promotion exists
+      const existingPromotion = await db.query.promotions.findFirst({
+        where: and(
+          eq(promotions.id, id),
+          eq(promotions.shopId, session.activeOrganizationId)
+        ),
+      });
+
+      if (!existingPromotion) {
+        return c.json({ error: "Promotion not found" }, 404);
+      }
+
+      // If updating code, check if it's unique
+      if (data.code && data.code !== existingPromotion.code) {
+        const codeExists = await db.query.promotions.findFirst({
+          where: and(
+            eq(promotions.code, data.code),
+            eq(promotions.shopId, session.activeOrganizationId),
+            not(eq(promotions.id, id))
+          ),
+        });
+
+        if (codeExists) {
+          return c.json({ error: "This coupon code is already in use" }, 400);
+        }
+      }
+
+      // Extract product IDs if provided
+      const { productIds, ...promotionData } = data;
+
+      // Prepare update data
+      const updateData: any = {
+        ...promotionData,
+        updatedAt: new Date(),
+      };
+
+      // Convert date strings to Date objects
+      if (promotionData.startDate) {
+        updateData.startDate = new Date(promotionData.startDate);
+      }
+      if (promotionData.endDate) {
+        updateData.endDate = new Date(promotionData.endDate);
+      }
+
+      // Update the promotion
+      const updatedPromotion = await db
+        .update(promotions)
+        .set(updateData)
+        .where(eq(promotions.id, id))
+        .returning()
+        .get();
+
+      // Update product links if specified
+      if (productIds !== undefined) {
+        // Remove existing product links
+        await db
+          .delete(promotionProducts)
+          .where(eq(promotionProducts.promotionId, id));
+
+        // Add new product links
+        if (productIds.length > 0) {
+          await db.insert(promotionProducts).values(
+            productIds.map((productId) => ({
+              id: nanoid(),
+              promotionId: id,
+              productId: productId,
+              createdAt: new Date(),
+            }))
+          );
+        }
+      }
+
+      return c.json({ data: updatedPromotion });
+    } catch (error) {
+      console.error("Error updating promotion:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
+  // Delete a promotion
+  .delete("/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const user = c.get("user");
+      const session = c.get("session");
+      const auth = await createAuth(db);
+
+      if (!user || !session?.activeOrganizationId) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Check organization membership and role
+      const member = await auth.api.getActiveMember();
+      if (!member || member.role !== "admin") {
+        return c.json({ error: "Only admins can delete promotions" }, 403);
+      }
+
+      // Check if promotion exists
+      const existingPromotion = await db.query.promotions.findFirst({
+        where: and(
+          eq(promotions.id, id),
+          eq(promotions.shopId, session.activeOrganizationId)
+        ),
+      });
+
+      if (!existingPromotion) {
+        return c.json({ error: "Promotion not found" }, 404);
+      }
+
+      // Delete product links first
+      await db
+        .delete(promotionProducts)
+        .where(eq(promotionProducts.promotionId, id));
+
+      // Delete the promotion
+      await db.delete(promotions).where(eq(promotions.id, id));
+
+      return c.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting promotion:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  });
 export default vendorRoute;

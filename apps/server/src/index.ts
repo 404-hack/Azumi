@@ -17,13 +17,17 @@ import deliveryFeeRoute from "./routes/fee.route";
 import wsRoute from "./routes/ws.route";
 import adminRoute from "./routes/admin.route";
 import riderRoute from "./routes/rider.route";
+import promotionRoute from "./routes/promotion.route";
+import pushNotificationRoute from "./routes/push-notification.route";
+import { firebaseAdminMiddleware } from "./middlewares/firebase.middleware";
 
 // Create app instance using factory
 const app = factory
   .createApp({ strict: false })
   .basePath("/api")
   // Add global middleware
-  .use("*", customCors);
+  .use("*", customCors)
+  .use("*", firebaseAdminMiddleware);
 
 app.on(["POST", "GET"], "/auth/*", async (c) => {
   const db = c.get("db");
@@ -47,6 +51,8 @@ export const routes = app
   .route("/delivery-fee", deliveryFeeRoute)
   .route("/webhook/paystack", paystackWebhookRoute)
   .route("/rider", riderRoute)
+  .route("/push-notifications", pushNotificationRoute)
+  .route("promotions", promotionRoute)
   .route("/", bucketRoute)
   .route("/ws", wsRoute)
   .get("/love", (c) => {
@@ -54,5 +60,6 @@ export const routes = app
   });
 
 export { OrderNotification } from "./durable-objects/order-notification.do";
+export { OrderWorkflow } from "./workflows/order.workflow";
 
 export default app;

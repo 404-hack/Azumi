@@ -27,12 +27,19 @@
 	import { toast } from 'svelte-sonner';
 	import { invalidateAll } from '$app/navigation';
 	import type { Cart } from '$lib/types/cart';
+	import { authClient } from '$lib/auth-client';
+	import { loginModalState } from '$lib/states/modalState.svelte';
+
 	const isDesktop = new MediaQuery('(min-width: 768px)');
 	let quantity = $state(1);
 	let isLoading = $state(false);
 	let specialInstructions = $state('');
 	let isDescriptionExpanded = $state(false);
 	const MAX_DESCRIPTION_LENGTH = 80;
+
+	// Auth session
+	const session = authClient.useSession();
+	console.log("🚀 ~ session:", $session)
 
 	// Props
 	let { cart = null } = $props();
@@ -468,10 +475,20 @@
 				optionGroupErrors = updatedErrors;
 			}
 		}
-	}
-
-	// Handle add/update cart - only validate on submission
+	}	// Handle add/update cart - only validate on submission
 	async function handleAddToCart() {
+		// Check authentication first based on the actual session structure
+		if ($session.isPending) {
+			// Session is still loading, show a loading toast and don't proceed
+			toast.loading('Checking your session...');
+			return;
+		} else if (!$session.data?.user) {
+			// User is not authenticated or doesn't have user data
+			productModalState.close();
+			loginModalState.open('Sign in to add items to your cart');
+			return;
+		}
+
 		// Ensure product and product.id are available
 		if (!product?.id) {
 			toast.error('Product information is missing. Cannot add to cart.');

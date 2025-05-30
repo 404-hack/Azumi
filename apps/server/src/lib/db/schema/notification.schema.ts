@@ -3,19 +3,13 @@ import { timestamps } from "./utils.schema";
 import { nanoid } from "nanoid";
 import { userTable } from "./auth.schema";
 
-export const notificationPreferenceTable = sqliteTable("notification_preference", {
-  id: text("id").primaryKey().$defaultFn(() => nanoid()),
-  userId: text("user_id").notNull().references(() => userTable.id, { onDelete: "cascade" }),
-  type: text("type").notNull(), // email, push, sms
-  channel: text("channel").notNull(), // order_updates, promotions, system_alerts, etc.
-  enabled: integer("enabled", { mode: "boolean" }).default(true),
-  metadata: text("metadata", { mode: "json" }),
-  ...timestamps,
-});
-
 export const notificationTable = sqliteTable("notification", {
-  id: text("id").primaryKey().$defaultFn(() => nanoid()),
-  userId: text("user_id").notNull().references(() => userTable.id, { onDelete: "cascade" }),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => userTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   body: text("body").notNull(),
   type: text("type").notNull(), // order_update, promotion, system_alert, etc.
@@ -29,8 +23,12 @@ export const notificationTable = sqliteTable("notification", {
 });
 
 export const deviceTokenTable = sqliteTable("device_token", {
-  id: text("id").primaryKey().$defaultFn(() => nanoid()),
-  userId: text("user_id").notNull().references(() => userTable.id, { onDelete: "cascade" }),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => userTable.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
   type: text("type").notNull(), // fcm, apn
   device: text("device"), // ios, android, web

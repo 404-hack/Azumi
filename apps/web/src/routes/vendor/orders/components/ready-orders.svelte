@@ -1,47 +1,11 @@
 <script lang="ts">
 	import OrderTable from './order-table.svelte';
-	import type { Order } from '../types';
-	import { onMount } from 'svelte';
-	import { client } from '$lib/hc';
 
-	const { searchQuery } = $props();
+	let { searchQuery = '', orders = [] } = $props();
 
-	let orders = $state<Order[]>([
-		{
-			id: '3',
-			orderNumber: 'ORD-003',
-			customerName: 'Michael Chen',
-			customerPhone: '+234 123 456 7892',
-			items: [
-				{
-					id: '3',
-					name: 'Suya Platter',
-					quantity: 2,
-					price: 18.99,
-					options: [{ name: 'Extra Spice Mix', price: 1.99 }]
-				},
-				{
-					id: '4',
-					name: 'Chapman',
-					quantity: 2,
-					price: 4.99
-				}
-			],
-			status: 'ready',
-			total: 51.94,
-			createdAt: new Date(),
-			updatedAt: new Date(),
-			estimatedReadyTime: new Date(),
-			paymentStatus: 'paid',
-			paymentMethod: 'mobile_money',
-			deliveryAddress: '789 Victoria Island, Lagos',
-			deliveryInstructions: 'Call upon arrival'
-		}
-	]);
-
-	async function handleStatusChange(orderId: string, newStatus: Order['status']) {
+	async function handleStatusChange(orderId: string, newStatus: string) {
 		try {
-			const response = await fetch(`/api/orders/${orderId}/status`, {
+			const response = await fetch(`/api/vendor/orders/${orderId}/status`, {
 				method: 'PATCH',
 				body: JSON.stringify({ status: newStatus }),
 				headers: {
@@ -50,61 +14,24 @@
 			});
 
 			if (!response.ok) throw new Error('Failed to update order status');
-
-			// Update local state
-			orders = orders.map((order) =>
-				order.id === orderId ? { ...order, status: newStatus } : order
-			);
 		} catch (error) {
 			console.error('Error updating order status:', error);
-			// TODO: Show error toast
 		}
 	}
-
 	let filteredOrders = $derived(
 		orders.filter((order) => {
 			if (!searchQuery) return true;
 			const searchLower = searchQuery.toLowerCase();
 			return (
-				order.orderNumber.toLowerCase().includes(searchLower) ||
-				order.customerName.toLowerCase().includes(searchLower)
+				order.code?.toLowerCase().includes(searchLower) ||
+				order.customer?.name?.toLowerCase().includes(searchLower) ||
+				order.customer?.phoneNumber?.includes(searchLower)
 			);
 		})
 	);
-
-	// connect to the websocket server
-	// and add the credentials to the request
-	// const socket = new WebSocket('ws://localhost:8787/api/vendor/orders');
-
-	onMount(() => {
-		const socket = new WebSocket('ws://localhost:8787/api/ws', []);
-
-		socket.addEventListener('open', () => {
-			console.log('Connected to WebSocket server');
-		});
-
-		socket.addEventListener('message', (event) => {
-			const data = JSON.parse(event.data);
-			// alert the browser
-			alert('New order received: ' + JSON.stringify(data));
-		});
-
-		// return () => {
-		// 	socket.close();
-		// };
-		// const ws = client.ws.$ws();
-		// ws.addEventListener('open', () => {
-		// 	console.log('Connected to WebSocket server');
-		// });
-		// ws.addEventListener('message', (event) => {
-		// 	const data = JSON.parse(event.data);
-		// 	// alert the browser
-		// 	alert('New order received: ' + JSON.stringify(data));
-		// });
-	});
 </script>
 
-<!-- <div class="space-y-6">
+<div class="space-y-6">
 	{#if filteredOrders.length === 0}
 		<div class="flex min-h-[400px] items-center justify-center rounded-lg border border-dashed">
 			<div class="text-center">
@@ -113,7 +40,11 @@
 			</div>
 		</div>
 	{:else}
-		<OrderTable orders={filteredOrders} onStatusChange={handleStatusChange} showActions={true} />
+		<OrderTable
+			orders={filteredOrders}
+			{searchQuery}
+			showActions={true}
+			onStatusChange={handleStatusChange}
+		/>
 	{/if}
-</div> -->
-love
+</div>

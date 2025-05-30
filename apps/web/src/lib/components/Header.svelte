@@ -4,9 +4,7 @@
 	import {
 		loginModalState,
 		cartsSheetStore,
-		registerModalState,
 		addDeliveryAddressModalState,
-		verifyOtpModalState
 	} from '$lib/states/modalState.svelte';
 	import ResponsiveDropdown from '$lib/components/ResponsiveDropdown.svelte';
 
@@ -53,7 +51,7 @@
 		<!-- Logo and Locatio`n -->
 		<div class="flex items-center gap-4">
 			<a href="/" class="flex items-center space-x-2">
-				<img src="/logo.png" alt="Azumi" class="size-10" />
+				<img src="/azumiLogo-1.png" alt="Azumi" class="size-10" />
 				<span class="hidden text-xl font-bold text-primary md:inline">Azumi</span>
 			</a>
 			{#if activeLocation.current.lat != 0 && activeLocation.current.lng != 0}

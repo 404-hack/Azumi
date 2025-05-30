@@ -62,8 +62,8 @@
 					await goto('/create-a-page/application-sent');
 				} else {
 					if (res.status === 401) {
-						loginModalState.setTrue();
-						toast.error('You need to be logged in to create a shop.');
+						loginModalState.open('Sign in to create your store');
+						toast.error('Please log in to continue with store creation');
 					} else {
 						toast.error('An error occurred while creating your store. Please try again later.');
 					}
@@ -272,7 +272,7 @@
 		</Card.Root>
 	</form>
 </div>
-<LoginModal title="You need to be logged in first before you can create a shop" />
+<LoginModal />
 
 <style>
 	/* Address suggestions dropdown styling */

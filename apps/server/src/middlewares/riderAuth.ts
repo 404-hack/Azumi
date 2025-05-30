@@ -30,7 +30,11 @@ const riderAuthMiddleware = factory.createMiddleware(async (c, next) => {
   // For all other endpoints, verify the user is a registered rider
   const db = c.get("db");
   const riderProfile = await db.query.riderTable.findFirst({
-    where: eq(riderTable.id, user.id),
+    where: eq(riderTable.userId, user.id),
+    with: {
+      paymentMethod: true,
+      user: true,
+    },
   });
 
   if (!riderProfile) {

@@ -23,10 +23,14 @@
 	import CartSheet from '$lib/components/modal/CartSheet.svelte';
 	import { cartSheetState } from '$lib/states/modalState.svelte.js';
 	import { fly, fade, slide } from 'svelte/transition';
-	import { quintOut } from 'svelte/easing';
-	import { formatCurrency, formatTime } from '$lib/utils.js';
+	import { quintOut } from 'svelte/easing';	import { formatCurrency, formatTime } from '$lib/utils.js';
 	import { toast } from 'svelte-sonner';
+	import { loginModalState } from '$lib/states/modalState.svelte';
+	import { authClient } from '$lib/auth-client';
+	import { getShopOpeningInfo } from '$lib/utils/shop.utils';
+	import { activeLocation } from '$lib/states/locationState.svelte.js';
 
+	const session = authClient.useSession();
 	let { data } = $props();
 	let activeCategory = $state('');
 	let searchQuery = $state('');
@@ -36,25 +40,31 @@
 
 	// Toggle favorite function
 	async function toggleFavorite() {
+		// Check if user is authenticated
+		if (!$session?.data?.user) {
+			loginModalState.open('Sign in to add restaurants to your favorites');
+			return;
+		}
+
 		try {
 			const res = await client.favorite.toggle[':shopId'].$post({
 				param: { shopId: data.restaurant.id }
 			});
 			if (res.ok) {
 				toast.success(isFavorited ? 'Removed from favorites' : 'Added to favorites');
-
-				isFavorited = !isFavorited; // Toggle isFavorited after successful removal
+				isFavorited = !isFavorited;
 			} else {
-				toast.error('Failed to remove from favorites');
+				toast.error('Failed to update favorites');
 			}
 		} catch (error) {
 			console.error('Error toggling favorite:', error);
 			toast.error('Error updating favorites');
 		}
 	}
-
 	// Use isOpen from backend data
 	const isOpenNow = $derived(data.restaurant.isOpen);
+
+	const openingInfo = $derived(getShopOpeningInfo(data.restaurant.operatingHours));
 
 	// Reactive check for cart items
 	const hasCartItems = $derived(data.shopCart && data.shopCart.items.length > 0);
@@ -83,52 +93,7 @@
 				.catch((err) => console.error('Copy failed:', err));
 		}
 	}
-
-	// Get information about when the restaurant will open today (simplified using backend data)
-	const getOpeningInfo = $derived.by((): { willOpenToday: boolean; opensAt: string | null } => {
-		// If already open, no need to show opening info
-		if (isOpenNow) {
-			return { willOpenToday: false, opensAt: null };
-		}
-
-		const now = new Date();
-		const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-		const today = days[now.getDay()];
-
-		const todayHours = data.restaurant.operatingHours?.find(
-			(h) => h.day.toUpperCase() === today.toUpperCase()
-		);
-
-		// If no hours for today or explicitly closed
-		if (
-			!todayHours ||
-			todayHours.isOpen === false ||
-			!todayHours.openTime ||
-			!todayHours.closeTime
-		) {
-			return { willOpenToday: false, opensAt: null };
-		}
-
-		// Convert current time to minutes since midnight
-		const currentHour = now.getHours();
-		const currentMinute = now.getMinutes();
-		const currentTimeInMinutes = currentHour * 60 + currentMinute;
-
-		// Convert opening hours to minutes since midnight
-		const [openHour, openMinute] = todayHours.openTime.split(':').map(Number);
-		const openTimeInMinutes = openHour * 60 + openMinute;
-
-		// If not yet open today
-		if (currentTimeInMinutes < openTimeInMinutes) {
-			return {
-				willOpenToday: true,
-				opensAt: formatTime(todayHours.openTime) // Use imported formatTime
-			};
-		}
-
-		// Already closed for the day (or was never open)
-		return { willOpenToday: false, opensAt: null };
-	});
+	// Now using the imported getShopOpeningInfo utility function instead
 
 	// Get current day's operating hours
 	const categories = $derived(
@@ -267,15 +232,18 @@
 <main class="mx-auto max-w-7xl px-2 py-4 sm:px-6 lg:px-4">
 	<div class="">
 		<div class="relative h-64 overflow-hidden rounded-lg">
-			<img src={data.restaurant.coverImage} alt="Kebab Royal" class="absolute inset-0 h-full w-full object-cover" />
+			<img
+				src={data.restaurant.coverImage}
+				alt="Kebab Royal"
+				class="absolute inset-0 h-full w-full object-cover"
+			/>
 			<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20"></div>
 			<!-- Restaurant Closed Banner Overlay -->
 			{#if !isOpenNow}
 				<!-- Use isOpenNow derived from backend -->
-				<div class="absolute inset-0 flex items-center justify-center backdrop-blur-sm">
-					<div class=" rounded-xl text-center text-white backdrop-blur-md">
-						{#if getOpeningInfo.willOpenToday}
-							<h2 class="mb-2 text-2xl font-bold">Opens Today at {getOpeningInfo.opensAt}</h2>
+				<div class="absolute inset-0 flex items-center justify-center backdrop-blur-sm">					<div class=" rounded-xl text-center text-white backdrop-blur-md">
+						{#if openingInfo.willOpenToday}
+							<h2 class="mb-2 text-2xl font-bold">Opens Today at {openingInfo.opensAt}</h2>
 							<p class="text-white/80">Come back later</p>
 						{:else}
 							<h2 class="mb-2 text-2xl font-bold">Closed Today</h2>
@@ -301,73 +269,87 @@
 					<Share2 class="size-5" />
 				</button>
 			</div>
-		</div>
-		<h1 class="mt-4 text-3xl font-bold">{data.restaurant.name}</h1>
-		<p class="text-sm leading-relaxed text-gray-700">{data.restaurant.description}</p>
+		</div>		<h1 class="mt-4 text-3xl capitalize font-bold">{data.restaurant.name}</h1>
+		<p class="line-clamp-3 text-sm leading-relaxed  text-gray-700">{data.restaurant.description}</p>
 
-		<div class="mt-4 flex items-center text-xs">
-			<div class="flex items-center gap-1">
-				<div class="flex">
-					{#each Array(5) as _, i}
-						<Star
-							size={16}
-							class="fill-current stroke-black text-white/30 {i <
-							Math.floor(data.restaurant.totalRatings || 0)
-								? 'text-yellow-400'
-								: 'text-white/30'}"
-							strokeWidth={1}
-						/>
-					{/each}
-				</div>
-				<span class="font-medium">{data.restaurant.totalRatings || '0.0'}</span>
+		<div class="mt-4 flex flex-wrap items-center gap-3 text-sm">
+			<div class="flex items-center">
+				<Star class="size-4 text-yellow-500" />
+				<span class="ml-1">{data.restaurant.averageRating || '0.0'}</span>
 			</div>
-			<span class="mx-2">•</span>
-			{#if data.restaurant.estimatedTime}
-				<div class="flex items-center gap-1">
-					<Bike class="size-4" />
-					<span>{data.restaurant.estimatedTime}</span>
+
+			<div class="flex items-center">
+				<div class="flex items-center gap-2">
+					<Bike class="size-4 text-primary" />
+					{#if data.restaurant.estimatedTime}
+						<span>{data.restaurant.estimatedTime}</span>
+					{:else if data.restaurant.distance !== undefined}
+						<span class="text-gray-600">-- min</span>
+					{/if}
 				</div>
-			{/if}
-			<span class="mx-2">•</span>
-			{#if isOpenNow}
-				<Badge>Open Now</Badge>
+				{#if data.restaurant.distance !== undefined}
+					<div class="mx-2 flex items-center gap-2">
+						<MapPin class="size-4 text-primary" />
+						<span>{data.restaurant.distance} km</span>
+					</div>
+				{/if}
+			</div>
+
+			<div class="flex items-center">
+				<Clock class="mr-1 size-4" />
+				{#if openingInfo.isOpenNow}
+					<div class="flex items-center">
+						<span class="text-green-600">Open</span>
+						{#if openingInfo.closesAt}
+							<span class="ml-1 text-gray-600">until {openingInfo.closesAt}</span>
+						{/if}
+					</div>
+				{:else}
+					<div class="flex items-center">
+						<span class="text-red-600">Closed</span>
+						{#if openingInfo.willOpenToday && openingInfo.opensAt}
+							<span class="ml-1 text-gray-600">Opens at {openingInfo.opensAt}</span>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			{#if data.restaurant.addressName || data.restaurant.address}
+				<div class="flex items-center gap-2">
+					<Info class="size-4" />
+					<span class="text-gray-600">
+						{data.restaurant.addressName || data.restaurant.address}
+					</span>
+				</div>
 			{/if}
 		</div>
 
-		<!-- <div class="mt-2 flex flex-wrap gap-2">
-			{#each ['Mediterranean', 'Kebab', 'Halal', 'Falafel'] as tag}
-				<Badge variant="secondary">
-					{tag}
+		<div class="mt-3 flex flex-wrap gap-2">
+			{#if data.restaurant.tags && data.restaurant.tags.length > 0}
+				{#each data.restaurant.tags.slice(0, 4) as tag}
+					<Badge variant="outline" class="rounded-full">
+						{tag}
+					</Badge>
+				{/each}
+				{#if data.restaurant.tags.length > 4}
+					<Badge variant="outline" class="rounded-full">
+						+{data.restaurant.tags.length - 4} more
+					</Badge>
+				{/if}
+			{:else}
+				<Badge variant="outline" class="rounded-full">
+					{data.restaurant.shopType}
 				</Badge>
-			{/each}
-		</div> -->
-		<span class="flex items-center gap-1.5">
-			{data.restaurant.deliveryType}
-		</span>
+			{/if}		</div>
 
-		{#if data.restaurant.tags && data.restaurant.tags.length > 0}
-			{#each data.restaurant.tags.slice(0, 2) as tag}
-				<Badge variant="secondary" class="bg-white/20 hover:bg-white/30">{tag}</Badge>
-			{/each}
-			{#if data.restaurant.tags.length > 2}
-				<Badge variant="secondary" class="bg-white/20 hover:bg-white/30"
-					>+{data.restaurant.tags.length - 2} more</Badge
-				>
-			{/if}
-		{:else}
-			<span
-				class="rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white hover:bg-white/30"
-			>
-				{data.restaurant.shopType}
-			</span>
-		{/if}
+		
 	</div>
 
 	<!-- Main Content Container -->
 	<div class="  pb-24 sm:px-6">
 		<!-- Category Navigation - Horizontal Scrollable Tabs -->
 		<nav
-			class="sticky top-0 z-30 -mx-3 mb-6 bg-white/95 px-3 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+			class="sticky top-0 z-30 -mx-3 mb-6 bg-white/95 px-3 py-4 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
 			in:slide={{ duration: 300, delay: 100 }}
 		>
 			<div class="hide-scrollbar flex items-center gap-2 overflow-x-auto pb-1">
@@ -376,6 +358,7 @@
 						<Badge
 							onclick={() => scrollToCategory(category)}
 							variant={activeCategory === category ? 'default' : 'secondary'}
+							class="capitalize px-3 py-2"
 						>
 							{category}
 						</Badge>
@@ -803,6 +786,8 @@
 		</div>
 	{/if}
 </main>
+
+<!-- <LoginModal title="Sign in to add restaurants to your favorites" /> -->
 
 <ProductModal cart={data.shopCart} />
 

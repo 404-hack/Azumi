@@ -39,7 +39,6 @@
 			isActive: (path: string) => path.startsWith('/rider/settings')
 		}
 	];
-
 	function handleLogout() {
 		// In real app, call riderState.logout
 		console.log('Logging out...');
@@ -108,7 +107,6 @@
 				<Menu class="h-5 w-5" />
 				<span class="sr-only">Open sidebar</span>
 			</Button>
-
 			<div class="ml-auto flex items-center gap-4">
 				<div class="flex items-center gap-2">
 					<div class="h-8 w-8 rounded-full bg-muted" />

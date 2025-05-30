@@ -188,7 +188,29 @@ export const registerSchema = z.object({
 	lastName: z.string().min(3).max(20),
 	phoneNumber: nigerianPhoneSchema
 });
-// .refine((data) => data.password === data.confirmPassword, {
-// 	message: 'Passwords do not match',
-// 	path: ['confirmPassword']
-// });
+
+const PROMOTION_TYPES = ['percentage', 'fixed', 'bogo', 'minimum_spend'] as const;
+const PROMOTION_COST_BEARER = ['VENDOR', 'PLATFORM', 'SHARED'] as const;
+
+export const createPromotionSchema = z.object({
+	name: z.string().min(1, 'Name is required'),
+	code: z.string().min(3, 'Code must be at least 3 characters').toUpperCase(),
+	description: z.string().optional(),
+	type: z.enum(PROMOTION_TYPES),
+	value: z.number().positive('Value must be positive'),
+	minOrderValue: z.number().nonnegative().optional(),
+	maxDiscount: z.number().nonnegative().optional(),
+	buyQuantity: z.number().int().positive().optional(),
+	getQuantity: z.number().int().positive().optional(),
+	startDate: z.string().datetime(),
+	endDate: z.string().datetime(),
+	usageLimit: z.number().int().nonnegative().optional(),
+	isActive: z.boolean().default(true),
+	isFirstOrderOnly: z.boolean().default(false),
+	appliesToAllShops: z.boolean().default(false),
+	shopIds: z.array(z.string()).optional(),
+	productIds: z.array(z.string()).optional(),
+	costBearer: z.enum(PROMOTION_COST_BEARER).default('VENDOR')
+});
+
+export type CreatePromotionInput = z.infer<typeof createPromotionSchema>;

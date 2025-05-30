@@ -125,7 +125,7 @@
 				</div>
 			</div>
 		</Card>
-	{:else if riderState.isOnline}
+	{:else if riderState.isActive}
 		<Card class="flex min-h-[200px] items-center justify-center p-6">
 			<div class="text-center">
 				<Package class="mx-auto h-12 w-12 text-muted-foreground" />
@@ -138,7 +138,7 @@
 			<div class="text-center">
 				<Power class="mx-auto h-12 w-12 text-muted-foreground" />
 				<h3 class="mt-4 text-lg font-medium">You're Offline</h3>
-				<p class="text-sm text-muted-foreground">Go online to start receiving delivery requests</p>
+				<p class="text-sm text-muted-foreground">Go to Settings to toggle your Online status</p>
 			</div>
 		</Card>
 	{/if}
