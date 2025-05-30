@@ -33,15 +33,14 @@ const riderRoute = factory
     try {
       const db = c.get("db");
       const data = c.req.valid("json");
-      const userId = c.get("userId");
-
-      // Check if user already has a rider profile
+      const userId = c.get("userId"); // Check if user already has a rider profile
       const existingRider = await db.query.riderTable.findFirst({
-        where: eq(riderTable.id, userId),
+        where: eq(riderTable.userId, userId),
       });
 
       if (existingRider) {
-        return c.json({ error: "You are already registered as a rider" }, 400);
+        console.log("the error is from an existing rider");
+        return c.json({ error: "You are already registered as a rider" }, 409);
       }
 
       const rider = await db
@@ -113,7 +112,6 @@ const riderRoute = factory
       const db = c.get("db");
       const userId = c.get("userId");
       const { status, latitude, longitude } = c.req.valid("json");
-
       const updatedRider = await db
         .update(riderTable)
         .set({
@@ -121,7 +119,7 @@ const riderRoute = factory
           longitude,
           latitude,
         })
-        .where(eq(riderTable.id, userId))
+        .where(eq(riderTable.userId, userId))
         .returning()
         .get();
 
@@ -136,11 +134,10 @@ const riderRoute = factory
       const db = c.get("db");
       const userId = c.get("userId");
       const { latitude, longitude } = c.req.valid("json");
-
       const updatedRider = await db
         .update(riderTable)
         .set({ latitude, longitude })
-        .where(eq(riderTable.id, userId))
+        .where(eq(riderTable.userId, userId))
         .returning()
         .get();
 

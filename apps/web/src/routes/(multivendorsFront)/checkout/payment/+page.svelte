@@ -4,6 +4,7 @@
 	import { formatCurrency } from '$lib/utils';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
+	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 </script>
 
 <Breadcrumb.Root class="mx-auto my-10 w-fit">
@@ -21,6 +22,9 @@
 		</Breadcrumb.Item>
 	</Breadcrumb.List>
 </Breadcrumb.Root>
+<div class="mx-auto max-w-4xl px-4">
+	<NotificationPermissionBanner context="customer" />
+</div>
 <div class="grid grid-cols-1 gap-5 px-5 md:grid-cols-2">
 	<div class="grid place-items-center">
 		<div class="space-y-3 text-center">

@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { riderState } from '$lib/states/riderState.svelte';
 	import { Bike, Clock, Wallet, Settings, LogOut, Menu, X, History } from 'lucide-svelte';
+	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 
 	let isSidebarOpen = $state(false);
 	let currentPath = $derived(page.url.pathname);
@@ -44,6 +45,7 @@
 		console.log('Logging out...');
 	}
 </script>
+	<NotificationPermissionBanner context="rider" />
 
 <div class="flex h-screen">
 	<!-- Mobile sidebar backdrop -->

@@ -19,6 +19,7 @@
 	import { activeLocation } from '$lib/states/locationState.svelte.js';
 	import ProductModal from '$lib/components/modal/ProductModal.svelte';
 	import { getShopOpeningInfo } from '$lib/utils/shop.utils'; // Import the new utility function
+	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 
 	let loading = false;
 	let couponCode = '';
@@ -140,6 +141,7 @@
 	>this button is to test the test workflow
 </button>
 <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+	<NotificationPermissionBanner context="customer" />
 	<div class="mb-8">
 		<div class="relative h-64 overflow-hidden rounded-lg">
 			<img
