@@ -18,6 +18,7 @@
 	} from 'lucide-svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Badge } from '$lib/components/ui/badge';
+	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 
 	let isSidebarOpen = $state(false);
 	let currentPath = $derived($page.url.pathname);
@@ -95,6 +96,7 @@
 		console.log('Logging out...');
 	}
 </script>
+	<NotificationPermissionBanner context="admin" />
 
 <div class="flex h-screen">
 	<!-- Mobile sidebar backdrop -->

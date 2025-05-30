@@ -18,6 +18,7 @@
 	let { children } = $props();
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import VendorSidebar from '$lib/components/VendorSidebar.svelte';
+	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 
 	let data = {
 		user: {
@@ -31,6 +32,8 @@
 	<VendorSidebar />
 	<Sidebar.Inset>
 		<Sidebar.Trigger />
+				<NotificationPermissionBanner context="vendor" />
+
 		<main class="container w-full max-w-6xl md:px-5">
 			{@render children()}
 		</main>

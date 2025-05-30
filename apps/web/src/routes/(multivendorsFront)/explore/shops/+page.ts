@@ -1,6 +1,6 @@
 import { client } from '$lib/hc';
 import { error, redirect } from '@sveltejs/kit';
-import { activeLocation } from '$lib/states/locationState.svelte';
+// import { activeLocation } from '$lib/states/locationState.svelte';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ url }) => {
@@ -8,9 +8,9 @@ export const load: PageLoad = async ({ url }) => {
 	const category = url.searchParams.get('category') || 'restaurant';
 
 	// Redirect if no location is set
-	if (activeLocation.current.lat === 0 && activeLocation.current.lng === 0) {
-		redirect(308, '/');
-	}
+	// if (activeLocation.current.lat === 0 && activeLocation.current.lng === 0) {
+	// 	redirect(308, '/');
+	// }
 
 	// Extract simplified filter parameters from URL
 	const openNow = url.searchParams.get('openNow');

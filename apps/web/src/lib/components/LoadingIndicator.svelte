@@ -14,7 +14,7 @@
 
 			loadingTimeout = setTimeout(() => {
 				showLoading = true;
-			}, 1000);
+			}, 1500);
 		} else {
 			if (loadingTimeout) {
 				clearTimeout(loadingTimeout);
