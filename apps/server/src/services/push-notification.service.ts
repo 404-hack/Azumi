@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { createClient } from "../lib/db";
 import { pushTokenTable, member } from "../lib/db/schema";
 import {
@@ -346,22 +346,62 @@ export class PushNotificationService {
       };
     }
   }
-
   async sendNotificationToUser(
     userId: string,
     payload: NotificationPayload
   ): Promise<boolean> {
     try {
       const db = createClient(env.DB);
-      const tokenRecord = await db
+      const tokenRecords = await db
         .select({ token: pushTokenTable.token })
         .from(pushTokenTable)
-        .where(eq(pushTokenTable.userId, userId))
-        .limit(1);
+        .where(
+          and(
+            eq(pushTokenTable.userId, userId),
+            eq(pushTokenTable.isActive, true)
+          )
+        );
 
-      if (tokenRecord.length > 0) {
-        return await this.sendNotification(tokenRecord[0].token, payload);
+      if (tokenRecords.length === 0) {
+        console.log(`No active push tokens found for user: ${userId}`);
+        return false;
       }
+
+      const sendPromises = tokenRecords.map(async (record) => {
+        try {
+          const success = await this.sendNotification(record.token, payload);
+          if (success) {
+            await db
+              .update(pushTokenTable)
+              .set({ lastUsedAt: new Date() })
+              .where(eq(pushTokenTable.token, record.token));
+          } else {
+            await db
+              .update(pushTokenTable)
+              .set({ isActive: false })
+              .where(eq(pushTokenTable.token, record.token));
+            console.log(`Marked token as inactive for user: ${userId}`);
+          }
+          return success;
+        } catch (error) {
+          await db
+            .update(pushTokenTable)
+            .set({ isActive: false })
+            .where(eq(pushTokenTable.token, record.token));
+          console.log(`Marked failed token as inactive for user: ${userId}`);
+          return false;
+        }
+      });
+
+      const results = await Promise.allSettled(sendPromises);
+      const successCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value === true
+      ).length;
+
+      console.log(
+        `Sent notifications to ${successCount}/${tokenRecords.length} active devices for user: ${userId}`
+      );
+      return successCount > 0;
     } catch (error) {
       console.error("Failed to send notification to user:", error);
     }

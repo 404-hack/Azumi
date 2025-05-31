@@ -11,12 +11,20 @@ import { env } from "cloudflare:workers"; // Correct import for env
 
 const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
   try {
+    console.log("[PAYSTACK_WEBHOOK] Received webhook request");
+
     // 1. Get the request body and signature header
     const body = await c.req.json();
-    // console.log("🚀 ~ paystackWebhookRoute ~ body:", body); // Kept for debugging, consider removing in prod
     const signature = c.req.header("x-paystack-signature");
 
+    console.log("[PAYSTACK_WEBHOOK] Webhook event:", {
+      event: body.event,
+      hasSignature: !!signature,
+      timestamp: new Date().toISOString(),
+    });
+
     if (!signature) {
+      console.log("[PAYSTACK_WEBHOOK] Missing signature header");
       c.status(401);
       return c.json({ error: "Unauthorized: Missing signature" });
     }
@@ -24,17 +32,14 @@ const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
     // 2. Verify the webhook signature using Web Crypto API
     const secret = env.PAYSTACK_SECRET_KEY; // Use env directly
     if (!secret) {
-      console.error("Missing PAYSTACK_SECRET_KEY environment variable");
+      console.error(
+        "[PAYSTACK_WEBHOOK] Missing PAYSTACK_SECRET_KEY environment variable"
+      );
       return c.json({ error: "Server configuration error" }, 500);
     }
 
     const encoder = new TextEncoder();
     const keyData = encoder.encode(secret);
-    // IMPORTANT: Use the raw string body for signature verification, not the parsed JSON stringified again.
-    // Hono's c.req.text() should be used here if possible before c.req.json().
-    // For now, assuming JSON.stringify(body) was a placeholder and Paystack expects HMAC of the JSON string.
-    // If Paystack signs the raw request body, this needs adjustment.
-    // This example proceeds with JSON.stringify(body) as per original code's apparent intent.
     const requestBodyString = JSON.stringify(body);
     const bodyData = encoder.encode(requestBodyString);
 
@@ -56,14 +61,23 @@ const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
       .join("");
 
     if (signature !== computedSignature) {
-      console.error("Invalid Paystack signature");
+      console.error("[PAYSTACK_WEBHOOK] Invalid signature:", {
+        receivedSignature: signature,
+        computedSignature,
+      });
       c.status(403);
       return c.json({ error: "Invalid signature" });
     }
 
+    console.log("[PAYSTACK_WEBHOOK] Signature verified successfully");
+
     const event = body.event;
     const eventData = body.data;
-    console.log(`Processing Paystack webhook event: ${event}`);
+    console.log("[PAYSTACK_WEBHOOK] Processing event:", {
+      event,
+      reference: eventData?.reference,
+      amount: eventData?.amount,
+    });
 
     switch (event) {
       case "charge.success":
@@ -73,25 +87,21 @@ const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
         c.executionCtx.waitUntil(handleFailedPayment(c, eventData));
         break;
       case "transfer.success":
-        // Consider waitUntil if handler becomes complex or makes external calls
         c.executionCtx.waitUntil(handleSuccessfulTransfer(c, eventData));
         break;
       case "transfer.failed":
-        // Consider waitUntil
         c.executionCtx.waitUntil(handleFailedTransfer(c, eventData));
         break;
       case "transfer.reversed":
-        // Consider waitUntil
         c.executionCtx.waitUntil(handleReversedTransfer(c, eventData));
         break;
-      // Add other cases as needed (e.g., disputes, refunds)
       default:
-        console.log(`Unhandled Paystack event type: ${event}`);
+        console.log("[PAYSTACK_WEBHOOK] Unhandled event type:", event);
     }
 
     return c.json({ status: "webhook received" });
   } catch (error) {
-    console.error("Error processing Paystack webhook:", error);
+    console.error("[PAYSTACK_WEBHOOK] Error processing webhook:", error);
     c.status(500);
     return c.json({ error: "Webhook processing failed" });
   }
@@ -109,13 +119,24 @@ async function handleSuccessfulPayment(
   const paymentChannel = data.authorization?.channel || "unknown";
   const receivedAmount = data.amount; // Amount is in kobo/lowest unit
 
+  console.log("[WEBHOOK_SUCCESS] Processing payment success:", {
+    reference,
+    amount: receivedAmount,
+    channel: paymentChannel,
+  });
+
   try {
     if (!reference) {
-      console.error("Missing reference in charge.success data");
+      console.error(
+        "[WEBHOOK_SUCCESS] Missing reference in charge.success data"
+      );
       return;
     }
     if (receivedAmount === undefined || receivedAmount === null) {
-      console.error("Missing amount in charge.success data", data);
+      console.error(
+        "[WEBHOOK_SUCCESS] Missing amount in charge.success data",
+        data
+      );
       return;
     }
     const order = await db.query.orderTable.findFirst({
@@ -127,21 +148,25 @@ async function handleSuccessfulPayment(
 
     if (!order) {
       console.error(
-        `Webhook charge.success: No order found with payment reference: ${reference}`
+        "[WEBHOOK_SUCCESS] No order found for reference:",
+        reference
       );
       return;
     }
 
     if (order.paymentStatus === "COMPLETED") {
-      console.log(
-        `Webhook charge.success: Order ${order.id} (ref: ${reference}) already marked as COMPLETED. Skipping update.`
-      );
+      console.log("[WEBHOOK_SUCCESS] Order already completed, skipping:", {
+        orderId: order.id,
+        reference,
+      });
       return;
     }
 
-    console.log(
-      `Webhook charge.success: Updating order ${order.id} (ref: ${reference}) to COMPLETED.`
-    );
+    console.log("[WEBHOOK_SUCCESS] Updating order to completed:", {
+      orderId: order.id,
+      reference,
+    });
+
     await db
       .update(orderTable)
       .set({
@@ -154,15 +179,18 @@ async function handleSuccessfulPayment(
 
     if (order.cart?.id && order.cart.status !== "CONVERTED") {
       console.log(
-        `Webhook charge.success: Updating cart ${order.cart.id} to CONVERTED.`
+        "[WEBHOOK_SUCCESS] Converting cart to completed:",
+        order.cart.id
       );
       await db
         .update(cartTable)
         .set({ status: "CONVERTED" })
         .where(eq(cartTable.id, order.cart.id));
-    }
-
-    // --- Notify Vendor via Durable Object ---
+    } // --- Notify Vendor via Durable Object ---
+    console.log("[WEBHOOK_SUCCESS] Notifying vendor via durable object:", {
+      shopId: order.shopId,
+      orderId: order.id,
+    });
     const durableObjectId = env.ORDER_NOTIFICATION.idFromName(order.shopId); // Use env directly
     const stub = env.ORDER_NOTIFICATION.get(durableObjectId); // Use env directly
     // Ensure newOrder method exists and handles parameters correctly
@@ -176,22 +204,23 @@ async function handleSuccessfulPayment(
         payload: { orderId: order.id, reference, amount: receivedAmount },
       });
       console.log(
-        `Sent 'payment_confirmed' event to workflow ${order.id} for order ${order.id}`
+        "[WEBHOOK_SUCCESS] Sent payment_confirmed event to workflow:",
+        order.id
       );
     } catch (workflowError) {
-      console.error(
-        `Error sending 'payment_confirmed' to workflow ${order.id} for order ${order.id}:`,
-        workflowError
-      );
+      console.error("[WEBHOOK_SUCCESS] Failed to send event to workflow:", {
+        orderId: order.id,
+        error: workflowError,
+      });
     }
     // --- End Send Event to Workflow ---
 
-    console.log(`Successfully processed charge.success for order ${order.id}`);
+    console.log("[WEBHOOK_SUCCESS] Payment processing completed:", order.id);
   } catch (error) {
-    console.error(
-      `Error in handleSuccessfulPayment for reference ${reference}:`,
-      error
-    );
+    console.error("[WEBHOOK_SUCCESS] Error processing payment:", {
+      reference,
+      error,
+    });
   }
 }
 
@@ -208,9 +237,14 @@ async function handleFailedPayment(
   const db = c.get("db");
   const reference = data.reference;
 
+  console.log("[WEBHOOK_FAILED] Processing payment failure:", {
+    reference,
+    reason: data.gateway_response,
+  });
+
   try {
     if (!reference) {
-      console.error("Missing reference in charge.failed data");
+      console.error("[WEBHOOK_FAILED] Missing reference in charge.failed data");
       return;
     }
     const order = await db.query.orderTable.findFirst({
@@ -221,22 +255,23 @@ async function handleFailedPayment(
     });
 
     if (!order) {
-      console.warn(
-        `Webhook charge.failed: No order found with payment reference: ${reference}.`
-      );
+      console.warn("[WEBHOOK_FAILED] No order found for reference:", reference);
       return;
     }
 
     if (order.paymentStatus !== "PENDING") {
-      console.log(
-        `Webhook charge.failed: Order ${order.id} (ref: ${reference}) has status ${order.paymentStatus}. Not marking as FAILED. Skipping update.`
-      );
+      console.log("[WEBHOOK_FAILED] Order not in pending state, skipping:", {
+        orderId: order.id,
+        currentStatus: order.paymentStatus,
+      });
       return;
     }
 
-    console.log(
-      `Webhook charge.failed: Updating order ${order.id} (ref: ${reference}) to FAILED/CANCELLED.`
-    );
+    console.log("[WEBHOOK_FAILED] Cancelling order due to payment failure:", {
+      orderId: order.id,
+      reference,
+    });
+
     const failureReason = data.gateway_response || "Payment failed via webhook";
     await db
       .update(orderTable)
@@ -253,14 +288,14 @@ async function handleFailedPayment(
       (order.cart.status === "PENDING_PAYMENT" ||
         order.cart.status === "ACTIVE")
     ) {
-      console.log(
-        `Webhook charge.failed: Restoring cart ${order.cart.id} to ACTIVE.`
-      );
+      console.log("[WEBHOOK_FAILED] Restoring cart to active:", order.cart.id);
       await db
         .update(cartTable)
         .set({ status: "ACTIVE" })
         .where(eq(cartTable.id, order.cart.id));
-    } // --- Send Event to Workflow for Failed Payment ---
+    }
+
+    // --- Send Event to Workflow for Failed Payment ---
     try {
       const workflow = await env.ORDER_WORKFLOW.get(order.id); // Use order ID as workflow instance ID
       await workflow.sendEvent({
@@ -268,22 +303,26 @@ async function handleFailedPayment(
         payload: { orderId: order.id, reference, reason: failureReason },
       });
       console.log(
-        `Sent 'payment_failed' event to workflow ${order.id} for order ${order.id}`
+        "[WEBHOOK_FAILED] Sent payment_failed event to workflow:",
+        order.id
       );
     } catch (workflowError) {
-      console.error(
-        `Error sending 'payment_failed' to workflow ${order.id} for order ${order.id}:`,
-        workflowError
-      );
+      console.error("[WEBHOOK_FAILED] Failed to send event to workflow:", {
+        orderId: order.id,
+        error: workflowError,
+      });
     }
     // --- End Send Event to Workflow ---
 
-    console.log(`Successfully processed charge.failed for order ${order.id}`);
-  } catch (error) {
-    console.error(
-      `Error in handleFailedPayment for reference ${reference}:`,
-      error
+    console.log(
+      "[WEBHOOK_FAILED] Payment failure processing completed:",
+      order.id
     );
+  } catch (error) {
+    console.error("[WEBHOOK_FAILED] Error processing payment failure:", {
+      reference,
+      error,
+    });
   }
 }
 

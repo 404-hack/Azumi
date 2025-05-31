@@ -42,18 +42,27 @@ messaging.onBackgroundMessage((payload) => {
 	setTimeout(() => {
 		recentNotifications.delete(shortId);
 	}, 2000);
-
 	const notificationOptions = {
 		body: notificationBody,
-		icon: '/favicon.png',
-		badge: '/favicon.png',
+		icon: '/logo.png',
+		badge: '/logo.png',
 		image: payload.notification?.image,
 		data: payload.data || {},
-		tag: shortId, // Use consistent tag to prevent duplicates
+		tag: shortId,
 		requireInteraction: false,
 		silent: false,
 		vibrate: [200, 100, 200],
-		renotify: false
+		renotify: false,
+		actions:
+			payload.data?.action === 'view_order'
+				? [
+						{
+							action: 'view_order',
+							title: 'View Order',
+							icon: '/logo.png'
+						}
+					]
+				: []
 	};
 
 	console.log('🔥 [SW] Showing BACKGROUND notification:', notificationTitle, 'ID:', shortId);
@@ -64,25 +73,31 @@ messaging.onBackgroundMessage((payload) => {
 // Handle notification clicks
 self.addEventListener('notificationclick', function (event) {
 	console.log('🔥 [SW] Notification clicked:', event);
+	console.log('🔥 [SW] Notification data:', event.notification.data);
 
 	event.notification.close();
 
-	const clickAction = event.notification.data?.click_action || '/';
-	const url = clickAction.startsWith('http')
-		? clickAction
-		: `${self.location.origin}${clickAction}`;
+	// Get URL from backend data (url field, not click_action)
+	const targetUrl = event.notification.data?.url || '/';
+	const fullUrl = targetUrl.startsWith('http') ? targetUrl : `${self.location.origin}${targetUrl}`;
+
+	console.log('🔥 [SW] Navigating to:', fullUrl);
 
 	event.waitUntil(
 		clients.matchAll({ type: 'window' }).then(function (clientList) {
+			// Try to find existing window and navigate it
 			for (let client of clientList) {
 				if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-					console.log('🔥 [SW] Focusing existing window');
-					return client.focus();
+					console.log('🔥 [SW] Focusing existing window and navigating');
+					return client.focus().then(() => {
+						return client.navigate(fullUrl);
+					});
 				}
 			}
+			// No existing window found, open new one
 			if (clients.openWindow) {
 				console.log('🔥 [SW] Opening new window');
-				return clients.openWindow(url);
+				return clients.openWindow(fullUrl);
 			}
 		})
 	);
