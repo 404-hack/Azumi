@@ -1,4 +1,5 @@
-<script lang="ts">	import { Badge } from '$lib/components/ui/badge';
+<script lang="ts">
+	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import Switch from '$lib/components/ui/switch/switch.svelte';
@@ -21,19 +22,18 @@
 	import { getShopOpeningInfo } from '$lib/utils/shop.utils'; // Import the new utility function
 	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 
-	let loading = false;
+	let loading = $state(false);
 	let couponCode = '';
 	let { data } = $props(); // data no longer includes deliveryFee
 	let deliveryNotes = $state('');
 	let vendorNotes = $state('');
 	let deliveryFee = $state(0); // Use $state again for async updates
 	let serviceFee = $state(0);
-	console.log('🚀 ~ data:', data.cart);
-	// Use isOpen from backend data
-	const isOpenNow = $derived(data.cart.shop.isOpen);
 
 	// Get information about when the shop will open today
-	const openingInfo = $derived(getShopOpeningInfo(data.cart.shop.operatingHours));
+	const openingInfo = $derived(
+		getShopOpeningInfo(data.cart.shop.operatingHours, data.cart.shop.isOpen)
+	);
 
 	async function checkOut() {
 		if (!activeLocation.current.lat || !activeLocation.current.lng) {
@@ -53,27 +53,21 @@
 					addressName: activeLocation.current.address
 				}
 			});
-
 			const responseData = await res.json();
-			console.log('🚀 ~ checkOut ~ responseData:', responseData);
 			const accessCode = responseData?.data?.paymentInfo?.accessCode;
 			if (!res.ok || !accessCode) {
 				throw new Error(responseData.error || 'Failed to initialize payment.');
 			}
-
 			const popup = new PaystackPop();
 			popup.resumeTransaction(accessCode, {
 				async onSuccess(transaction) {
-					console.log('Transaction successful:', transaction);
 					const { reference, status, message, trxref } = transaction;
 					toast.success('Payment successful!');
 					if (status === 'success') {
-						console.log(`Order confirmed with reference: ${reference}`);
 						await goto(`/checkout/${data.cart.shop.id}/confirmation/${trxref}`);
 					}
 				},
 				onCancel() {
-					console.log('Transaction cancelled');
 					toast.error('Payment cancelled!');
 				}
 			});
@@ -133,13 +127,7 @@
 	}}
 /> -->
 <ProductModal />
-<button
-	onclick={async () => {
-		// Call the test workflow function here
-		await client.order.test.$post();
-	}}
-	>this button is to test the test workflow
-</button>
+
 <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 	<NotificationPermissionBanner context="customer" />
 	<div class="mb-8">
@@ -150,12 +138,16 @@
 				alt={data.cart.shop.name}
 				class="absolute inset-0 h-full w-full object-cover"
 			/>
-			{#if !isOpenNow}
+			{#if !openingInfo.isOpenNow}
 				<div class="absolute inset-0 flex items-center justify-center backdrop-blur-sm">
-					<div class="rounded-xl text-center text-white backdrop-blur-md">
-						{#if openingInfo.willOpenToday && openingInfo.opensAt}
+					<div class="rounded-xl bg-black/50 p-6 text-center text-white backdrop-blur-md">
+						{#if !data.cart.shop.active}
+							<h2 class="mb-2 text-2xl font-bold">Store Temporarily Closed</h2>
+							<p class="text-white/80">The owner has temporarily closed this store</p>
+							<p class="mt-2 text-sm text-white/60">Orders cannot be placed at this time</p>
+						{:else if openingInfo.willOpenToday && openingInfo.opensAt}
 							<h2 class="mb-2 text-2xl font-bold">Opens Today at {openingInfo.opensAt}</h2>
-							<p class="text-white/80">You can still place your order</p>
+							<p class="text-white/80">Come back later</p>
 						{:else}
 							<h2 class="mb-2 text-2xl font-bold">Closed Today</h2>
 							<p class="text-white/80">Check our operating hours for other days</p>
@@ -224,15 +216,15 @@
 			{/if}
 		</div>
 
+		<!-- TODO: Replace with dynamic tags -->
 		<!-- Shop Tags -->
-		<div class="mt-3 flex flex-wrap gap-2">
+		<!-- <div class="mt-3 flex flex-wrap gap-2">
 			{#each ['Mediterranean', 'Kebab', 'Halal', 'Falafel'] as tag}
-				<!-- TODO: Replace with dynamic tags -->
 				<Badge variant="outline" class="rounded-full">
 					{tag}
 				</Badge>
 			{/each}
-		</div>
+		</div> -->
 
 		<!-- Additional Information Box -->
 		{#if !openingInfo.isOpenNow}
@@ -275,13 +267,13 @@
 									</span>
 								</div>
 							</div>
-							<Button
+							<!-- <Button
 								variant="ghost"
 								size="sm"
 								onclick={() => {
 									/* Logic to open location change modal */
 								}}>Change</Button
-							>
+							> -->
 						</div>
 
 						{#if activeLocation.current.lat && activeLocation.current.lng}
@@ -388,7 +380,8 @@
 							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
 								{formatCurrency(data.cart.subtotal)}
 							</span>
-						</li>						<li class="flex items-center justify-between">
+						</li>
+						<li class="flex items-center justify-between">
 							<div class="flex items-center gap-1">
 								<p class="text-sm font-medium lg:text-base">Service Fee</p>
 								<Popover.Root>
@@ -403,14 +396,15 @@
 											<h4 class="font-medium leading-none">Service Fee</h4>
 											<p class="text-sm text-muted-foreground">
 												The service fee helps us maintain the platform and provide customer support.
-												This fee supports our operations to ensure a reliable and quality experience for all users.
+												This fee supports our operations to ensure a reliable and quality experience
+												for all users.
 											</p>
 										</div>
 									</Popover.Content>
 								</Popover.Root>
 							</div>
 							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
-								<span class="line-through text-muted-foreground">₦500</span>
+								<span class="text-muted-foreground line-through">₦500</span>
 								<span class="ml-2 text-green-600">{formatCurrency(serviceFee)}</span>
 							</span>
 						</li>

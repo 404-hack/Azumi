@@ -23,7 +23,8 @@
 	import CartSheet from '$lib/components/modal/CartSheet.svelte';
 	import { cartSheetState } from '$lib/states/modalState.svelte.js';
 	import { fly, fade, slide } from 'svelte/transition';
-	import { quintOut } from 'svelte/easing';	import { formatCurrency, formatTime } from '$lib/utils.js';
+	import { quintOut } from 'svelte/easing';
+	import { formatCurrency, formatTime } from '$lib/utils.js';
 	import { toast } from 'svelte-sonner';
 	import { loginModalState } from '$lib/states/modalState.svelte';
 	import { authClient } from '$lib/auth-client';
@@ -61,10 +62,10 @@
 			toast.error('Error updating favorites');
 		}
 	}
-	// Use isOpen from backend data
-	const isOpenNow = $derived(data.restaurant.isOpen);
 
-	const openingInfo = $derived(getShopOpeningInfo(data.restaurant.operatingHours));
+	const openingInfo = $derived(
+		getShopOpeningInfo(data.restaurant.operatingHours, data.restaurant.isOpen)
+	);
 
 	// Reactive check for cart items
 	const hasCartItems = $derived(data.shopCart && data.shopCart.items.length > 0);
@@ -229,7 +230,7 @@
 <CartSheet shopCart={data.shopCart} />
 
 <!-- Modern Immersive Redesign -->
-<main class="mx-auto max-w-7xl px-2 py-4 sm:px-6 lg:px-4">
+<main class="container mx-auto max-w-7xl py-4 sm:px-6 lg:px-4">
 	<div class="">
 		<div class="relative h-64 overflow-hidden rounded-lg">
 			<img
@@ -239,10 +240,17 @@
 			/>
 			<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/20"></div>
 			<!-- Restaurant Closed Banner Overlay -->
-			{#if !isOpenNow}
+			{#if !openingInfo.isOpenNow}
 				<!-- Use isOpenNow derived from backend -->
-				<div class="absolute inset-0 flex items-center justify-center backdrop-blur-sm">					<div class=" rounded-xl text-center text-white backdrop-blur-md">
-						{#if openingInfo.willOpenToday}
+				<div class="absolute inset-0 flex items-center justify-center backdrop-blur-sm">
+					<div class="rounded-xl bg-black/50 p-6 text-center text-white backdrop-blur-md">
+						{#if !data.restaurant.active}
+							<h2 class="mb-2 text-2xl font-bold">Store Temporarily Closed</h2>
+							<p class="text-white/80">The owner has temporarily closed this store</p>
+							<p class="mt-2 text-sm text-white/60">
+								Check operating hours below for regular schedule
+							</p>
+						{:else if openingInfo.willOpenToday}
 							<h2 class="mb-2 text-2xl font-bold">Opens Today at {openingInfo.opensAt}</h2>
 							<p class="text-white/80">Come back later</p>
 						{:else}
@@ -269,8 +277,9 @@
 					<Share2 class="size-5" />
 				</button>
 			</div>
-		</div>		<h1 class="mt-4 text-3xl capitalize font-bold">{data.restaurant.name}</h1>
-		<p class="line-clamp-3 text-sm leading-relaxed  text-gray-700">{data.restaurant.description}</p>
+		</div>
+		<h1 class="mt-4 text-3xl font-bold capitalize">{data.restaurant.name}</h1>
+		<p class="line-clamp-3 text-sm leading-relaxed text-gray-700">{data.restaurant.description}</p>
 
 		<div class="mt-4 flex flex-wrap items-center gap-3 text-sm">
 			<div class="flex items-center">
@@ -294,7 +303,6 @@
 					</div>
 				{/if}
 			</div>
-
 			<div class="flex items-center">
 				<Clock class="mr-1 size-4" />
 				{#if openingInfo.isOpenNow}
@@ -340,9 +348,8 @@
 				<Badge variant="outline" class="rounded-full">
 					{data.restaurant.shopType}
 				</Badge>
-			{/if}		</div>
-
-		
+			{/if}
+		</div>
 	</div>
 
 	<!-- Main Content Container -->
@@ -358,7 +365,7 @@
 						<Badge
 							onclick={() => scrollToCategory(category)}
 							variant={activeCategory === category ? 'default' : 'secondary'}
-							class="capitalize px-3 py-2"
+							class="px-3 py-2 capitalize"
 						>
 							{category}
 						</Badge>
@@ -552,6 +559,19 @@
 							<Clock class="size-5" />
 							Operating Hours
 						</h3>
+						{#if !data.restaurant.active}
+							<div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+								<div class="flex items-center gap-2">
+									<div class="size-2 rounded-full bg-amber-500"></div>
+									<p class="text-sm font-medium text-amber-800">
+										Store temporarily closed by owner
+									</p>
+								</div>
+								<p class="mt-1 text-xs text-amber-700">
+									Below are the regular operating hours when the store is active
+								</p>
+							</div>
+						{/if}
 					</div>
 
 					<div class="divide-y divide-gray-100">

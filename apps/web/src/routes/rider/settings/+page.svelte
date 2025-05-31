@@ -387,57 +387,6 @@
 		</Card>
 
 		<!-- Appearance -->
-		<Card class="p-6">
-			<div class="mb-6 flex items-center gap-2">
-				<Moon class="h-5 w-5" />
-				<h3 class="font-semibold">Appearance</h3>
-			</div>
-			<div class="space-y-4">
-				<div>
-					<Label for="theme">Theme</Label>
-					<Select.Root
-						selected={{ value: settings.appearance.theme, label: settings.appearance.theme }}
-						onSelectedChange={(v) => {
-							if (v) {
-								settings.appearance.theme = v.value;
-							}
-						}}
-					>
-						<Select.Trigger class="w-full">
-							<Select.Value placeholder="Select theme" />
-						</Select.Trigger>
-						<Select.Content>
-							{#each themes as theme}
-								<Select.Item value={theme.value}>{theme.label}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</div>
-				<div>
-					<Label for="language">Language</Label>
-					<Select.Root
-						selected={{
-							value: settings.appearance.language,
-							label: languages.find((l) => l.value === settings.appearance.language)?.label
-						}}
-						onSelectedChange={(v) => {
-							if (v) {
-								settings.appearance.language = v.value;
-							}
-						}}
-					>
-						<Select.Trigger class="w-full">
-							<Select.Value placeholder="Select language" />
-						</Select.Trigger>
-						<Select.Content>
-							{#each languages as language}
-								<Select.Item value={language.value}>{language.label}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</div>
-			</div>
-		</Card>
 
 		<!-- Save Changes -->
 		<div class="flex justify-end gap-4">

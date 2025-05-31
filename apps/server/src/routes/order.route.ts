@@ -170,13 +170,26 @@ const orderRoute = factory
       const db = c.get("db");
       const user = c.get("user");
 
+      console.log("[ORDER_ROUTE] Starting order creation process:", {
+        userId: user?.id,
+        cartId: data.cartId,
+        timestamp: new Date().toISOString(),
+      });
+
       if (!user) {
+        console.log("[ORDER_ROUTE] Unauthorized: No user found");
         return c.json({ error: "Unauthorized" }, 401);
       }
 
       if (!data.cartId) {
+        console.log("[ORDER_ROUTE] Bad request: No cart ID provided");
         return c.json({ error: "Cart ID is required" }, 400);
       }
+
+      console.log(
+        "[ORDER_ROUTE] Fetching cart details for cart ID:",
+        data.cartId
+      );
 
       // Fetch cart with items, menu item details (including inStock), options (including inStock), and shop details
       const cart = await db.query.cartTable.findFirst({
@@ -222,10 +235,26 @@ const orderRoute = factory
       });
 
       if (!cart) {
+        console.log("[ORDER_ROUTE] Cart not found for ID:", data.cartId);
         return c.json({ error: "Cart not found" }, 404);
       }
 
+      console.log("[ORDER_ROUTE] Cart found:", {
+        cartId: cart.id,
+        customerId: cart.customerId,
+        shopId: cart.shopId,
+        status: cart.status,
+        itemsCount: cart.items?.length || 0,
+      });
+
       if (cart.customerId !== user.id) {
+        console.log(
+          "[ORDER_ROUTE] Permission denied: Cart belongs to different user:",
+          {
+            cartCustomerId: cart.customerId,
+            currentUserId: user.id,
+          }
+        );
         return c.json(
           { error: "You don't have permission to access this cart" },
           403
@@ -233,22 +262,38 @@ const orderRoute = factory
       }
 
       if (cart.status !== "ACTIVE") {
+        console.log("[ORDER_ROUTE] Cart not active:", {
+          cartId: cart.id,
+          status: cart.status,
+        });
         return c.json({ error: "This cart has already been processed" }, 400);
       }
 
       if (!cart.items || cart.items.length === 0) {
+        console.log("[ORDER_ROUTE] Cart is empty:", cart.id);
         return c.json({ error: "Cart is empty" }, 400);
       }
 
       if (!cart.shop) {
-        console.error(`Cart ${cart.id} is missing shop data.`);
+        console.error("[ORDER_ROUTE] Cart missing shop data:", cart.id);
         return c.json({ error: "Shop data not found for this cart" }, 500);
       }
+
+      console.log("[ORDER_ROUTE] Starting shop validation:", {
+        shopId: cart.shop.id,
+        shopName: cart.shop.name,
+        active: cart.shop.active,
+        status: cart.shop.status,
+      });
 
       // --- Pre-Order Validation ---
 
       // 1. Check if Shop is Active
       if (!cart.shop.active) {
+        console.log("[ORDER_ROUTE] Shop inactive:", {
+          shopId: cart.shop.id,
+          shopName: cart.shop.name,
+        });
         return c.json(
           {
             error: `Sorry, the shop "${cart.shop.name}" is currently inactive and cannot accept orders. Please try again later.`,
@@ -259,6 +304,11 @@ const orderRoute = factory
 
       // 2. Check if Shop is Approved
       if (cart.shop.status !== "APPROVED") {
+        console.log("[ORDER_ROUTE] Shop not approved:", {
+          shopId: cart.shop.id,
+          shopName: cart.shop.name,
+          status: cart.shop.status,
+        });
         return c.json(
           {
             error: `Sorry, the shop "${cart.shop.name}" is not approved to accept orders. Please try again later.`,
@@ -285,6 +335,13 @@ const orderRoute = factory
       const currentDayString =
         dayMapping[currentDay as keyof typeof dayMapping];
 
+      console.log("[ORDER_ROUTE] Checking shop operating hours:", {
+        shopId: cart.shop.id,
+        currentDay: currentDayString,
+        currentTime: `${currentHour}:${currentMinute}`,
+        operatingHoursCount: cart.shop.operatingHours?.length || 0,
+      });
+
       const isOpen = isShopCurrentlyOpen(
         cart.shop.operatingHours,
         currentDayString,
@@ -292,6 +349,12 @@ const orderRoute = factory
       );
 
       if (!isOpen) {
+        console.log("[ORDER_ROUTE] Shop closed:", {
+          shopId: cart.shop.id,
+          shopName: cart.shop.name,
+          currentDay: currentDayString,
+          currentTime: `${currentHour}:${currentMinute}`,
+        });
         return c.json(
           {
             error: `Sorry, the shop "${cart.shop.name}" is currently closed and cannot accept orders. Please check their opening hours.`,
@@ -300,9 +363,15 @@ const orderRoute = factory
         );
       }
 
+      console.log("[ORDER_ROUTE] Shop is open, checking item availability");
+
       // 4. Check Item and Option Availability (In Stock)
       for (const item of cart.items) {
         if (!item.menuItem) {
+          console.log(
+            "[ORDER_ROUTE] Menu item missing for cart item:",
+            item.id
+          );
           return c.json(
             {
               error: `Oops! We couldn't find the details for an item in your cart. Please try removing and re-adding it.`,
@@ -311,6 +380,10 @@ const orderRoute = factory
           );
         }
         if (!item.menuItem.inStock) {
+          console.log("[ORDER_ROUTE] Menu item out of stock:", {
+            itemId: item.menuItem.id,
+            itemName: item.menuItem.name,
+          });
           return c.json(
             {
               error: `Sorry, the item "${item.menuItem.name}" is currently out of stock. Please remove it from your cart to proceed.`,
@@ -323,6 +396,10 @@ const orderRoute = factory
         if (item.options && item.options.length > 0) {
           for (const cartOption of item.options) {
             if (!cartOption.option) {
+              console.log(
+                "[ORDER_ROUTE] Option details missing for cart option:",
+                cartOption.id
+              );
               return c.json(
                 {
                   error: `Oops! We couldn't find the details for an option selected with "${item.menuItem.name}". Please try removing and re-adding the item.`,
@@ -331,6 +408,11 @@ const orderRoute = factory
               );
             }
             if (!cartOption.option.inStock) {
+              console.log("[ORDER_ROUTE] Option out of stock:", {
+                optionId: cartOption.option.id,
+                optionName: cartOption.option.name,
+                itemName: item.menuItem.name,
+              });
               return c.json(
                 {
                   error: `Sorry, the option "${cartOption.option.name}" for the item "${item.menuItem.name}" is currently out of stock. Please remove or change the selection to proceed.`,
@@ -342,6 +424,8 @@ const orderRoute = factory
         }
       }
 
+      console.log("[ORDER_ROUTE] All items available, calculating totals");
+
       // --- End Pre-Order Validation ---
 
       // --- Backend Calculation (already implemented) ---
@@ -349,6 +433,8 @@ const orderRoute = factory
         (sum, item) => sum + Number(item.totalPrice || 0),
         0
       );
+
+      console.log("[ORDER_ROUTE] Calculated subtotal:", subtotal);
 
       let deliveryFee = 0;
       const shopLat = cart.shop?.latitude;
@@ -367,18 +453,37 @@ const orderRoute = factory
           shopLng
         );
         deliveryFee = calculateDeliveryFee(distance);
+        console.log("[ORDER_ROUTE] Calculated delivery fee:", {
+          distance,
+          deliveryFee,
+          shopCoords: { lat: shopLat, lng: shopLng },
+          userCoords: { lat: data.userLatitude, lng: data.userLongitude },
+        });
       } else {
         console.warn(
-          `Shop ${cart.shopId} missing coordinates. Using default delivery fee.`
+          "[ORDER_ROUTE] Shop missing coordinates, using default delivery fee:",
+          {
+            shopId: cart.shopId,
+            shopLat,
+            shopLng,
+          }
         );
       }
 
       const serviceFee = 0; // Example fee
       const total = subtotal + deliveryFee + serviceFee - data.discount;
 
-      // orderCode generation and saving is intentionally omitted as per user request
+      console.log("[ORDER_ROUTE] Final totals:", {
+        subtotal,
+        deliveryFee,
+        serviceFee,
+        discount: data.discount,
+        total,
+      });
 
       const riderConfirmationCode = Math.floor(1000 + Math.random() * 9000);
+
+      console.log("[ORDER_ROUTE] Creating order in database");
 
       // Create the order (only if validations passed)
       const order = await db
@@ -405,6 +510,17 @@ const orderRoute = factory
         .returning()
         .get();
 
+      console.log("[ORDER_ROUTE] Order created:", {
+        orderId: order.id,
+        customerId: order.customerId,
+        shopId: order.shopId,
+        total: order.total,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+      });
+
+      console.log("[ORDER_ROUTE] Creating order items");
+
       // Create order items (only if validations passed)
       const orderItems = await Promise.all(
         cart.items.map(async (item) => {
@@ -423,7 +539,19 @@ const orderRoute = factory
             .returning()
             .get();
 
+          console.log("[ORDER_ROUTE] Created order item:", {
+            orderItemId: orderItem.id,
+            menuItemId: item.menuItem.id,
+            menuItemName: item.menuItem.name,
+            quantity: item.quantity,
+            totalPrice: item.totalPrice,
+          });
+
           if (item.options && item.options.length > 0) {
+            console.log(
+              "[ORDER_ROUTE] Adding options for order item:",
+              orderItem.id
+            );
             await db.insert(orderItemOptionTable).values(
               item.options.map((cartOption) => ({
                 // cartOption is a cartItemOption from cart.items.options
@@ -453,6 +581,11 @@ const orderRoute = factory
       //   .where(eq(cartTable.id, data.cartId))
       //   .execute();
 
+      console.log(
+        "[ORDER_ROUTE] Order items created successfully, total items:",
+        orderItems.length
+      );
+
       // Get the complete order with items
       const completeOrder = await db.query.orderTable.findFirst({
         where: eq(orderTable.id, order.id),
@@ -461,11 +594,17 @@ const orderRoute = factory
         },
       });
 
+      console.log("[ORDER_ROUTE] Complete order retrieved for payment:", {
+        orderId: completeOrder?.id,
+        itemsCount: completeOrder?.items?.length || 0,
+      });
+
       // Initialize Paystack payment with backend-calculated total
       const paystackSecretKey = env.PAYSTACK_SECRET_KEY;
       if (!paystackSecretKey) {
-        console.error("Missing PAYSTACK_SECRET_KEY environment variable");
-        // Potentially delete the created order or mark it as failed immediately
+        console.error(
+          "[ORDER_ROUTE] Missing PAYSTACK_SECRET_KEY environment variable"
+        );
         await db.delete(orderTable).where(eq(orderTable.id, order.id));
         return c.json({ error: "Server configuration error" }, 500);
       }
@@ -475,6 +614,14 @@ const orderRoute = factory
       const callbackUrl = `${frontendBaseUrl}/checkout/callback`; // Redirect URL after payment attempt
 
       const reference = `ORD-${order.id}-${nanoid(6)}`; // Generate unique reference
+
+      console.log("[ORDER_ROUTE] Initializing Paystack payment:", {
+        orderId: order.id,
+        reference,
+        amount: Math.round(total * 100),
+        email: user.email,
+        callbackUrl,
+      });
 
       const accessCodeRes = await fetch(
         "https://api.paystack.co/transaction/initialize",
@@ -508,11 +655,11 @@ const orderRoute = factory
 
       if (!accessCodeRes.ok) {
         const errorBody = await accessCodeRes.text();
-        console.error(
-          "Paystack initialization failed:",
-          accessCodeRes.status,
-          errorBody
-        );
+        console.error("[ORDER_ROUTE] Paystack initialization failed:", {
+          status: accessCodeRes.status,
+          error: errorBody,
+          orderId: order.id,
+        });
         await db.delete(orderTable).where(eq(orderTable.id, order.id));
         return c.json(
           { error: "Payment initialization failed", details: errorBody },
@@ -521,13 +668,25 @@ const orderRoute = factory
       }
 
       const accessCodeData = await accessCodeRes.json();
-      console.log("🚀 ~ .post ~ accessCodeData:", accessCodeData);
+      console.log("[ORDER_ROUTE] Paystack response received:", {
+        status: accessCodeData.status,
+        hasAccessCode: !!accessCodeData.data?.access_code,
+        orderId: order.id,
+      });
 
       if (!accessCodeData.status || !accessCodeData.data?.access_code) {
-        console.error("Invalid Paystack response:", accessCodeData);
+        console.error("[ORDER_ROUTE] Invalid Paystack response:", {
+          accessCodeData,
+          orderId: order.id,
+        });
         await db.delete(orderTable).where(eq(orderTable.id, order.id));
         return c.json({ error: "Invalid payment provider response" }, 500);
       }
+
+      console.log("[ORDER_ROUTE] Updating order with payment transaction ID:", {
+        orderId: order.id,
+        reference,
+      });
 
       await db
         .update(orderTable)
@@ -538,6 +697,8 @@ const orderRoute = factory
         .where(eq(orderTable.id, order.id));
 
       const accessCode = accessCodeData.data.access_code;
+
+      console.log("[ORDER_ROUTE] Starting order workflow");
 
       // WORKFLOW: Initiate order workflow
       // This is the entry point for the order workflow
@@ -554,12 +715,12 @@ const orderRoute = factory
             // vendorEmail: cart.shop.email, // Assuming shop schema has email
             paymentTransactionId: reference, // Use the same reference stored in DB
             paymentMethod: order.paymentMethod,
-            // items: completeOrder.items.map((item) => ({ // Use completeOrder for items
-            //   id: item.id,
-            //   name: item.menuItemName,
-            //   quantity: item.quantity,
-            //   price: item.unitPrice,
-            // })),
+            items: completeOrder?.items.map((item) => ({
+              id: item.id,
+              name: item.menuItemName,
+              quantity: item.quantity,
+              price: item.unitPrice,
+            })),
             deliveryAddress: {
               latitude: order.latitude,
               longitude: order.longitude,
@@ -572,21 +733,32 @@ const orderRoute = factory
           id: order.id, // Use the order ID as the workflow instance ID
         });
 
-        console.log(
-          `Order workflow started for order: ${order.id} with ID: ${workflowExecution.id}`
-        );
+        console.log("[ORDER_ROUTE] Order workflow started successfully:", {
+          orderId: order.id,
+          workflowId: workflowExecution.id,
+          paymentTransactionId: reference,
+        });
       } catch (workflowError) {
-        console.error("Failed to start order workflow:", workflowError);
+        console.error("[ORDER_ROUTE] Failed to start order workflow:", {
+          orderId: order.id,
+          error: workflowError,
+        });
         // Continue with order creation even if workflow fails
         // The workflow can be manually started later if needed
       }
+
+      console.log("[ORDER_ROUTE] Order creation completed successfully:", {
+        orderId: order.id,
+        accessCode,
+        total: order.total,
+      });
 
       // Return the order information to the client
       return c.json({
         data: { orderId: order.id, paymentInfo: { accessCode } },
       });
     } catch (error) {
-      console.error("Error creating order:", error);
+      console.error("[ORDER_ROUTE] Error creating order:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
   })

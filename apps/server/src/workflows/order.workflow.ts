@@ -7,8 +7,13 @@ import {
 import { PushNotificationService } from "../services/push-notification.service";
 import { createClient } from "../lib/db";
 import { env } from "cloudflare:workers";
-import { orderTable } from "../lib/db/schema/order.schema";
-import { eq } from "drizzle-orm";
+import {
+  orderItemOptionTable,
+  orderItemTable,
+  orderTable,
+} from "../lib/db/schema/order.schema";
+import { eq, inArray } from "drizzle-orm";
+import { cartTable } from "../lib/db/schema";
 
 /**
  * Input parameters for the order workflow
@@ -135,52 +140,313 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       };
     }
   }
-
   /**
    * Phase 1: Verify payment and initiate order
    * Called when workflow is first triggered from order/create
-   */
-  private async verifyPaymentAndInitiateOrder(
+   */ private async verifyPaymentAndInitiateOrder(
     params: OrderParams,
     step: WorkflowStep
   ): Promise<void> {
-    console.log(`Verifying payment for order: ${params.orderId}`);
-    // Wait for payment confirmation event (triggered by webhook or verify-payment endpoint)
-    await step.waitForEvent("payment_confirmed", {
-      type: "payment_confirmed",
-      timeout: "1 hour",
-    });
+    console.log(
+      `🔄 [WORKFLOW-PAYMENT] Starting payment verification for order: ${params.orderId}`
+    );
+    console.log(
+      `🔄 [WORKFLOW-PAYMENT] Payment transaction ID: ${params.paymentTransactionId}`
+    );
+    console.log(
+      `🔄 [WORKFLOW-PAYMENT] Waiting for payment confirmation or failure with 1 hour timeout...`
+    );
+    try {
+      // Wait for either payment confirmation or failure event using Promise.race
+      const paymentResult = await Promise.race([
+        step
+          .waitForEvent("payment_confirmed", {
+            type: "payment_confirmed",
+            timeout: "1 hour",
+          })
+          .then((event) => ({
+            type: "payment_confirmed",
+            payload: event.payload,
+          })),
 
-    console.log(`Payment confirmed for order: ${params.orderId}`);
+        step
+          .waitForEvent("payment_failed", {
+            type: "payment_failed",
+            timeout: "1 hour",
+          })
+          .then((event) => ({
+            type: "payment_failed",
+            payload: event.payload,
+          })),
+      ]);
 
-    // Notify vendor about new order
-    await this.notifyVendor(params);
+      if (paymentResult.type === "payment_confirmed") {
+        console.log(
+          `✅ [WORKFLOW-PAYMENT] Payment confirmed for order: ${params.orderId}`
+        );
+        console.log(
+          `✅ [WORKFLOW-PAYMENT] Payment event payload:`,
+          paymentResult.payload
+        );
 
-    console.log(`Vendor notified about order: ${params.orderId}`);
+        // Notify vendor about new order
+        console.log(
+          `📢 [WORKFLOW-VENDOR] Initiating vendor notification for order: ${params.orderId}`
+        );
+        await this.notifyVendor(params);
+
+        console.log(
+          `✅ [WORKFLOW-VENDOR] Vendor notified successfully for order: ${params.orderId}`
+        );
+      } else if (paymentResult.type === "payment_failed") {
+        console.log(
+          `❌ [WORKFLOW-PAYMENT] Payment failed for order: ${params.orderId}`
+        );
+        console.log(
+          `❌ [WORKFLOW-PAYMENT] Failure reason:`,
+          paymentResult.payload.reason
+        );
+
+        // Notify customer about payment failure
+        console.log(
+          `📢 [WORKFLOW-CUSTOMER] Notifying customer about payment failure for order: ${params.orderId}`
+        );
+        await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: "CANCELLED",
+            updatedAt: new Date().toISOString(),
+          },
+          params
+        );
+
+        console.log(
+          `✅ [WORKFLOW-CUSTOMER] Customer notified about payment failure for order: ${params.orderId}`
+        );
+
+        // End workflow execution for failed payment
+        throw new Error(
+          `Payment failed for order ${params.orderId}: ${paymentResult.payload.reason}`
+        );
+      }
+    } catch (error) {
+      console.log(
+        `⚠️ [WORKFLOW-PAYMENT] Payment verification failed/timeout for order: ${params.orderId}`
+      );
+      console.log(`⚠️ [WORKFLOW-PAYMENT] Error details:`, error);
+
+      // Check current order status in database
+      console.log(
+        `🔍 [WORKFLOW-PAYMENT] Checking order status in database for order: ${params.orderId}`
+      );
+      const db = createClient(env.DB);
+      const order = await db.query.orderTable.findFirst({
+        where: eq(orderTable.id, params.orderId),
+        columns: { paymentStatus: true, status: true, cancelReason: true },
+        with: { cart: { columns: { id: true, status: true } } },
+      });
+
+      console.log(`🔍 [WORKFLOW-PAYMENT] Current order status:`, {
+        orderId: params.orderId,
+        paymentStatus: order?.paymentStatus,
+        orderStatus: order?.status,
+        cancelReason: order?.cancelReason,
+        cartId: order?.cart?.id,
+        cartStatus: order?.cart?.status,
+      });
+
+      if (order?.paymentStatus === "FAILED" || order?.status === "CANCELLED") {
+        console.log(
+          `❌ [WORKFLOW-PAYMENT] Order ${params.orderId} was cancelled due to payment failure via webhook`
+        );
+
+        // Notify customer about payment failure
+        console.log(
+          `📢 [WORKFLOW-CUSTOMER] Notifying customer about payment failure for order: ${params.orderId}`
+        );
+        await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: "CANCELLED",
+            updatedAt: new Date().toISOString(),
+          },
+          params
+        );
+
+        console.log(
+          `✅ [WORKFLOW-CUSTOMER] Customer notified about payment failure for order: ${params.orderId}`
+        );
+
+        // End workflow execution for failed payment
+        throw new Error(
+          `Payment failed for order ${params.orderId}: ${order.cancelReason || "Payment failure via webhook"}`
+        );
+      }
+
+      // Payment timeout - user abandoned payment, clean up silently (industry standard)
+      console.log(
+        `⏰ [WORKFLOW-TIMEOUT] Payment timeout detected for order: ${params.orderId} - initiating silent cleanup`
+      );
+      await this.handlePaymentTimeout(params, order);
+
+      throw new Error(
+        `Payment timeout for order ${params.orderId} - order cleaned up successfully`
+      );
+    }
   }
+
+  /**
+   * Handle payment timeout - industry standard silent cleanup
+   * Delete order and restore cart to active state
+   */
+  private async handlePaymentTimeout(
+    params: OrderParams,
+    order: any
+  ): Promise<void> {
+    console.log(
+      `🧹 [WORKFLOW-CLEANUP] Starting payment timeout cleanup for order: ${params.orderId}`
+    );
+
+    try {
+      const db = createClient(env.DB);
+
+      // Step 1: Restore cart to active state if it exists
+      if (order?.cart?.id) {
+        console.log(
+          `🧹 [WORKFLOW-CLEANUP] Restoring cart ${order.cart.id} to ACTIVE status`
+        );
+        await db
+          .update(cartTable)
+          .set({ status: "ACTIVE" })
+          .where(eq(cartTable.id, order.cart.id));
+
+        console.log(
+          `✅ [WORKFLOW-CLEANUP] Cart ${order.cart.id} restored to ACTIVE status`
+        );
+      } else {
+        console.log(
+          `⚠️ [WORKFLOW-CLEANUP] No cart found for order ${params.orderId} - skipping cart restoration`
+        );
+      }
+
+      // Step 2: Delete order items and options first (foreign key constraints)
+      console.log(
+        `🧹 [WORKFLOW-CLEANUP] Deleting order items for order: ${params.orderId}`
+      );
+
+      // Delete order item options first
+      const orderItems = await db.query.orderItemTable.findMany({
+        where: eq(orderItemTable.orderId, params.orderId),
+        columns: { id: true },
+      });
+
+      if (orderItems.length > 0) {
+        const orderItemIds = orderItems.map((item) => item.id);
+        console.log(
+          `🧹 [WORKFLOW-CLEANUP] Found ${orderItems.length} order items to clean up`
+        );
+
+        // Delete order item options
+        await db
+          .delete(orderItemOptionTable)
+          .where(inArray(orderItemOptionTable.orderItemId, orderItemIds));
+
+        console.log(
+          `✅ [WORKFLOW-CLEANUP] Deleted order item options for order: ${params.orderId}`
+        );
+
+        // Delete order items
+        await db
+          .delete(orderItemTable)
+          .where(eq(orderItemTable.orderId, params.orderId));
+
+        console.log(
+          `✅ [WORKFLOW-CLEANUP] Deleted order items for order: ${params.orderId}`
+        );
+      } else {
+        console.log(
+          `⚠️ [WORKFLOW-CLEANUP] No order items found for order: ${params.orderId}`
+        );
+      }
+
+      // Step 3: Delete the main order record
+      console.log(
+        `🧹 [WORKFLOW-CLEANUP] Deleting main order record: ${params.orderId}`
+      );
+      await db.delete(orderTable).where(eq(orderTable.id, params.orderId));
+
+      console.log(
+        `✅ [WORKFLOW-CLEANUP] Successfully deleted order: ${params.orderId}`
+      );
+
+      // Step 4: Log cleanup for analytics/monitoring
+      console.log(
+        `📊 [WORKFLOW-ANALYTICS] Payment timeout cleanup completed:`,
+        {
+          orderId: params.orderId,
+          paymentTransactionId: params.paymentTransactionId,
+          customerId: params.customerId,
+          shopId: params.shopId,
+          total: params.total,
+          timeoutAt: new Date().toISOString(),
+          reason: "payment_timeout_user_abandoned",
+        }
+      );
+
+      console.log(
+        `✅ [WORKFLOW-CLEANUP] Payment timeout cleanup completed successfully for order: ${params.orderId}`
+      );
+    } catch (cleanupError) {
+      console.error(
+        `❌ [WORKFLOW-CLEANUP] Failed to cleanup order ${params.orderId}:`,
+        cleanupError
+      );
+
+      // Even if cleanup fails, we should log it for manual intervention
+      console.log(
+        `📊 [WORKFLOW-ERROR] Cleanup failed - manual intervention may be required:`,
+        {
+          orderId: params.orderId,
+          paymentTransactionId: params.paymentTransactionId,
+          customerId: params.customerId,
+          error:
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError),
+          failedAt: new Date().toISOString(),
+        }
+      );
+
+      throw new Error(
+        `Cleanup failed for timed out order ${params.orderId}: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+      );
+    }
+  }
+
   /**
    * Notify vendor about new order
    * This integrates with FCM push notification services
-   */
-  private async notifyVendor(params: OrderParams): Promise<void> {
+   */ private async notifyVendor(params: OrderParams): Promise<void> {
     console.log(
       `Sending notification to vendor (${params.shopId}) for order: ${params.orderId}`
     );
     try {
+      const itemCount = params.items?.length || 0;
+
       const pushNotificationService = new PushNotificationService();
       await pushNotificationService.sendNotificationToShop(params.shopId, {
         title: "New Order Received!",
-        body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for $${params.total}`,
+        body: `Order #${params.orderId.slice(-6)} - ${itemCount} item(s) for ₦${params.total}`,
         data: {
           type: "new_order",
           orderId: params.orderId,
           action: "view_order",
-          link: `/vendor/orders/${params.orderId}`,
+          url: `/vendor/orders/${params.orderId}`,
         },
       });
 
       console.log(
-        `✅ Push notification sent to vendor for order: ${params.orderId}`
+        `✅ Push notification sent to vendor for order: ${params.orderId} (${itemCount} items)`
       );
     } catch (error) {
       console.error(

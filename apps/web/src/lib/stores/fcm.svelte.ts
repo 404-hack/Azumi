@@ -87,23 +87,20 @@ export function createFCMStore() {
 		console.log(
 			`🔥 Setting up FOREGROUND onMessage listener for token: ${token.substring(0, 20)}...`
 		);
-
 		messageUnsubscribe = onMessage(messaging, (payload) => {
 			if (Notification.permission !== 'granted') return;
 
 			console.log('🔥 FOREGROUND notification received - showing toast only:', payload);
-			const link = payload.fcmOptions?.link || payload.data?.link;
+			const url = payload.data?.url; // Use 'url' field from backend
 
 			// ONLY show toast notification for foreground - no browser notifications
-			if (link) {
+			if (url) {
 				toast.info(`${payload.notification?.title}: ${payload.notification?.body}`, {
 					action: {
-						label: 'Visit',
+						label: 'View Order',
 						onClick: () => {
-							const notificationLink = payload.fcmOptions?.link || payload.data?.link;
-							if (notificationLink) {
-								goto(notificationLink);
-							}
+							console.log('🔥 Toast action clicked, navigating to:', url);
+							goto(url);
 						}
 					}
 				});
