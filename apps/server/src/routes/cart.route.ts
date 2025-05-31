@@ -326,6 +326,7 @@ const cartRoute = factory
                 longitude: true,
                 addressName: true,
                 address: true,
+                active: true,
               },
               with: {
                 operatingHours: true, // Fetch operating hours
@@ -372,12 +373,13 @@ const cartRoute = factory
         };
         const currentDayString =
           dayMapping[currentDay as keyof typeof dayMapping];
-
-        const isOpen = isShopCurrentlyOpen(
-          cartData.shop.operatingHours,
-          currentDayString,
-          currentTimeMinutes
-        );
+        const isOpen = cartData.shop.active
+          ? isShopCurrentlyOpen(
+              cartData.shop.operatingHours,
+              currentDayString,
+              currentTimeMinutes
+            )
+          : false;
 
         let distance: number | undefined = undefined;
         let deliveryFee: number | undefined = undefined;

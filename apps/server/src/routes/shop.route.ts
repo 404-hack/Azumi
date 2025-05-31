@@ -97,7 +97,6 @@ const shopRoute = factory
             lte(shops.latitude, maxLat),
             gte(shops.longitude, minLon),
             lte(shops.longitude, maxLon),
-            eq(shops.active, true),
             eq(shops.status, "APPROVED"),
           ];
 
@@ -167,12 +166,14 @@ const shopRoute = factory
               shopLng
             );
 
-            // Calculate isOpen status
-            const isOpen = isShopCurrentlyOpen(
-              shop.operatingHours,
-              currentDayString,
-              currentTimeMinutes
-            );
+            // Calculate isOpen status (inactive shops are always closed)
+            const isOpen = shop.active
+              ? isShopCurrentlyOpen(
+                  shop.operatingHours,
+                  currentDayString,
+                  currentTimeMinutes
+                )
+              : false;
 
             // Return shop with distance and isOpen status
             return { ...shop, distance, isOpen };
@@ -420,11 +421,7 @@ const shopRoute = factory
         // Build where conditions based on ownership
         const whereConditions = isOwner
           ? eq(shopTable.slug, slug) // No restrictions for owner
-          : and(
-              eq(shopTable.slug, slug),
-              eq(shopTable.active, true),
-              eq(shopTable.status, "APPROVED")
-            );
+          : and(eq(shopTable.slug, slug), eq(shopTable.status, "APPROVED"));
 
         const shop = await db.query.shopTable.findFirst({
           where: whereConditions,
@@ -534,11 +531,13 @@ const shopRoute = factory
         const currentDayString =
           dayMapping[currentDay as keyof typeof dayMapping];
 
-        const isOpen = isShopCurrentlyOpen(
-          shop.operatingHours,
-          currentDayString,
-          currentTimeMinutes
-        );
+        const isOpen = shop.active
+          ? isShopCurrentlyOpen(
+              shop.operatingHours,
+              currentDayString,
+              currentTimeMinutes
+            )
+          : false;
         // --- Calculate distance, fee, and time if user location is provided ---
         let distance: number | undefined = undefined;
         let deliveryFee: number | undefined = undefined;

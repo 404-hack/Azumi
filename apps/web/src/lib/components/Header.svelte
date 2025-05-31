@@ -20,7 +20,8 @@
 		User,
 		Heart,
 		Settings,
-		Package
+		Package,
+		ChevronRight
 	} from 'lucide-svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Avatar, AvatarFallback, AvatarImage } from '$lib/components/ui/avatar';
@@ -32,12 +33,6 @@
 	import type { Place } from '$lib/types/places';
 	import AddDeliveryAddress from './modal/AddDeliveryAddress.svelte';
 	import { activeLocation } from '$lib/states/locationState.svelte';
-	import Label from './ui/label/label.svelte';
-	import Separator from './ui/separator/separator.svelte';
-
-	let location = 'Nairobi, Kenya';
-	let searchQuery = '';
-	let isMobileMenuOpen = $state(false);
 
 	let user = $derived(page.data.user);
 	const organizations = authClient.useListOrganizations();
@@ -51,7 +46,7 @@
 		<!-- Logo and Locatio`n -->
 		<div class="flex items-center gap-4">
 			<a href="/" class="flex items-center space-x-2">
-				<img src="/azumiLogo-1.png" alt="Azumi" class="size-10" />
+				<img src="/logo.png" alt="Azumi" class="size-10" />
 				<span class="hidden text-xl font-bold text-primary md:inline">Azumi</span>
 			</a>
 			{#if activeLocation.current.lat != 0 && activeLocation.current.lng != 0}
@@ -63,7 +58,7 @@
 					}}
 				>
 					<MapPin class="h-4 w-4" />
-					<span class="max-w-[200px] truncate border border-red-600"
+					<span class="max-w-[150px] truncate md:max-w-[300px]"
 						>{activeLocation.current.address}</span
 					>
 					<ChevronDown class="h-4 w-4 transition-transform group-hover:rotate-180" />
@@ -114,28 +109,54 @@
 				<nav class="flex items-center gap-3">
 					<DropdownMenu.Root>
 						<DropdownMenu.Trigger>
-							<Button
-								variant="ghost"
-								class="relative h-9 w-9 rounded-full p-0 hover:bg-muted/80"
+							<button
+								class="flex items-center gap-1.5 rounded-full bg-background p-1 pr-2 text-white shadow-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 								aria-label="User menu"
 							>
-								<Avatar class="h-9 w-9">
-									<AvatarImage src={user.image} alt={user.name || 'User'} />
-									<AvatarFallback>
-										{user?.name
-											?.split(' ')
-											.map((n) => n.charAt(0))
-											.join('')
-											.toUpperCase() ?? ''}
+								<Avatar class="h-8 w-8">
+									<AvatarImage src={user.image ?? undefined} alt={user.name ?? 'User'} />
+									<AvatarFallback class="bg-primary/70 text-sm font-medium ">
+										{(
+											user.name
+												?.split(' ')
+												.map((n) => n[0])
+												.join('')
+												.toUpperCase() ||
+											user.email?.charAt(0).toUpperCase() ||
+											'U'
+										).substring(0, 2)}
 									</AvatarFallback>
 								</Avatar>
-							</Button>
+								<ChevronDown class="h-4 w-4 text-neutral-400" />
+							</button>
 						</DropdownMenu.Trigger>
 						<DropdownMenu.Content class="w-56" align="end">
 							<DropdownMenu.Label>My Account</DropdownMenu.Label>
 							<DropdownMenu.Separator />
-							<DropdownMenu.Item>
-								<a href="/me/personal-info" class="flex w-full">Profile</a>
+							<DropdownMenu.Item class="cursor-pointer p-3">
+								<a href="/me/personal-info" class="flex w-full items-center justify-between">
+									<div class="flex items-center gap-3">
+										<Avatar class="h-10 w-10">
+											<AvatarImage src={user.image ?? undefined} alt={user.name ?? 'User'} />
+											<AvatarFallback class="bg-primary/50 font-medium text-white">
+												{user.name
+													?.split(' ')
+													.map((n) => n[0])
+													.join('')
+													.toUpperCase() ||
+													(user.email?.charAt(0).toUpperCase() ?? 'P')}
+											</AvatarFallback>
+										</Avatar>
+										<div class="flex flex-col">
+											<span class="text-sm text-muted-foreground">Profile</span>
+											<span class="text-base font-semibold text-foreground"
+												>{user.name ?? 'User Profile'}</span
+											>
+										</div>
+									</div>
+									<!-- Ensure ChevronRight is imported from lucide-svelte -->
+									<ChevronRight class="h-5 w-5 text-muted-foreground" />
+								</a>
 							</DropdownMenu.Item>
 
 							{#if isAdmin}

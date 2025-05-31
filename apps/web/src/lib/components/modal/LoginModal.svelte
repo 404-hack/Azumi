@@ -29,7 +29,7 @@
 					},
 					{
 						async onSuccess() {
-							toast.success('OTP code sent successfully');
+							// toast.success('OTP code sent successfully');
 							loginModalState.setFalse();
 							setTimeout(() => {
 								verifyOtpModalState.setTrue();

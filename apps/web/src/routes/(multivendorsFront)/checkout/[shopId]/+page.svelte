@@ -29,12 +29,11 @@
 	let vendorNotes = $state('');
 	let deliveryFee = $state(0); // Use $state again for async updates
 	let serviceFee = $state(0);
-	console.log('🚀 ~ data:', data.cart);
-	// Use isOpen from backend data
-	const isOpenNow = $derived(data.cart.shop.isOpen);
 
 	// Get information about when the shop will open today
-	const openingInfo = $derived(getShopOpeningInfo(data.cart.shop.operatingHours));
+	const openingInfo = $derived(
+		getShopOpeningInfo(data.cart.shop.operatingHours, data.cart.shop.isOpen)
+	);
 
 	async function checkOut() {
 		if (!activeLocation.current.lat || !activeLocation.current.lng) {
@@ -54,27 +53,21 @@
 					addressName: activeLocation.current.address
 				}
 			});
-
 			const responseData = await res.json();
-			console.log('🚀 ~ checkOut ~ responseData:', responseData);
 			const accessCode = responseData?.data?.paymentInfo?.accessCode;
 			if (!res.ok || !accessCode) {
 				throw new Error(responseData.error || 'Failed to initialize payment.');
 			}
-
 			const popup = new PaystackPop();
 			popup.resumeTransaction(accessCode, {
 				async onSuccess(transaction) {
-					console.log('Transaction successful:', transaction);
 					const { reference, status, message, trxref } = transaction;
 					toast.success('Payment successful!');
 					if (status === 'success') {
-						console.log(`Order confirmed with reference: ${reference}`);
 						await goto(`/checkout/${data.cart.shop.id}/confirmation/${trxref}`);
 					}
 				},
 				onCancel() {
-					console.log('Transaction cancelled');
 					toast.error('Payment cancelled!');
 				}
 			});
@@ -145,12 +138,16 @@
 				alt={data.cart.shop.name}
 				class="absolute inset-0 h-full w-full object-cover"
 			/>
-			{#if !isOpenNow}
+			{#if !openingInfo.isOpenNow}
 				<div class="absolute inset-0 flex items-center justify-center backdrop-blur-sm">
-					<div class="rounded-xl text-center text-white backdrop-blur-md">
-						{#if openingInfo.willOpenToday && openingInfo.opensAt}
+					<div class="rounded-xl bg-black/50 p-6 text-center text-white backdrop-blur-md">
+						{#if !data.cart.shop.active}
+							<h2 class="mb-2 text-2xl font-bold">Store Temporarily Closed</h2>
+							<p class="text-white/80">The owner has temporarily closed this store</p>
+							<p class="mt-2 text-sm text-white/60">Orders cannot be placed at this time</p>
+						{:else if openingInfo.willOpenToday && openingInfo.opensAt}
 							<h2 class="mb-2 text-2xl font-bold">Opens Today at {openingInfo.opensAt}</h2>
-							<p class="text-white/80">You can still place your order</p>
+							<p class="text-white/80">Come back later</p>
 						{:else}
 							<h2 class="mb-2 text-2xl font-bold">Closed Today</h2>
 							<p class="text-white/80">Check our operating hours for other days</p>
