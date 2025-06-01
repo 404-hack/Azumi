@@ -20,11 +20,10 @@
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 	// Get the form from the server
 	let { data } = $props();
-	console.log('🚀 ~ data:', data);
 
 	// Create the form using superForm
 	const form = superForm(
-		defaults({ ...data.profile, phoneNumber: data.profile.phoneNumber }, zod(updateShopSchema)),
+		defaults({ ...data.profile, phoneNumber: data.profile.phoneNumber, website:data.profile.website || '' }, zod(updateShopSchema)),
 		{
 			validators: zod(updateShopSchema),
 			SPA: true, // Enable client-side form handling (SPA mode)
@@ -302,6 +301,7 @@
 										type="url"
 										bind:value={$formData.website}
 										placeholder="Enter website URL"
+										
 									/>
 								{/snippet}
 							</Form.Control>

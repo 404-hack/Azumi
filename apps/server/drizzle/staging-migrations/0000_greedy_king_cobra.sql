@@ -77,6 +77,7 @@ CREATE TABLE `session` (
 	`user_agent` text,
 	`user_id` text NOT NULL,
 	`active_organization_id` text,
+	`impersonated_by` text,
 	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -87,10 +88,16 @@ CREATE TABLE `user_table` (
 	`email` text NOT NULL,
 	`email_verified` integer NOT NULL,
 	`image` text,
+	`phone_number` text,
+	`phone_number_verified` integer,
 	`tokens` integer,
 	`credits` integer,
 	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`updated_at` integer NOT NULL,
+	`role` text DEFAULT 'user',
+	`banned` integer DEFAULT false,
+	`ban_reason` text,
+	`ban_expires` integer
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `user_table_email_unique` ON `user_table` (`email`);--> statement-breakpoint
@@ -119,6 +126,7 @@ CREATE TABLE `cart_items` (
 	`id` text PRIMARY KEY NOT NULL,
 	`cart_id` text,
 	`menu_item_id` text,
+	`options_hash` text DEFAULT 'no-options' NOT NULL,
 	`quantity` integer DEFAULT 1 NOT NULL,
 	`special_instructions` text,
 	`total_price` integer NOT NULL,
@@ -168,6 +176,16 @@ CREATE TABLE `deliveryZones` (
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE TABLE `favorite_table` (
+	`user_id` text NOT NULL,
+	`shop_id` text NOT NULL,
+	`created_at` integer,
+	`updated_at` integer,
+	PRIMARY KEY(`user_id`, `shop_id`),
+	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE TABLE `invitation` (
@@ -248,7 +266,7 @@ CREATE TABLE `shop_table` (
 	`commission` integer DEFAULT 10,
 	`minimum_order_amount` integer DEFAULT 0,
 	`active` integer DEFAULT false,
-	`status` text DEFAULT 'PENDING',
+	`status` text DEFAULT 'DRAFT',
 	`logo` text,
 	`cover_image` text,
 	`average_rating` integer,
@@ -312,7 +330,7 @@ CREATE TABLE `menuItem` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`description` text NOT NULL,
-	`image` text,
+	`image_url` text,
 	`price` integer NOT NULL,
 	`price_description` text,
 	`in_stock` integer DEFAULT true,
@@ -345,11 +363,11 @@ CREATE TABLE `optionGroup` (
 	`min_selections` integer DEFAULT 0 NOT NULL,
 	`max_selections` integer,
 	`shop_id` text NOT NULL,
-	`userId` text NOT NULL,
+	`user_id` text NOT NULL,
 	`created_at` integer,
 	`updated_at` integer,
 	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`userId`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `optionSelection` (
@@ -367,13 +385,13 @@ CREATE TABLE `option` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`price` integer NOT NULL,
-	`inStock` integer DEFAULT true NOT NULL,
+	`in_stock` integer DEFAULT true NOT NULL,
 	`shop_id` text NOT NULL,
-	`userId` text,
+	`user_id` text,
 	`created_at` integer,
 	`updated_at` integer,
 	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`userId`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `optionToOptionGroup` (
@@ -395,9 +413,18 @@ CREATE TABLE `promotion_products` (
 	FOREIGN KEY (`promotion_id`) REFERENCES `promotions`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE TABLE `promotion_shops` (
+	`id` text PRIMARY KEY NOT NULL,
+	`promotion_id` text NOT NULL,
+	`shop_id` text NOT NULL,
+	`created_at` integer,
+	`updated_at` integer,
+	FOREIGN KEY (`promotion_id`) REFERENCES `promotions`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `promotions` (
 	`id` text PRIMARY KEY NOT NULL,
-	`shop_id` text,
 	`name` text NOT NULL,
 	`code` text NOT NULL,
 	`description` text,
@@ -412,9 +439,14 @@ CREATE TABLE `promotions` (
 	`usage_limit` integer,
 	`usage_count` integer DEFAULT 0,
 	`is_active` integer DEFAULT true,
+	`is_first_order_only` integer DEFAULT false,
+	`applies_to_all_shops` integer DEFAULT false,
+	`cost_bearer` text DEFAULT 'PLATFORM' NOT NULL,
+	`created_by` text NOT NULL,
+	`creator_type` text NOT NULL,
 	`created_at` integer,
 	`updated_at` integer,
-	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`created_by`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `promotions_code_unique` ON `promotions` (`code`);--> statement-breakpoint
@@ -511,18 +543,6 @@ CREATE TABLE `device_token` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `device_token_token_unique` ON `device_token` (`token`);--> statement-breakpoint
-CREATE TABLE `notification_preference` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`type` text NOT NULL,
-	`channel` text NOT NULL,
-	`enabled` integer DEFAULT true,
-	`metadata` text,
-	`created_at` integer,
-	`updated_at` integer,
-	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
 CREATE TABLE `notification` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -540,6 +560,57 @@ CREATE TABLE `notification` (
 	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE TABLE `notification_log` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text,
+	`token` text,
+	`title` text NOT NULL,
+	`body` text NOT NULL,
+	`data` text,
+	`message_id` text,
+	`status` text NOT NULL,
+	`error_message` text,
+	`sent_at` integer NOT NULL,
+	`delivered_at` integer,
+	`clicked_at` integer,
+	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+CREATE INDEX `notification_log_user_id_idx` ON `notification_log` (`user_id`);--> statement-breakpoint
+CREATE INDEX `notification_log_status_idx` ON `notification_log` (`status`);--> statement-breakpoint
+CREATE INDEX `notification_log_sent_at_idx` ON `notification_log` (`sent_at`);--> statement-breakpoint
+CREATE TABLE `push_token` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`token` text NOT NULL,
+	`device_id` text,
+	`device_type` text,
+	`user_agent` text,
+	`provider` text DEFAULT 'fcm' NOT NULL,
+	`is_active` integer DEFAULT true,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	`last_used_at` integer,
+	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `push_token_token_unique` ON `push_token` (`token`);--> statement-breakpoint
+CREATE INDEX `push_token_user_id_idx` ON `push_token` (`user_id`);--> statement-breakpoint
+CREATE INDEX `push_token_token_idx` ON `push_token` (`token`);--> statement-breakpoint
+CREATE INDEX `push_token_active_idx` ON `push_token` (`is_active`);--> statement-breakpoint
+CREATE INDEX `push_token_provider_idx` ON `push_token` (`provider`);--> statement-breakpoint
+CREATE TABLE `topic_subscription` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`topic` text NOT NULL,
+	`is_subscribed` integer DEFAULT true,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `topic_subscription_user_topic_idx` ON `topic_subscription` (`user_id`,`topic`);--> statement-breakpoint
+CREATE INDEX `topic_subscription_topic_idx` ON `topic_subscription` (`topic`);--> statement-breakpoint
 CREATE TABLE `orderItemOption` (
 	`id` text PRIMARY KEY NOT NULL,
 	`order_item_id` text NOT NULL,
@@ -572,16 +643,18 @@ CREATE TABLE `orderItem` (
 --> statement-breakpoint
 CREATE TABLE `order` (
 	`id` text PRIMARY KEY NOT NULL,
-	`code` text NOT NULL,
+	`code` text,
 	`customer_id` text,
-	`shopId` text NOT NULL,
+	`shop_id` text NOT NULL,
 	`rider_id` text,
+	`rider_confirmation_code` integer NOT NULL,
 	`status` text NOT NULL,
 	`cart_id` text NOT NULL,
-	`delivery_address_id` text,
+	`address_name` text DEFAULT '' NOT NULL,
+	`longitude` real NOT NULL,
+	`latitude` real NOT NULL,
 	`delivery_notes` text,
 	`vendor_notes` text,
-	`contact_phone` text,
 	`payment_method` text DEFAULT 'CARD' NOT NULL,
 	`payment_status` text NOT NULL,
 	`payment_transaction_id` text,
@@ -601,27 +674,54 @@ CREATE TABLE `order` (
 	`created_at` integer,
 	`updated_at` integer,
 	FOREIGN KEY (`customer_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`shopId`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`shop_id`) REFERENCES `shop_table`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`rider_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`cart_id`) REFERENCES `carts`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`delivery_address_id`) REFERENCES `addresses`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`cart_id`) REFERENCES `carts`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE TABLE `rider_payment_methods` (
+	`id` text PRIMARY KEY NOT NULL,
+	`rider_id` text NOT NULL,
+	`type` text DEFAULT 'BANK_TRANSFER',
+	`account_number` text NOT NULL,
+	`account_name` text NOT NULL,
+	`bank_name` text NOT NULL,
+	`bank_code` text NOT NULL,
+	`paystack_recipient_code` text,
+	`created_at` integer,
+	`updated_at` integer,
+	FOREIGN KEY (`rider_id`) REFERENCES `riders`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `rider_payment_methods_rider_id_unique` ON `rider_payment_methods` (`rider_id`);--> statement-breakpoint
 CREATE TABLE `riders` (
 	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text,
+	`first_name` text,
+	`last_name` text,
+	`email` text,
+	`address` text,
+	`longitude` real,
+	`latitude` real,
+	`address_name` text,
 	`vehicle_type` text,
-	`license_plate` text,
-	`id_document` text,
-	`current_location` text,
-	`status` text DEFAULT 'offline',
-	`rating` integer,
-	`is_verified` integer DEFAULT false,
-	`bank_info` text,
-	`active_area` text,
-	`max_delivery_distance` integer DEFAULT 10000,
-	FOREIGN KEY (`id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE cascade
+	`vehicle_license` text,
+	`identification_document` text,
+	`application_status` text DEFAULT 'DRAFT',
+	`active` integer DEFAULT false,
+	`availability_status` text DEFAULT 'AVAILABLE',
+	`rating` real DEFAULT 0,
+	`total_ratings` integer DEFAULT 0,
+	`max_delivery_distance` integer DEFAULT 10,
+	`current_lat` real,
+	`current_lng` real,
+	`current_order_id` text,
+	`created_at` integer,
+	`updated_at` integer,
+	FOREIGN KEY (`user_id`) REFERENCES `user_table`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `riders_user_id_unique` ON `riders` (`user_id`);--> statement-breakpoint
 CREATE TABLE `reviews` (
 	`id` text PRIMARY KEY NOT NULL,
 	`order_id` text,

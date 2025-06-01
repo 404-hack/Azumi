@@ -7,10 +7,11 @@ import {
 } from "../lib/db/schema/rider.schema";
 import { orderTable } from "../lib/db/schema/order.schema";
 import { factory } from "../lib/factory";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { env } from "cloudflare:workers";
 import { PushNotificationService } from "../services/push-notification.service";
+import { calculateDistance } from "../lib/utils/geo";
 
 import riderAuthMiddleware from "../middlewares/riderAuth";
 import { RiderTodoService } from "../services/riderTodo.service";
@@ -1014,6 +1015,287 @@ const riderRoute = factory
       console.error("Error requesting verification:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
-  });
+  })
+  .get(
+    "/dispatch/connect",
+    zValidator(
+      "query",
+      z.object({
+        lat: z.string().transform((val) => parseFloat(val)),
+        lng: z.string().transform((val) => parseFloat(val)),
+      })
+    ),
+    async (c) => {
+      const rider = c.get("rider");
+      const { lat, lng } = c.req.valid("query");
 
+      try {
+        if (!rider || rider.applicationStatus !== "APPROVED") {
+          return c.json({ error: "Rider not found or not approved" }, 404);
+        }
+
+        const riderDispatchService = new RiderDispatchService();
+        const wsUrl = riderDispatchService.getWebSocketUrl(
+          rider.id,
+          lat,
+          lng,
+          c.env
+        );
+
+        return c.json({
+          success: true,
+          wsUrl,
+          riderId: rider.id,
+          message:
+            "Use this WebSocket URL to connect to the real-time dispatch system",
+        });
+      } catch (error) {
+        console.error("Error getting WebSocket connection info:", error);
+        return c.json({ error: "Failed to get connection info" }, 500);
+      }
+    }
+  )
+  .get("/dispatch/orders", async (c) => {
+    const db = c.get("db");
+    const rider = c.get("rider");
+
+    try {
+      if (!rider) {
+        return c.json({ error: "Rider not found" }, 404);
+      }
+      const availableOrders = await db
+        .select({
+          id: orderTable.id,
+          shopId: orderTable.shopId,
+          latitude: orderTable.latitude,
+          longitude: orderTable.longitude,
+          total: orderTable.total,
+          deliveryFee: orderTable.deliveryFee,
+          createdAt: orderTable.createdAt,
+        })
+        .from(orderTable)
+        .where(and(eq(orderTable.status, "READY"), isNull(orderTable.riderId)))
+        .orderBy(desc(orderTable.createdAt))
+        .limit(20);
+      const ordersWithDistance = availableOrders
+        .map((order) => {
+          const distance = calculateDistance(
+            rider.currentLat || rider.latitude || 0,
+            rider.currentLng || rider.longitude || 0,
+            order.latitude || 0,
+            order.longitude || 0
+          );
+
+          return {
+            ...order,
+            estimatedDistance: distance,
+            estimatedDuration: Math.max(15, Math.round((distance / 25) * 60)), // 25km/h average speed
+          };
+        })
+        .filter((order) => order.estimatedDistance <= 10); // Within 10km
+
+      return c.json({
+        success: true,
+        orders: ordersWithDistance,
+        count: ordersWithDistance.length,
+      });
+    } catch (error) {
+      console.error("Error fetching available orders:", error);
+      return c.json({ error: "Failed to fetch available orders" }, 500);
+    }
+  })
+  .post(
+    "/dispatch/update-location",
+    zValidator(
+      "json",
+      z.object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        syncToDb: z.boolean().optional().default(false),
+      })
+    ),
+    async (c) => {
+      const db = c.get("db");
+      const rider = c.get("rider");
+      const { lat, lng, syncToDb } = c.req.valid("json");
+
+      try {
+        const riderDispatchService = new RiderDispatchService();
+        await riderDispatchService.updateRiderRealTimeStatus(c.env, rider.id, {
+          location: { lat, lng },
+        });
+
+        if (syncToDb) {
+          await db
+            .update(riderTable)
+            .set({
+              currentLat: lat,
+              currentLng: lng,
+            })
+            .where(eq(riderTable.id, rider.id));
+        }
+
+        return c.json({
+          success: true,
+          message: "Location updated successfully",
+          syncedToDb: syncToDb,
+        });
+      } catch (error) {
+        console.error("Error updating rider location:", error);
+        return c.json({ error: "Failed to update location" }, 500);
+      }
+    }
+  )
+  .post(
+    "/dispatch/update-status",
+    zValidator(
+      "json",
+      z.object({
+        isAvailable: z.boolean().optional(),
+        availabilityStatus: z.enum(["AVAILABLE", "BUSY", "OFFLINE"]).optional(),
+      })
+    ),
+    async (c) => {
+      const db = c.get("db");
+      const rider = c.get("rider");
+      const riderId = rider?.id;
+
+      if (!riderId) {
+        return c.json({ error: "Rider not found" }, 404);
+      }
+
+      const { isAvailable, availabilityStatus } = c.req.valid("json");
+
+      try {
+        const updateData: any = {};
+
+        if (availabilityStatus !== undefined) {
+          updateData.availabilityStatus = availabilityStatus;
+        } else if (isAvailable !== undefined) {
+          updateData.availabilityStatus = isAvailable ? "AVAILABLE" : "OFFLINE";
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await db
+            .update(riderTable)
+            .set(updateData)
+            .where(eq(riderTable.id, riderId));
+        }
+
+        const updatedRider = await db.query.riderTable.findFirst({
+          where: eq(riderTable.id, riderId),
+        });
+
+        if (updatedRider) {
+          const riderDispatchService = new RiderDispatchService();
+          await riderDispatchService.updateRiderRealTimeStatus(c.env, riderId, {
+            isAvailable: updatedRider.availabilityStatus === "AVAILABLE",
+          });
+        }
+
+        return c.json({
+          success: true,
+          message: "Status updated successfully",
+          availabilityStatus: updateData.availabilityStatus,
+        });
+      } catch (error) {
+        console.error("Error updating rider status:", error);
+        return c.json({ error: "Failed to update status" }, 500);
+      }
+    }
+  )
+  .post("/dispatch/accept-order/:orderId", async (c) => {
+    const db = c.get("db");
+    const rider = c.get("rider");
+    const riderId = rider?.id;
+    const orderId = c.req.param("orderId");
+
+    if (!riderId) {
+      return c.json({ error: "Rider not found" }, 404);
+    }
+
+    try {
+      const order = await db.query.orderTable.findFirst({
+        where: and(
+          eq(orderTable.id, orderId),
+          eq(orderTable.status, "READY"),
+          isNull(orderTable.riderId)
+        ),
+      });
+
+      if (!order) {
+        return c.json({ error: "Order not available for pickup" }, 404);
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(orderTable)
+          .set({
+            riderId,
+            status: "RIDER_ASSIGNED",
+          })
+          .where(eq(orderTable.id, orderId));
+
+        await tx
+          .update(riderTable)
+          .set({
+            currentOrderId: orderId,
+          })
+          .where(eq(riderTable.id, riderId));
+      });
+
+      // Update dispatch service
+      const riderDispatchService = new RiderDispatchService();
+      await riderDispatchService.updateRiderRealTimeStatus(c.env, riderId, {
+        isAvailable: false,
+        isOnline: true,
+      });
+
+      return c.json({
+        success: true,
+        message: "Order accepted successfully",
+        orderId,
+      });
+    } catch (error) {
+      console.error("Error accepting order:", error);
+      return c.json({ error: "Failed to accept order" }, 500);
+    }
+  })
+  .get("/ws", async (c) => {
+    // WebSocket endpoint - this will be handled by the Durable Object
+    const rider = c.get("rider");
+    const riderId = rider?.id;
+    const lat = parseFloat(c.req.query("lat") || "0");
+    const lng = parseFloat(c.req.query("lng") || "0");
+
+    if (!riderId) {
+      return new Response("Missing riderId", { status: 400 });
+    }
+
+    // Check if this is a WebSocket upgrade request
+    const upgradeHeader = c.req.header("upgrade");
+    if (upgradeHeader !== "websocket") {
+      return new Response("Expected WebSocket upgrade", { status: 426 });
+    }
+
+    // Forward to Durable Object with all original headers preserved
+    const id = (c.env as any).RIDER_DISPATCH.idFromName(
+      "global-rider-dispatch"
+    );
+    const stub = (c.env as any).RIDER_DISPATCH.get(id);
+
+    const url = new URL(c.req.url);
+    url.pathname = "/connect";
+    url.searchParams.set("riderId", riderId);
+    url.searchParams.set("lat", lat.toString());
+    url.searchParams.set("lng", lng.toString());
+
+    // Create a new request with all the original headers (including WebSocket headers)
+    const request = new Request(url.toString(), {
+      method: c.req.method,
+      headers: c.req.raw.headers,
+    });
+
+    return stub.fetch(request);
+  });
 export default riderRoute;

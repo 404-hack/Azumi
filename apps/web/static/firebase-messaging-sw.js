@@ -36,12 +36,12 @@ messaging.onBackgroundMessage((payload) => {
 		console.log('🔥 [SW] DUPLICATE notification detected, skipping:', shortId);
 		return;
 	}
-
 	// Add to recent notifications and clean up after 2 seconds
 	recentNotifications.add(shortId);
 	setTimeout(() => {
 		recentNotifications.delete(shortId);
 	}, 2000);
+
 	const notificationOptions = {
 		body: notificationBody,
 		icon: '/logo.png',
@@ -53,16 +53,7 @@ messaging.onBackgroundMessage((payload) => {
 		silent: false,
 		vibrate: [200, 100, 200],
 		renotify: false,
-		actions:
-			payload.data?.action === 'view_order'
-				? [
-						{
-							action: 'view_order',
-							title: 'View Order',
-							icon: '/logo.png'
-						}
-					]
-				: []
+		actions: getNotificationActions(payload.data)
 	};
 
 	console.log('🔥 [SW] Showing BACKGROUND notification:', notificationTitle, 'ID:', shortId);
@@ -70,15 +61,49 @@ messaging.onBackgroundMessage((payload) => {
 	return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
+// Helper function to get appropriate action buttons based on notification type
+function getNotificationActions(data) {
+	if (!data) return [];
+
+	const action = data.action;
+
+	if (action === 'view_order') {
+		return [
+			{
+				action: 'view_order',
+				title: 'View Order',
+				icon: '/logo.png'
+			}
+		];
+	} else if (action === 'accept_delivery') {
+		return [
+			{
+				action: 'accept_delivery',
+				title: 'Accept Delivery',
+				icon: '/logo.png'
+			}
+		];
+	} else if (action === 'view_available_orders') {
+		return [
+			{
+				action: 'view_available_orders',
+				title: 'View Orders',
+				icon: '/logo.png'
+			}
+		];
+	}
+
+	return [];
+}
+
 // Handle notification clicks
 self.addEventListener('notificationclick', function (event) {
 	console.log('🔥 [SW] Notification clicked:', event);
 	console.log('🔥 [SW] Notification data:', event.notification.data);
 
 	event.notification.close();
-
-	// Get URL from backend data (url field, not click_action)
-	const targetUrl = event.notification.data?.url || '/';
+	// Get URL from backend data (support both 'url' and 'link' properties)
+	const targetUrl = event.notification.data?.url || event.notification.data?.link || '/';
 	const fullUrl = targetUrl.startsWith('http') ? targetUrl : `${self.location.origin}${targetUrl}`;
 
 	console.log('🔥 [SW] Navigating to:', fullUrl);

@@ -24,22 +24,25 @@ database_name = "azumi-db"
 database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18"
 
 # [[durable_objects.bindings]]
-# name = "ORDER_NOTIFICATION"
-# class_name = "OrderNotification"
+# name = "RIDER_DISPATCH"
+# class_name = "RiderDispatch"
 
 # [[migrations]]
 # tag = "v1"
-# new_sqlite_classes = ["OrderNotification"]
+# new_sqlite_classes = ["RiderDispatch"]
 
 [env.staging]
    
     vars = { CLIENT_URL = "http://localhost:5173/" }
-    d1_databases = [{ binding = "DB", database_name = "azumi-db-staging", database_id = "86c0adbb-631d-4416-a1e9-6f83e680c12e" }]
+    d1_databases = [{ binding = "DB", database_name = "azumi-db-staging", database_id = "22ef4992-c5ff-4a89-afff-f467ef9d4d3c" }]
     r2_buckets = [{ bucket_name = "azumi-staging-bucket", binding = "BUCKET" }]
 workflows =[{ name = "order-processing", binding = "ORDER_WORKFLOW", class_name = "OrderWorkflow" }]
-        durable_objects.bindings = [ { name = "ORDER_NOTIFICATION", class_name = "OrderNotification" } ]
-    migrations = [ { tag = "v1", new_sqlite_classes = ["OrderNotification"] } ]
-    
+        durable_objects.bindings = [ 
+            { name = "ORDER_NOTIFICATION", class_name = "OrderNotification" },
+            { name = "RIDER_DISPATCH", class_name = "RiderDispatch" }
+        ]
+    migrations = [ { tag = "v1", new_sqlite_classes = ["OrderNotification", "RiderDispatch"] } ]
+
 
 
 [env.production]

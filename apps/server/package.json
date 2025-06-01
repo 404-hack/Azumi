@@ -20,6 +20,8 @@
 		"db:generate:prod": "drizzle-kit generate --config=drizzle.config.ts",
 		"db:studio": "drizzle-kit studio --config=drizzle-dev.config.ts",
 		"db:studio:staging": "drizzle-kit studio --config=drizzle-staging.config.ts",
+		"db:drop:staging": "drizzle-kit drop --config=drizzle-staging.config.ts",
+		"db:pull:staging": "drizzle-kit pull --config=drizzle-staging.config.ts",
 		"db:studio:prod": "drizzle-kit studio --config=drizzle.config.ts"
 	},
 	"dependencies": {

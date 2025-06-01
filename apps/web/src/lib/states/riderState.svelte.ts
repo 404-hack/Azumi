@@ -1,4 +1,5 @@
-import type { RiderStatus, DeliveryStatus, Delivery } from '$lib/types/rider';
+import type { RiderStatus, DeliveryStatus, Delivery, AvailabilityStatus } from '$lib/types/rider';
+import { client } from '$lib/hc';
 
 class RiderState {
 	isActive = $state(false);
@@ -10,25 +11,27 @@ class RiderState {
 		week: 0,
 		month: 0
 	});
-	status = $state<RiderStatus>('idle');
-
+	status = $state<RiderStatus>('offline');
+	availabilityStatus = $state<AvailabilityStatus>('unavailable');
 	toggleActive() {
 		this.isActive = !this.isActive;
 
-		// Update backend when rider goes online/offline
+		if (this.isActive) {
+			this.status = 'idle';
+			this.availabilityStatus = 'available';
+		} else {
+			this.status = 'offline';
+			this.availabilityStatus = 'unavailable';
+		}
+
 		this.updateActiveStatus();
 	}
-
 	async updateActiveStatus() {
 		try {
-			const response = await fetch('/api/rider/active-status', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
+			const response = await client.rider.profile.$patch({
+				json: {
 					active: this.isActive
-				})
+				}
 			});
 
 			if (!response.ok) {
@@ -49,6 +52,7 @@ class RiderState {
 	acceptDelivery(delivery: Delivery) {
 		this.currentDelivery = delivery;
 		this.status = 'picking_up';
+		this.availabilityStatus = 'busy';
 	}
 
 	startDelivery() {

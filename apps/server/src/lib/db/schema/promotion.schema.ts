@@ -91,3 +91,7 @@ export const promotionProductsRelations = relations(
     }),
   })
 );
+
+// export const shopPromotionsRelations = relations(shopTable, ({ many }) => ({
+//   promotions: many(promotionShops),
+// }));

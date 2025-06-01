@@ -1,7 +1,8 @@
 import type { Order } from '../routes/vendor/orders/types';
 
-export type RiderStatus = 'available' | 'unavailable';
+export type RiderStatus = 'idle' | 'picking_up' | 'delivering' | 'on_break' | 'offline';
 export type DeliveryStatus = 'pending' | 'accepted' | 'picked_up' | 'completed' | 'cancelled';
+export type AvailabilityStatus = 'available' | 'unavailable' | 'busy';
 
 export interface Delivery {
 	id: string;
@@ -52,6 +53,7 @@ export interface RiderProfile {
 	totalDeliveries: number;
 	totalEarnings: number;
 	status: RiderStatus;
+	availabilityStatus: AvailabilityStatus;
 	documents: {
 		id: string;
 		type: 'license' | 'insurance' | 'registration';

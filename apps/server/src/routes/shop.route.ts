@@ -403,7 +403,7 @@ const shopRoute = factory
         const { latitude: userLat, longitude: userLng } = c.req.valid("query");
         const db = c.get("db");
         const session = c.get("session");
-        const orgId = c.get("orgId");
+        const orgId = session?.activeOrganizationId;
 
         // First, get the shop without restrictions to check ownership
         const shopForOwnershipCheck = await db.query.shopTable.findFirst({
