@@ -87,7 +87,7 @@
 									setTimeout(() => {
 										profileSetupModalState.setTrue();
 									}, 100);
-									toast.success('Phone verified! Please complete your profile.');
+									// toast.success('Phone verified! Please complete your profile.');
 								} else {
 									// For existing users, just close modal and show success
 									verifyOtpModalState.setFalse();
@@ -124,7 +124,7 @@
 						maxlength={6}
 						bind:value={$formData.otp}
 						class="flex items-center justify-center gap-2"
-						type="tel"
+						type="number"
 						inputmode="numeric"
 						pattern="[0-9]*"
 						autocomplete="one-time-code"

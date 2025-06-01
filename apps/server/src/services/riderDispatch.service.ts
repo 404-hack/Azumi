@@ -621,4 +621,219 @@ export class RiderDispatchService {
       }
     }
   }
+
+  /**
+   * Enhanced dispatch method that uses Durable Objects for real-time notifications
+   */
+  public async dispatchOrderWithRealTime(
+    orderId: string,
+    env: any
+  ): Promise<{
+    success: boolean;
+    notifiedRiders: number;
+    dispatchMethod: "realtime" | "push_notification";
+  }> {
+    try {
+      console.log(
+        `🚀 [DISPATCH] Starting real-time dispatch for order ${orderId}`
+      );
+
+      const { orderInfo, availableRiders } =
+        await this.findAvailableRiders(orderId);
+
+      if (availableRiders.length === 0) {
+        console.log(
+          `⚠️ [DISPATCH] No available riders found for order ${orderId}`
+        );
+        return {
+          success: false,
+          notifiedRiders: 0,
+          dispatchMethod: "realtime",
+        };
+      }
+
+      // Get order details for dispatch
+      const db = createClient(env.DB);
+      const order = await db.query.orderTable.findFirst({
+        where: eq(orderTable.id, orderId),
+        with: {
+          orderItems: true,
+          shop: true,
+        },
+      });
+
+      if (!order) {
+        throw new Error(`Order ${orderId} not found for dispatch`);
+      }
+
+      // Prepare order data for real-time dispatch
+      const dispatchOrder = {
+        id: orderId,
+        shopId: order.shopId,
+        pickupLocation: {
+          lat: orderInfo.shopLocation.latitude || 0,
+          lng: orderInfo.shopLocation.longitude || 0,
+          address: order.shop?.formattedAddress || "Shop location",
+        },
+        deliveryLocation: {
+          lat: orderInfo.deliveryLocation.latitude || 0,
+          lng: orderInfo.deliveryLocation.longitude || 0,
+          address: order.formattedAddress || "Delivery location",
+        },
+        orderValue: order.total,
+        deliveryFee: order.deliveryFee,
+        itemCount: order.orderItems?.length || 0,
+        estimatedDistance: availableRiders[0]?.metrics.totalDistanceKm || 0,
+        estimatedDuration:
+          availableRiders[0]?.metrics.estimatedTotalMinutes || 30,
+      };
+
+      // Try real-time dispatch via Durable Objects first
+      try {
+        const riderIds = availableRiders.map((r) => r.rider.id);
+        const realTimeResult = await this.dispatchViaRealTime(
+          env,
+          dispatchOrder,
+          riderIds
+        );
+
+        if (realTimeResult.success && realTimeResult.notifiedRiders > 0) {
+          console.log(
+            `✅ [DISPATCH] Real-time dispatch successful: ${realTimeResult.notifiedRiders} riders notified`
+          );
+          return {
+            success: true,
+            notifiedRiders: realTimeResult.notifiedRiders,
+            dispatchMethod: "realtime",
+          };
+        }
+      } catch (realTimeError) {
+        console.error(
+          `❌ [DISPATCH] Real-time dispatch failed:`,
+          realTimeError
+        );
+      }
+
+      // Fallback to push notifications
+      console.log(
+        `🔄 [DISPATCH] Falling back to push notifications for order ${orderId}`
+      );
+      const pushResult = await this.smartDispatchToRiders(orderId);
+
+      return {
+        success: pushResult.success,
+        notifiedRiders: pushResult.notifiedRiders,
+        dispatchMethod: "push_notification",
+      };
+    } catch (error) {
+      console.error(
+        `❌ [DISPATCH] Failed to dispatch order ${orderId}:`,
+        error
+      );
+      return {
+        success: false,
+        notifiedRiders: 0,
+        dispatchMethod: "realtime",
+      };
+    }
+  }
+
+  /**
+   * Dispatch order via Durable Objects real-time system
+   */
+  private async dispatchViaRealTime(
+    env: any,
+    order: any,
+    targetRiders: string[]
+  ): Promise<{ success: boolean; notifiedRiders: number }> {
+    try {
+      // Get the global rider dispatch Durable Object
+      const id = env.RIDER_DISPATCH.idFromName("global-rider-dispatch");
+      const stub = env.RIDER_DISPATCH.get(id);
+
+      const response = await stub.fetch(
+        new Request("https://rider-dispatch/dispatch-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order,
+            targetRiders,
+          }),
+        })
+      );
+
+      const result = (await response.json()) as any;
+      console.log(`🔄 [REALTIME-DISPATCH] Result:`, result);
+
+      return {
+        success: result.success || false,
+        notifiedRiders: result.notifiedRiders || 0,
+      };
+    } catch (error) {
+      console.error(`❌ [REALTIME-DISPATCH] Error:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get WebSocket connection URL for a rider
+   */
+  public getWebSocketUrl(
+    riderId: string,
+    lat: number,
+    lng: number,
+    env: any
+  ): string {
+    // In development, use localhost. In production, use the actual domain
+    const baseUrl = env.CLIENT_URL?.includes("localhost")
+      ? "ws://localhost:8787"
+      : "wss://your-domain.com";
+
+    const params = new URLSearchParams({
+      riderId,
+      lat: lat.toString(),
+      lng: lng.toString(),
+    });
+
+    return `${baseUrl}/rider/ws?${params}`;
+  }
+  /**
+   * Update rider status in the real-time system
+   */
+  public async updateRiderRealTimeStatus(
+    env: any,
+    riderId: string,
+    update: {
+      location?: { lat: number; lng: number };
+      isAvailable?: boolean;
+    }
+  ): Promise<boolean> {
+    try {
+      const id = env.RIDER_DISPATCH.idFromName("global-rider-dispatch");
+      const stub = env.RIDER_DISPATCH.get(id);
+
+      let updateType = "status_update";
+      if (update.location) {
+        updateType = "location_update";
+      }
+
+      const response = await stub.fetch(
+        new Request("https://rider-dispatch/rider-status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            riderId,
+            type: updateType,
+            data: update,
+          }),
+        })
+      );
+
+      const result = (await response.json()) as any;
+      return result.success || false;
+    } catch (error) {
+      console.error(`❌ [REALTIME-STATUS] Error updating rider status:`, error);
+      return false;
+    }
+  }
 }

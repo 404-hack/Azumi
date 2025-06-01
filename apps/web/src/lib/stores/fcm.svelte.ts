@@ -91,16 +91,49 @@ export function createFCMStore() {
 			if (Notification.permission !== 'granted') return;
 
 			console.log('🔥 FOREGROUND notification received - showing toast only:', payload);
-			const url = payload.data?.url; // Use 'url' field from backend
+
+			// Support both 'url' (vendor) and 'link' (rider) properties
+			const notificationUrl = payload.data?.url || payload.data?.link;
+			const notificationType = payload.data?.type;
+			const action = payload.data?.action;
+			const orderId = payload.data?.orderId;
+
+			// Create action button based on notification type
+			let actionLabel = 'View';
+			if (action === 'view_order') {
+				actionLabel = 'View Order';
+			} else if (action === 'accept_delivery') {
+				actionLabel = 'Accept Delivery';
+			} else if (action === 'view_available_orders') {
+				actionLabel = 'View Orders';
+			}
 
 			// ONLY show toast notification for foreground - no browser notifications
-			if (url) {
+			if (notificationUrl) {
 				toast.info(`${payload.notification?.title}: ${payload.notification?.body}`, {
 					action: {
-						label: 'View Order',
+						label: actionLabel,
 						onClick: () => {
-							console.log('🔥 Toast action clicked, navigating to:', url);
-							goto(url);
+							console.log('🔥 Toast action clicked, navigating to:', notificationUrl);
+							// Special handling for rider delivery notifications when already on rider page
+							if (
+								typeof window !== 'undefined' &&
+								window.location.pathname === '/rider' &&
+								notificationType === 'delivery_opportunity' &&
+								orderId
+							) {
+								// Try to highlight the order card first, then navigate if needed
+								const orderCard = document.querySelector(`[data-order-id="${orderId}"]`);
+								if (orderCard) {
+									orderCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+									orderCard.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+									setTimeout(() => {
+										orderCard.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+									}, 3000);
+									return; // Don't navigate, just highlight
+								}
+							}
+							goto(notificationUrl);
 						}
 					}
 				});

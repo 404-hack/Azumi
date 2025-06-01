@@ -60,6 +60,7 @@ export const routes = app
   });
 
 export { OrderNotification } from "./durable-objects/order-notification.do";
+export { RiderDispatch } from "./durable-objects/rider-dispatch.do";
 export { OrderWorkflow } from "./workflows/order.workflow";
 
 export default app;

@@ -17,10 +17,14 @@
 	async function handleVendorAction(action: 'suspend' | 'activate' | 'approve' | 'reject') {
 		try {
 			loading = true;
-			const newStatus = action === 'suspend' ? 'SUSPENDED' 
-				: action === 'approve' ? 'APPROVED'
-				: action === 'reject' ? 'REJECTED'
-				: 'APPROVED'; // fallback for activate
+			const newStatus =
+				action === 'suspend'
+					? 'SUSPENDED'
+					: action === 'approve'
+						? 'APPROVED'
+						: action === 'reject'
+							? 'REJECTED'
+							: 'APPROVED'; // fallback for activate
 
 			await client.admin.vendors[':id'].status.$patch({
 				param: {
@@ -61,32 +65,61 @@
 			<h2 class="text-2xl font-bold">Vendor Profile</h2>
 			<p class="text-muted-foreground">Manage vendor information and performance</p>
 		</div>
-		<div class="flex items-center gap-4">			<Button variant="outline" onclick={() => history.back()}>Back</Button>
+		<div class="flex items-center gap-4">
+			<Button variant="outline" onclick={() => history.back()}>Back</Button>
 			<div class="flex items-center gap-2">
 				{#if vendor.status === 'APPROVED'}
-					<Button variant="destructive" onclick={() => handleVendorAction('suspend')} disabled={loading}>
+					<Button
+						variant="destructive"
+						onclick={() => handleVendorAction('suspend')}
+						disabled={loading}
+					>
 						{loading ? 'Suspending...' : 'Suspend Vendor'}
 					</Button>
 				{:else if vendor.status === 'SUSPENDED'}
-					<Button variant="default" onclick={() => handleVendorAction('activate')} disabled={loading}>
+					<Button
+						variant="default"
+						onclick={() => handleVendorAction('activate')}
+						disabled={loading}
+					>
 						{loading ? 'Activating...' : 'Reactivate Vendor'}
 					</Button>
 				{:else if vendor.status === 'PENDING'}
-					<Button variant="default" onclick={() => handleVendorAction('approve')} disabled={loading}>
+					<Button
+						variant="default"
+						onclick={() => handleVendorAction('approve')}
+						disabled={loading}
+					>
 						{loading ? 'Approving...' : 'Approve Vendor'}
 					</Button>
-					<Button variant="destructive" onclick={() => handleVendorAction('reject')} disabled={loading}>
+					<Button
+						variant="destructive"
+						onclick={() => handleVendorAction('reject')}
+						disabled={loading}
+					>
 						{loading ? 'Rejecting...' : 'Reject Vendor'}
 					</Button>
 				{:else if vendor.status === 'DRAFT'}
-					<Button variant="default" onclick={() => handleVendorAction('approve')} disabled={loading}>
+					<Button
+						variant="default"
+						onclick={() => handleVendorAction('approve')}
+						disabled={loading}
+					>
 						{loading ? 'Approving...' : 'Approve Draft'}
 					</Button>
-					<Button variant="destructive" onclick={() => handleVendorAction('reject')} disabled={loading}>
+					<Button
+						variant="destructive"
+						onclick={() => handleVendorAction('reject')}
+						disabled={loading}
+					>
 						{loading ? 'Rejecting...' : 'Reject Draft'}
 					</Button>
 				{:else if vendor.status === 'REJECTED'}
-					<Button variant="default" onclick={() => handleVendorAction('approve')} disabled={loading}>
+					<Button
+						variant="default"
+						onclick={() => handleVendorAction('approve')}
+						disabled={loading}
+					>
 						{loading ? 'Approving...' : 'Approve Vendor'}
 					</Button>
 				{:else}
@@ -105,27 +138,43 @@
 					<div class="flex h-20 w-20 items-center justify-center rounded-lg bg-primary/10">
 						<Store class="h-10 w-10 text-primary" />
 					</div>
-				<div class="text-center w-full">
-					<h3 class="font-semibold">{vendor.name}</h3>
-					<p class="text-sm text-muted-foreground">{vendor.shopType}</p>
-				</div>
-				{#if vendor.owner}
-					<div class="w-full rounded-lg border bg-muted/50 p-4 flex flex-col items-center mt-2">
-						<div class="flex items-center gap-3">
-							<div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-lg">
-								{vendor.owner.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
-							</div>
-							<div>
-								<div class="font-semibold text-base">{vendor.owner.name}</div>
-								<div class="text-xs text-muted-foreground">{vendor.owner.email}</div>
-								<a class="text-primary underline text-xs" href={vendor.owner.id ? `/superadmin/users/${vendor.owner.id}` : '#'}>View Owner Profile</a>
+					<div class="w-full text-center">
+						<h3 class="font-semibold">{vendor.name}</h3>
+						<p class="text-sm text-muted-foreground">{vendor.shopType}</p>
+					</div>
+					{#if vendor.owner}
+						<div class="mt-2 flex w-full flex-col items-center rounded-lg border bg-muted/50 p-4">
+							<div class="flex items-center gap-3">
+								<div
+									class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary"
+								>
+									{vendor.owner.name
+										?.split(' ')
+										.map((n) => n[0])
+										.join('')
+										.toUpperCase()}
+								</div>
+								<div>
+									<div class="text-base font-semibold">{vendor.owner.name}</div>
+									<div class="text-xs text-muted-foreground">{vendor.owner.email}</div>
+									<a
+										class="text-xs text-primary underline"
+										href={vendor.owner.id ? `/superadmin/users/${vendor.owner.id}` : '#'}
+										>View Owner Profile</a
+									>
+								</div>
 							</div>
 						</div>
-					</div>
-				{/if}
-<Badge variant={vendor.status === 'APPROVED' ? 'default' : vendor.status === 'SUSPENDED' ? 'secondary' : 'outline'}>
-	{vendor.status?.charAt(0) + vendor.status?.slice(1).toLowerCase() || 'Unknown'}
-</Badge>
+					{/if}
+					<Badge
+						variant={vendor.status === 'APPROVED'
+							? 'default'
+							: vendor.status === 'SUSPENDED'
+								? 'secondary'
+								: 'outline'}
+					>
+						{vendor.status?.charAt(0) + vendor.status?.slice(1).toLowerCase() || 'Unknown'}
+					</Badge>
 				</div>
 
 				<div class="space-y-2">
@@ -179,13 +228,17 @@
 										<div class="flex items-center justify-between">
 											<span class="capitalize">{hours.day}</span>
 											<span class="text-sm">
-												{formatTime(hours.openTime)} - {formatTime(hours.closeTime)}
+												{#if hours.isOpen}
+													{formatTime(hours.openTime)} - {formatTime(hours.closeTime)}
+												{:else}
+													<span class="text-muted-foreground">Closed</span>
+												{/if}
 											</span>
 										</div>
 									{/each}
 								</div>
 							{:else}
-								<div class="text-muted-foreground text-sm">No operating hours set</div>
+								<div class="text-sm text-muted-foreground">No operating hours set</div>
 							{/if}
 						</Card>
 					</div>
@@ -209,40 +262,57 @@
 								{/each}
 							</div>
 						{:else}
-							<div class="text-muted-foreground text-sm">No documents uploaded</div>
+							<div class="text-sm text-muted-foreground">No documents uploaded</div>
 						{/if}
 					</Card>
 				{:else if selectedTab === 'banking'}
 					<Card class="p-6">
 						<h3 class="mb-4 font-semibold">Banking Information</h3>
-						{#if vendor.bankInfo}
+						{#if vendor.paymentMethods && vendor.paymentMethods.length > 0}
 							<div class="space-y-4">
-								<div class="rounded-lg border p-4">
-									<div class="mb-4 grid gap-2">
-										<div>
-											<div class="text-sm text-muted-foreground">Bank Name</div>
-											<div class="font-medium">{vendor.bankInfo.bankName}</div>
-										</div>
-										<div>
-											<div class="text-sm text-muted-foreground">Account Number</div>
-											<div class="font-medium">{vendor.bankInfo.accountNumber}</div>
-										</div>
-										<div>
-											<div class="text-sm text-muted-foreground">Account Name</div>
-											<div class="font-medium">{vendor.bankInfo.accountName}</div>
+								{#each vendor.paymentMethods as paymentMethod}
+									<div class="rounded-lg border p-4">
+										<div class="mb-4 grid gap-2">
+											<div>
+												<div class="text-sm text-muted-foreground">Payment Type</div>
+												<div class="font-medium">{paymentMethod.type}</div>
+											</div>
+											{#if paymentMethod.bankName}
+												<div>
+													<div class="text-sm text-muted-foreground">Bank Name</div>
+													<div class="font-medium">{paymentMethod.bankName}</div>
+												</div>
+											{/if}
+											{#if paymentMethod.accountNumber}
+												<div>
+													<div class="text-sm text-muted-foreground">Account Number</div>
+													<div class="font-medium">{paymentMethod.accountNumber}</div>
+												</div>
+											{/if}
+											{#if paymentMethod.accountName}
+												<div>
+													<div class="text-sm text-muted-foreground">Account Name</div>
+													<div class="font-medium">{paymentMethod.accountName}</div>
+												</div>
+											{/if}
+											{#if paymentMethod.bankCode}
+												<div>
+													<div class="text-sm text-muted-foreground">Bank Code</div>
+													<div class="font-medium">{paymentMethod.bankCode}</div>
+												</div>
+											{/if}
 										</div>
 									</div>
-									<Button variant="outline" class="w-full">Update Banking Information</Button>
-								</div>
+								{/each}
 							</div>
 						{:else}
-							<div class="text-muted-foreground text-sm">No banking information</div>
+							<div class="text-sm text-muted-foreground">No banking information available</div>
 						{/if}
 					</Card>
 				{:else if selectedTab === 'orders'}
 					<Card class="p-6">
 						<h3 class="mb-4 font-semibold">Orders</h3>
-						<div class="text-muted-foreground text-sm">No orders available</div>
+						<div class="text-sm text-muted-foreground">No orders available</div>
 					</Card>
 				{/if}
 			</Tabs.Root>

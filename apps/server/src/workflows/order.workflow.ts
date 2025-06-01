@@ -5,6 +5,7 @@ import {
   WorkflowStepEvent,
 } from "cloudflare:workers";
 import { PushNotificationService } from "../services/push-notification.service";
+import { RiderDispatchService } from "../services/rider-dispatch.service";
 import { createClient } from "../lib/db";
 import { env } from "cloudflare:workers";
 import {

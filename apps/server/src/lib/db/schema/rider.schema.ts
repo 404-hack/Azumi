@@ -34,15 +34,17 @@ export const riderTable = sqliteTable("riders", {
   vehicleLicense: text("vehicle_license"),
   identificationDocument: text("identification_document"),
   applicationStatus: text("application_status", {
-    enum: RIDER_APPLICATION_STATUS,
-  }).default("DRAFT"),
+    enum: RIDER_APPLICATION_STATUS,  }).default("DRAFT"),
   active: integer("active", { mode: "boolean" }).default(false),
   availabilityStatus: text("availability_status", {
     enum: RIDER_AVAILABILITY_STATUS,
   }).default("AVAILABLE"),
   rating: real("rating").default(0),
   totalRatings: integer("total_ratings").default(0),
-  maxDeliveryDistance: integer("max_delivery_distance").default(10), // in km
+  maxDeliveryDistance: integer("max_delivery_distance").default(10),
+  currentLat: real("current_lat"),
+  currentLng: real("current_lng"),
+  currentOrderId: text("current_order_id"),
   ...timestamps,
 });
 
