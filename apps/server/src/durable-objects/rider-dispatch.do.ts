@@ -225,40 +225,58 @@ export class RiderDispatch extends DurableObject {
   private async handleOrderDispatch(request: Request): Promise<Response> {
     try {
       console.log(`🔥 [DO] handleOrderDispatch called`);
-      
+
       const requestBody = await request.json();
-      console.log(`🔥 [DO] Request body:`, JSON.stringify(requestBody, null, 2));
-      
+      console.log(
+        `🔥 [DO] Request body:`,
+        JSON.stringify(requestBody, null, 2)
+      );
+
       const { order, targetRiders } = requestBody as {
         order: AvailableOrder;
         targetRiders?: string[];
       };
 
-      console.log(`🔥 [DO] Dispatching order ${order.id} to riders`, { targetRiders });
-      console.log(`🔥 [DO] Current connections:`, Array.from(this.connections.keys()));
-      console.log(`🔥 [DO] Current rider locations:`, Array.from(this.riderLocations.keys()));
+      console.log(`🔥 [DO] Dispatching order ${order.id} to riders`, {
+        targetRiders,
+      });
+      console.log(
+        `🔥 [DO] Current connections:`,
+        Array.from(this.connections.keys())
+      );
+      console.log(
+        `🔥 [DO] Current rider locations:`,
+        Array.from(this.riderLocations.keys())
+      );
 
       const nearbyRiders = this.findNearbyRiders(
         order.pickupLocation.lat,
         order.pickupLocation.lng,
-        10
+        100
       );
 
-      console.log(`🔥 [DO] Found ${nearbyRiders.length} nearby riders:`, nearbyRiders.map(r => ({ riderId: r.riderId, distance: r.distance })));
+      console.log(
+        `🔥 [DO] Found ${nearbyRiders.length} nearby riders:`,
+        nearbyRiders.map((r) => ({ riderId: r.riderId, distance: r.distance }))
+      );
 
       let notifiedCount = 0;
 
       for (const riderLocation of nearbyRiders) {
         console.log(`🔥 [DO] Processing rider ${riderLocation.riderId}`);
-        
+
         if (targetRiders && !targetRiders.includes(riderLocation.riderId)) {
-          console.log(`🔥 [DO] Skipping rider ${riderLocation.riderId} - not in target list`);
+          console.log(
+            `🔥 [DO] Skipping rider ${riderLocation.riderId} - not in target list`
+          );
           continue;
         }
 
         const connection = this.connections.get(riderLocation.riderId);
         if (!connection) {
-          console.log(`🔥 [DO] No WebSocket connection found for rider ${riderLocation.riderId}`);
+          console.log(
+            `🔥 [DO] No WebSocket connection found for rider ${riderLocation.riderId}`
+          );
           continue;
         }
 
@@ -272,7 +290,10 @@ export class RiderDispatch extends DurableObject {
             riderId: riderLocation.riderId,
           };
 
-          console.log(`🔥 [DO] Sending message to rider ${riderLocation.riderId}:`, JSON.stringify(message, null, 2));
+          console.log(
+            `🔥 [DO] Sending message to rider ${riderLocation.riderId}:`,
+            JSON.stringify(message, null, 2)
+          );
           connection.websocket.send(JSON.stringify(message));
           notifiedCount++;
           console.log(
@@ -291,16 +312,14 @@ export class RiderDispatch extends DurableObject {
       const result = {
         success: true,
         notifiedRiders: notifiedCount,
-        orderId: order.id,      };
-      
+        orderId: order.id,
+      };
+
       console.log(`🔥 [DO] Final result:`, result);
 
-      return new Response(
-        JSON.stringify(result),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return new Response(JSON.stringify(result), {
+        headers: { "Content-Type": "application/json" },
+      });
     } catch (error) {
       console.error("Error dispatching order:", error);
       return new Response(
@@ -384,7 +403,8 @@ export class RiderDispatch extends DurableObject {
   ): Promise<void> {
     try {
       const attachment = ws.deserializeAttachment() as any;
-      if (!attachment?.riderId) return;      const data = JSON.parse(message.toString()) as RiderStatusMessage;
+      if (!attachment?.riderId) return;
+      const data = JSON.parse(message.toString()) as RiderStatusMessage;
 
       // Only log non-heartbeat messages to reduce console noise
       if (data.type !== "heartbeat") {

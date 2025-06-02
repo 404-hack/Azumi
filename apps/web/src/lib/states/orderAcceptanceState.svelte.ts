@@ -1,6 +1,7 @@
 import { browser } from '$app/environment';
 import { toast } from 'svelte-sonner';
 import { client } from '$lib/hc';
+import { riderDispatchState } from './riderDispatchState.svelte';
 
 console.log('🔄 OrderAcceptanceState: Module loaded');
 
@@ -116,12 +117,21 @@ class OrderAcceptanceState {
 			}
 		}, 1000);
 	}
-
 	private async autoRejectOrder() {
 		if (!this.currentOrder || this.hasResponded) return;
 
 		console.log('⚡ OrderAcceptanceState: Auto-rejecting order due to timeout');
-		await this.rejectOrder();
+
+		const orderId = this.currentOrder.id;
+		this.hasResponded = true;
+
+		// Clear dispatch state immediately for timeout case
+		await riderDispatchState.rejectOrder(orderId);
+
+		// Hide modal and reset state
+		this.hideModal();
+
+		console.log('✅ OrderAcceptanceState: Auto-rejection completed, modal hidden');
 	}
 	private playNotificationSound() {
 		console.log('🔊 OrderAcceptanceState: Attempting to play notification sound');
@@ -163,7 +173,6 @@ class OrderAcceptanceState {
 			console.log('✅ OrderAcceptanceState: Vibration triggered');
 		}
 	}
-
 	async acceptOrder() {
 		console.log('✅ OrderAcceptanceState: Accept button clicked');
 
@@ -174,18 +183,20 @@ class OrderAcceptanceState {
 
 		this.isAccepting = true;
 		this.hasResponded = true;
+		const orderId = this.currentOrder.id;
 
 		console.log('📤 OrderAcceptanceState: Sending accept request to server...', {
-			orderId: this.currentOrder.id
+			orderId: orderId
 		});
 
 		try {
 			const response = await client.rider.dispatch['accept-order'][':orderId'].$post({
-				param: { orderId: this.currentOrder.id }
+				param: { orderId: orderId }
 			});
-
 			if (response.ok) {
 				console.log('🎉 OrderAcceptanceState: Order accepted successfully!');
+				// Update dispatch state first
+				await riderDispatchState.acceptOrder(orderId);
 				toast.success('Order accepted! Navigating to details...');
 				this.hideModal();
 			} else {
@@ -203,7 +214,6 @@ class OrderAcceptanceState {
 			console.log('🔄 OrderAcceptanceState: Accept operation completed');
 		}
 	}
-
 	async rejectOrder() {
 		console.log('❌ OrderAcceptanceState: Reject button clicked');
 
@@ -214,18 +224,20 @@ class OrderAcceptanceState {
 
 		this.isRejecting = true;
 		this.hasResponded = true;
+		const orderId = this.currentOrder.id;
 
 		console.log('📤 OrderAcceptanceState: Sending reject request to server...', {
-			orderId: this.currentOrder.id
+			orderId: orderId
 		});
 
 		try {
 			const response = await client.rider.dispatch['reject-order'][':orderId'].$post({
-				param: { orderId: this.currentOrder.id }
+				param: { orderId: orderId }
 			});
-
 			if (response.ok) {
 				console.log('✅ OrderAcceptanceState: Order rejected successfully');
+				// Update dispatch state first
+				await riderDispatchState.rejectOrder(orderId);
 				toast.success('Order declined');
 				this.hideModal();
 			} else {
