@@ -5,7 +5,6 @@ import {
   WorkflowStepEvent,
 } from "cloudflare:workers";
 import { PushNotificationService } from "../services/push-notification.service";
-import { RiderDispatchService } from "../services/rider-dispatch.service";
 import { createClient } from "../lib/db";
 import { env } from "cloudflare:workers";
 import {
@@ -427,27 +426,26 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   /**
    * Notify vendor about new order
    * This integrates with FCM push notification services
-   */ private async notifyVendor(params: OrderParams): Promise<void> {
+   */
+  private async notifyVendor(params: OrderParams): Promise<void> {
     console.log(
       `Sending notification to vendor (${params.shopId}) for order: ${params.orderId}`
     );
     try {
-      const itemCount = params.items?.length || 0;
-
       const pushNotificationService = new PushNotificationService();
       await pushNotificationService.sendNotificationToShop(params.shopId, {
         title: "New Order Received!",
-        body: `Order #${params.orderId.slice(-6)} - ${itemCount} item(s) for ₦${params.total}`,
+        body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for $${params.total}`,
         data: {
           type: "new_order",
           orderId: params.orderId,
           action: "view_order",
-          url: `/vendor/orders/${params.orderId}`,
+          link: `/vendor/orders/${params.orderId}`,
         },
       });
 
       console.log(
-        `✅ Push notification sent to vendor for order: ${params.orderId} (${itemCount} items)`
+        `✅ Push notification sent to vendor for order: ${params.orderId}`
       );
     } catch (error) {
       console.error(

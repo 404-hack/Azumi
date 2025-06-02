@@ -30,18 +30,32 @@ async function getNotificationPermissionAndToken() {
 	return null;
 }
 
+async function getTokenIfPermissionGranted() {
+	if (!('Notification' in window)) {
+		console.info('This browser does not support desktop notification');
+		return null;
+	}
+
+	if (Notification.permission === 'granted') {
+		return await fetchToken();
+	}
+
+	console.log('Notification permission not yet granted.');
+	return null;
+}
+
 export function createFCMStore() {
 	let token = $state<string | null>(null);
 	let notificationPermissionStatus = $state<NotificationPermission | null>(null);
 	let retryLoadToken = 0;
 	let isLoading = false;
 	let messageUnsubscribe: Unsubscribe | null = null;
-
+	let isTokenRegisteredOnServer = $state<boolean | null>(null);
 	async function loadToken(): Promise<void> {
 		if (isLoading) return;
 
 		isLoading = true;
-		const fetchedToken = await getNotificationPermissionAndToken();
+		const fetchedToken = await getTokenIfPermissionGranted();
 
 		if (Notification.permission === 'denied') {
 			notificationPermissionStatus = 'denied';
@@ -52,10 +66,8 @@ export function createFCMStore() {
 			isLoading = false;
 			return;
 		}
-
 		if (!fetchedToken) {
 			if (retryLoadToken >= 3) {
-				toast.error('Unable to load token, refresh the browser');
 				console.info(
 					'%cPush Notifications issue - unable to load token after 3 retries',
 					'color: green; background: #c7c7c7; padding: 8px; font-size: 20px'
@@ -69,10 +81,36 @@ export function createFCMStore() {
 			isLoading = false;
 			await loadToken();
 			return;
-		}
+		}// Check if the token is registered on the server
+		const isRegistered = await checkTokenRegistrationStatus(fetchedToken);
 
 		notificationPermissionStatus = Notification.permission;
 		token = fetchedToken;
+		isTokenRegisteredOnServer = isRegistered;
+
+		console.log('🔥 [FCM Store] Token loaded:', {
+			token: fetchedToken.substring(0, 20) + '...',
+			isRegisteredOnServer: isRegistered
+		});
+
+		// If token is not registered on server, auto-register it
+		if (!isRegistered) {
+			console.log('🔥 [FCM Store] Token not registered on server, auto-registering...');
+			const registered = await registerTokenWithServer({
+				token: fetchedToken,
+				deviceId: navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
+				deviceType: navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
+				userAgent: navigator.userAgent
+			});
+			isTokenRegisteredOnServer = registered;
+
+			if (registered) {
+				console.log('✅ [FCM Store] Token auto-registered successfully');
+			} else {
+				console.warn('❌ [FCM Store] Auto-registration failed');
+			}
+		}
+
 		isLoading = false;
 	}
 	async function setupMessageListener() {
@@ -152,6 +190,13 @@ export function createFCMStore() {
 			console.log('🔥 [FCM Store] Service worker support:', 'serviceWorker' in navigator);
 
 			notificationPermissionStatus = Notification.permission;
+
+			console.log('🔥 [FCM Store] Permission status set to:', notificationPermissionStatus);
+			console.log(
+				'🔥 [FCM Store] isSupported:',
+				typeof window !== 'undefined' && 'Notification' in window
+			);
+			console.log('🔥 [FCM Store] isBlocked:', notificationPermissionStatus === 'denied');
 
 			// Debug service worker registrations
 			if ('serviceWorker' in navigator) {
@@ -286,7 +331,6 @@ export function createFCMStore() {
 			return false;
 		}
 	}
-
 	async function requestNotificationAndGetToken() {
 		const fetchedToken = await getNotificationPermissionAndToken();
 
@@ -300,6 +344,9 @@ export function createFCMStore() {
 				deviceType: navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
 				userAgent: navigator.userAgent
 			});
+
+			isTokenRegisteredOnServer = registered;
+
 			if (!registered) {
 				console.warn('Failed to register token with server');
 			}
@@ -308,6 +355,27 @@ export function createFCMStore() {
 		}
 
 		return fetchedToken;
+	}
+
+	async function checkTokenRegistrationStatus(tokenToCheck: string): Promise<boolean> {
+		try {
+			const response = await fetch(`${PUBLIC_API_BASE_URL}/api/push-notifications/check-token`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				credentials: 'include',
+				body: JSON.stringify({ token: tokenToCheck })
+			});
+			if (response.ok) {
+				const result = (await response.json()) as { isRegistered?: boolean };
+				return result.isRegistered || false;
+			}
+			return false;
+		} catch (error) {
+			console.error('Error checking token registration:', error);
+			return false;
+		}
 	}
 
 	$effect(() => {
@@ -337,6 +405,12 @@ export function createFCMStore() {
 		},
 		get isLoading() {
 			return isLoading;
+		},
+		get isTokenRegisteredOnServer() {
+			return isTokenRegisteredOnServer;
+		},
+		get needsRegistration() {
+			return token && isTokenRegisteredOnServer === false;
 		},
 		initialize,
 		destroy,
