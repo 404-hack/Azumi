@@ -222,15 +222,21 @@ export class RiderDispatch extends DurableObject {
       webSocket: client,
     });
   }
-
   private async handleOrderDispatch(request: Request): Promise<Response> {
     try {
-      const { order, targetRiders } = (await request.json()) as {
+      console.log(`🔥 [DO] handleOrderDispatch called`);
+      
+      const requestBody = await request.json();
+      console.log(`🔥 [DO] Request body:`, JSON.stringify(requestBody, null, 2));
+      
+      const { order, targetRiders } = requestBody as {
         order: AvailableOrder;
         targetRiders?: string[];
       };
 
-      console.log(`Dispatching order ${order.id} to riders`, { targetRiders });
+      console.log(`🔥 [DO] Dispatching order ${order.id} to riders`, { targetRiders });
+      console.log(`🔥 [DO] Current connections:`, Array.from(this.connections.keys()));
+      console.log(`🔥 [DO] Current rider locations:`, Array.from(this.riderLocations.keys()));
 
       const nearbyRiders = this.findNearbyRiders(
         order.pickupLocation.lat,
@@ -238,15 +244,23 @@ export class RiderDispatch extends DurableObject {
         10
       );
 
+      console.log(`🔥 [DO] Found ${nearbyRiders.length} nearby riders:`, nearbyRiders.map(r => ({ riderId: r.riderId, distance: r.distance })));
+
       let notifiedCount = 0;
 
       for (const riderLocation of nearbyRiders) {
+        console.log(`🔥 [DO] Processing rider ${riderLocation.riderId}`);
+        
         if (targetRiders && !targetRiders.includes(riderLocation.riderId)) {
+          console.log(`🔥 [DO] Skipping rider ${riderLocation.riderId} - not in target list`);
           continue;
         }
 
         const connection = this.connections.get(riderLocation.riderId);
-        if (!connection) continue;
+        if (!connection) {
+          console.log(`🔥 [DO] No WebSocket connection found for rider ${riderLocation.riderId}`);
+          continue;
+        }
 
         try {
           const message: OrderDispatchMessage = {
@@ -258,14 +272,15 @@ export class RiderDispatch extends DurableObject {
             riderId: riderLocation.riderId,
           };
 
+          console.log(`🔥 [DO] Sending message to rider ${riderLocation.riderId}:`, JSON.stringify(message, null, 2));
           connection.websocket.send(JSON.stringify(message));
           notifiedCount++;
           console.log(
-            `Order ${order.id} sent to rider ${riderLocation.riderId}, distance: ${riderLocation.distance}km`
+            `✅ [DO] Order ${order.id} sent to rider ${riderLocation.riderId}, distance: ${riderLocation.distance}km`
           );
         } catch (error) {
           console.error(
-            `Failed to send order to rider ${riderLocation.riderId}:`,
+            `❌ [DO] Failed to send order to rider ${riderLocation.riderId}:`,
             error
           );
           this.connections.delete(riderLocation.riderId);
@@ -273,13 +288,15 @@ export class RiderDispatch extends DurableObject {
         }
       }
 
+      const result = {
+        success: true,
+        notifiedRiders: notifiedCount,
+        orderId: order.id,      };
+      
+      console.log(`🔥 [DO] Final result:`, result);
+
       return new Response(
-        JSON.stringify({
-          success: true,
-          notifiedRiders: notifiedCount,
-          orderId: order.id,
-          nearbyRidersFound: nearbyRiders.length,
-        }),
+        JSON.stringify(result),
         {
           headers: { "Content-Type": "application/json" },
         }
@@ -367,11 +384,12 @@ export class RiderDispatch extends DurableObject {
   ): Promise<void> {
     try {
       const attachment = ws.deserializeAttachment() as any;
-      if (!attachment?.riderId) return;
+      if (!attachment?.riderId) return;      const data = JSON.parse(message.toString()) as RiderStatusMessage;
 
-      const data = JSON.parse(message.toString()) as RiderStatusMessage;
-
-      console.log(`Message from rider ${attachment.riderId}:`, data);
+      // Only log non-heartbeat messages to reduce console noise
+      if (data.type !== "heartbeat") {
+        console.log(`Message from rider ${attachment.riderId}:`, data);
+      }
 
       switch (data.type) {
         case "heartbeat":

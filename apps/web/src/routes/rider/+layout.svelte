@@ -4,6 +4,8 @@
 	import { riderState } from '$lib/states/riderState.svelte';
 	import { Bike, Clock, Wallet, Settings, LogOut, Menu, X, History } from 'lucide-svelte';
 	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
+	import OrderAcceptanceModal from '$lib/components/OrderAcceptanceModal.svelte';
+	import DebugPanel from '$lib/components/DebugPanel.svelte';
 
 	let isSidebarOpen = $state(false);
 	let currentPath = $derived(page.url.pathname);
@@ -45,7 +47,8 @@
 		console.log('Logging out...');
 	}
 </script>
-	<NotificationPermissionBanner context="rider" />
+
+<NotificationPermissionBanner context="rider" />
 
 <div class="flex h-screen">
 	<!-- Mobile sidebar backdrop -->
@@ -119,9 +122,18 @@
 				</div>
 			</div>
 		</div>
-
 		<div class="p-6">
 			<slot />
 		</div>
 	</div>
 </div>
+
+<!-- Order Acceptance Modal - Global overlay for all rider pages -->
+<OrderAcceptanceModal />
+
+<!-- Debug Panel - Remove in production -->
+<DebugPanel />
+
+<!-- Debug Panel for testing real-time features -->
+<DebugPanel />
+<DebugPanel />

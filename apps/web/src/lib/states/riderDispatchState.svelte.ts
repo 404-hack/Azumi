@@ -2,6 +2,7 @@ import { browser } from '$app/environment';
 import { page } from '$app/stores';
 import { get } from 'svelte/store';
 import { PUBLIC_API_BASE_URL } from '$env/static/public';
+import { orderAcceptanceState } from './orderAcceptanceState.svelte';
 
 interface AvailableOrder {
 	id: string;
@@ -41,10 +42,10 @@ class RiderDispatchState {
 	private reconnectAttempts = 0;
 	private maxReconnectAttempts = 5;
 	private reconnectDelay = 1000;
-	private locationWatchId: number | null = null;
-	private heartbeatInterval: NodeJS.Timeout | null = null;
+	private locationWatchId: number | null = null;	private heartbeatInterval: NodeJS.Timeout | null = null;
 	private riderId: string | null = null;
 	private pendingAvailabilityUpdate: boolean | null = null;
+	private heartbeatCount = 0; // Track heartbeat messages to reduce logging
 
 	initialize(riderId?: string) {
 		if (!browser) return;
@@ -164,8 +165,18 @@ class RiderDispatchState {
 			this.heartbeatInterval = null;
 		}
 	}
-
 	private handleWebSocketMessage(message: WebSocketMessage) {
+		// Only log heartbeat_ack messages every 10th time to reduce spam
+		if (message.type === 'heartbeat_ack') {
+			this.heartbeatCount++;
+			if (this.heartbeatCount % 10 === 0) {
+				console.log(`💓 RiderDispatchState: Heartbeat ${this.heartbeatCount} (connection alive)`);
+			}
+		} else {
+			// Log all non-heartbeat messages normally
+			console.log('📨 RiderDispatchState: WebSocket message received:', message);
+		}
+
 		switch (message.type) {
 			case 'connection_established':
 				console.log('✅ Connection established:', message);
@@ -173,11 +184,10 @@ class RiderDispatchState {
 					this.availableOrders = message.availableOrders;
 				}
 				break;
-
 			case 'new_order':
 				console.log('🔔 New order received:', message.order);
 				this.availableOrders = [...this.availableOrders, message.order];
-				this.showOrderNotification(message.order);
+				orderAcceptanceState.showOrderOffer(message.order);
 				break;
 
 			case 'order_expired':
@@ -189,7 +199,7 @@ class RiderDispatchState {
 				break;
 
 			default:
-				console.log('Unknown message type:', message.type);
+				console.log('❓ RiderDispatchState: Unknown message type:', message.type);
 		}
 	}
 	private showOrderNotification(order: AvailableOrder) {

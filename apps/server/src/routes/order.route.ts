@@ -978,16 +978,40 @@ const orderRoute = factory
             }
 
             // Automatically trigger rider notification when order is marked as READY
+            console.log(`📦 Order ${id} status update: ${status}`);
             if (status === "READY") {
               console.log(
-                `Order ${id} marked as READY, initiating rider notification process`
+                `🚨 Order ${id} marked as READY, initiating real-time rider dispatch`
               );
-              // Use the RiderDispatchService to find and notify riders
+              console.log(`🔍 Environment check:`, { 
+                hasEnv: !!env,
+                riderDispatchUrl: env?.RIDER_DISPATCH_URL,
+                durableObjectNamespace: !!env?.RIDER_DISPATCH
+              });
+              
+              // Use the RiderDispatchService to dispatch with real-time WebSocket notifications
               const riderDispatch = new RiderDispatchService();
 
               // Execute in background to prevent blocking the response
               c.executionCtx.waitUntil(
-                riderDispatch.findAndNotifyRiders(id, updatedOrder.shopId)
+                (async () => {
+                  try {
+                    console.log(`🚀 Starting dispatchOrderWithRealTime for order ${id}`);
+                    const dispatchResult = await riderDispatch.dispatchOrderWithRealTime(id, env);
+                    console.log(
+                      `🎯 Dispatch result for order ${id}:`,
+                      dispatchResult
+                    );
+                  } catch (error) {
+                    console.error(
+                      `❌ Failed to dispatch order ${id} via real-time:`,
+                      error
+                    );
+                    console.log(`🔄 Falling back to traditional push notifications`);
+                    // Fallback to traditional push notification method
+                    await riderDispatch.findAndNotifyRiders(id, updatedOrder.shopId);
+                  }
+                })()
               );
             }
           }

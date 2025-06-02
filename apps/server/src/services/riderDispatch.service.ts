@@ -1,7 +1,8 @@
 import { Context } from "../lib/types";
 import { and, eq, isNotNull, not, gte, lte } from "drizzle-orm";
-import { orderTable } from "../lib/db/schema/order.schema";
+import { orderTable, orderItemTable } from "../lib/db/schema/order.schema";
 import { riderTable } from "../lib/db/schema/rider.schema";
+import { shopTable } from "../lib/db/schema/shop.schema";
 import { calculateDistance } from "../lib/utils/geo";
 import { createClient } from "../lib/db";
 import { env } from "cloudflare:workers";
@@ -62,9 +63,7 @@ export class RiderDispatchService {
   ): Promise<{ orderInfo: OrderInfo; availableRiders: RiderMetricInfo[] }> {
     console.log(`RiderDispatchService: Finding riders for order ${orderId}`);
 
-    const db = createClient(env.DB);
-
-    // Get the order with shop details
+    const db = createClient(env.DB);    // Get the order with shop details
     const order = await db.query.orderTable.findFirst({
       where: eq(orderTable.id, orderId),
       columns: {
@@ -73,37 +72,36 @@ export class RiderDispatchService {
         latitude: true, // Delivery location
         longitude: true, // Delivery location
       },
-      with: {
-        shop: {
-          columns: {
-            name: true,
-            latitude: true, // Shop location
-            longitude: true, // Shop location
-          },
-        },
-      },
     });
 
     if (!order) {
       throw new Error(`Order ${orderId} not found`);
     }
 
-    if (!order.shop) {
+    // Fetch shop details separately to avoid relation issues
+    const shop = await db.query.shopTable.findFirst({
+      where: eq(shopTable.id, order.shopId),
+      columns: {
+        name: true,
+        latitude: true, // Shop location
+        longitude: true, // Shop location
+      },
+    });    if (!shop) {
       throw new Error(`Shop information not available for order ${orderId}`);
     }
 
     if (
-      order.shop.latitude === null ||
-      order.shop.longitude === null ||
-      order.shop.latitude === undefined ||
-      order.shop.longitude === undefined
+      shop.latitude === null ||
+      shop.longitude === null ||
+      shop.latitude === undefined ||
+      shop.longitude === undefined
     ) {
       throw new Error(`Shop location not available for order ${orderId}`);
     }
 
     // Calculate bounding box for rider search
-    const shopLat = order.shop.latitude;
-    const shopLng = order.shop.longitude;
+    const shopLat = shop.latitude;
+    const shopLng = shop.longitude;
     const searchRadiusKm = this.MAX_PICKUP_DISTANCE_KM; // Use the same radius for the box for simplicity, precise filter will refine
 
     const latDelta = searchRadiusKm / 111.32; // Kilometers per degree of latitude (approx)
@@ -144,19 +142,18 @@ export class RiderDispatchService {
 
     // Filter riders by distance and calculate delivery metrics
     const ridersWithMetrics = availableRidersFromDB
-      .map((rider) => {
-        // Calculate distance from rider to shop
+      .map((rider) => {        // Calculate distance from rider to shop
         const pickupDistanceKm = calculateDistance(
           rider.latitude || 0,
           rider.longitude || 0,
-          order.shop?.latitude || 0,
-          order.shop?.longitude || 0
+          shop.latitude || 0,
+          shop.longitude || 0
         );
 
         // Calculate distance from shop to delivery location
         const deliveryDistanceKm = calculateDistance(
-          order.shop?.latitude || 0,
-          order.shop?.longitude || 0,
+          shop.latitude || 0,
+          shop.longitude || 0,
           order.latitude || 0,
           order.longitude || 0
         );
@@ -207,14 +204,12 @@ export class RiderDispatchService {
           // Secondary sort: rider rating (descending)
           return (b.rider.rating || 0) - (a.rider.rating || 0);
         }
-      );
-
-    const orderInfo: OrderInfo = {
+      );    const orderInfo: OrderInfo = {
       id: order.id,
       shopId: order.shopId,
       shopLocation: {
-        latitude: order.shop.latitude,
-        longitude: order.shop.longitude,
+        latitude: shop.latitude,
+        longitude: shop.longitude,
       },
       deliveryLocation: {
         latitude: order.latitude,
@@ -637,9 +632,10 @@ export class RiderDispatchService {
       console.log(
         `🚀 [DISPATCH] Starting real-time dispatch for order ${orderId}`
       );
-
-      const { orderInfo, availableRiders } =
-        await this.findAvailableRiders(orderId);
+    console.log(`🔍 [DISPATCH] Finding available riders for order ${orderId}`);
+    const { orderInfo, availableRiders } =
+      await this.findAvailableRiders(orderId);
+    console.log(`🔍 [DISPATCH] Found ${availableRiders.length} available riders`);
 
       if (availableRiders.length === 0) {
         console.log(
@@ -650,30 +646,48 @@ export class RiderDispatchService {
           notifiedRiders: 0,
           dispatchMethod: "realtime",
         };
-      }
-
-      // Get order details for dispatch
-      const db = createClient(env.DB);
-      const order = await db.query.orderTable.findFirst({
-        where: eq(orderTable.id, orderId),
-        with: {
-          orderItems: true,
-          shop: true,
-        },
-      });
+      }    console.log(`🔍 [DISPATCH] Getting order details for dispatch...`);
+    // Get order details for dispatch
+    const db = createClient(env.DB);
+    const order = await db.query.orderTable.findFirst({
+      where: eq(orderTable.id, orderId),
+    });
+    console.log(`🔍 [DISPATCH] Order query completed`);
 
       if (!order) {
         throw new Error(`Order ${orderId} not found for dispatch`);
+      }
+    console.log(`🔍 [DISPATCH] Getting order items separately...`);
+    // Get order items separately
+    const orderItems = await db.query.orderItemTable.findMany({
+      where: eq(orderItemTable.orderId, orderId),
+    });
+    console.log(`🔍 [DISPATCH] Order items query completed`);
+
+    console.log(`🔍 [DISPATCH] Getting shop details separately...`);
+    // Get shop details separately
+    const shop = await db.query.shopTable.findFirst({
+      where: eq(shopTable.id, order.shopId),
+      columns: {
+        name: true,
+        formattedAddress: true,
+        latitude: true,
+        longitude: true,
+      },
+    });
+    console.log(`🔍 [DISPATCH] Shop query completed`);
+
+      if (!shop) {
+        throw new Error(`Shop not found for order ${orderId}`);
       }
 
       // Prepare order data for real-time dispatch
       const dispatchOrder = {
         id: orderId,
-        shopId: order.shopId,
-        pickupLocation: {
+        shopId: order.shopId,        pickupLocation: {
           lat: orderInfo.shopLocation.latitude || 0,
           lng: orderInfo.shopLocation.longitude || 0,
-          address: order.shop?.formattedAddress || "Shop location",
+          address: shop.formattedAddress || "Shop location",
         },
         deliveryLocation: {
           lat: orderInfo.deliveryLocation.latitude || 0,
@@ -682,7 +696,7 @@ export class RiderDispatchService {
         },
         orderValue: order.total,
         deliveryFee: order.deliveryFee,
-        itemCount: order.orderItems?.length || 0,
+        itemCount: orderItems?.length || 0,
         estimatedDistance: availableRiders[0]?.metrics.totalDistanceKm || 0,
         estimatedDuration:
           availableRiders[0]?.metrics.estimatedTotalMinutes || 30,
@@ -740,27 +754,41 @@ export class RiderDispatchService {
 
   /**
    * Dispatch order via Durable Objects real-time system
-   */
-  private async dispatchViaRealTime(
+   */  private async dispatchViaRealTime(
     env: any,
     order: any,
     targetRiders: string[]
   ): Promise<{ success: boolean; notifiedRiders: number }> {
     try {
+      console.log(`🔥 [REALTIME-DISPATCH] Starting dispatch for order ${order.id} to ${targetRiders.length} riders:`, targetRiders);
+      console.log(`🔥 [REALTIME-DISPATCH] Environment check:`, {
+        hasRiderDispatch: !!env.RIDER_DISPATCH,
+        hasIdFromName: !!env.RIDER_DISPATCH?.idFromName
+      });
+
       // Get the global rider dispatch Durable Object
       const id = env.RIDER_DISPATCH.idFromName("global-rider-dispatch");
+      console.log(`🔥 [REALTIME-DISPATCH] Got Durable Object ID:`, id.toString());
+      
       const stub = env.RIDER_DISPATCH.get(id);
+      console.log(`🔥 [REALTIME-DISPATCH] Got Durable Object stub`);
+
+      const requestBody = {
+        order,
+        targetRiders,
+      };
+      console.log(`🔥 [REALTIME-DISPATCH] Sending request body:`, JSON.stringify(requestBody, null, 2));
 
       const response = await stub.fetch(
         new Request("https://rider-dispatch/dispatch-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            order,
-            targetRiders,
-          }),
+          body: JSON.stringify(requestBody),
         })
       );
+
+      console.log(`🔥 [REALTIME-DISPATCH] Response status:`, response.status);
+      console.log(`🔥 [REALTIME-DISPATCH] Response ok:`, response.ok);
 
       const result = (await response.json()) as any;
       console.log(`🔄 [REALTIME-DISPATCH] Result:`, result);
