@@ -978,16 +978,87 @@ const orderRoute = factory
             }
 
             // Automatically trigger rider notification when order is marked as READY
+            console.log(`📦 Order ${id} status update: ${status}`);
             if (status === "READY") {
               console.log(
-                `Order ${id} marked as READY, initiating rider notification process`
+                `🚨 Order ${id} marked as READY, initiating real-time rider dispatch`
               );
-              // Use the RiderDispatchService to find and notify riders
+              console.log(`🔍 Environment check:`, {
+                hasEnv: !!env,
+                riderDispatchUrl: env?.RIDER_DISPATCH_URL,
+                durableObjectNamespace: !!env?.RIDER_DISPATCH,
+              });
+
+              // Use the RiderDispatchService to dispatch with real-time WebSocket notifications
               const riderDispatch = new RiderDispatchService();
 
               // Execute in background to prevent blocking the response
               c.executionCtx.waitUntil(
-                riderDispatch.findAndNotifyRiders(id, updatedOrder.shopId)
+                (async () => {
+                  try {
+                    console.log(
+                      `🚀 Starting dispatchOrderWithRealTime for order ${id}`
+                    );
+                    const dispatchResult =
+                      await riderDispatch.dispatchOrderWithRealTime(id, env);
+
+                    console.log(
+                      `🔄 [REALTIME-DISPATCH] Result:`,
+                      dispatchResult
+                    );
+
+                    // Enhanced logging for success/failure analysis
+                    if (dispatchResult.success) {
+                      console.log(
+                        `✅ [REALTIME-DISPATCH] SUCCESS: ${dispatchResult.notifiedRiders} riders notified for order ${id}`
+                      );
+                      if (dispatchResult.notifiedRiders === 0) {
+                        console.log(
+                          `⚠️ [REALTIME-DISPATCH] WARNING: No riders were online/available for order ${id}`
+                        );
+                        console.log(
+                          `💡 [REALTIME-DISPATCH] Fallback: Push notifications should still work`
+                        );
+                      }
+                    } else {
+                      console.log(
+                        `❌ [REALTIME-DISPATCH] FAILED: ${dispatchResult.error} for order ${id}`
+                      );
+                      console.log(
+                        `🔄 [REALTIME-DISPATCH] Attempting fallback dispatch...`
+                      );
+
+                      // Fallback to traditional dispatch if real-time fails
+                      try {
+                        await riderDispatch.findAndNotifyRiders(
+                          id,
+                          order.shopId
+                        );
+                        console.log(
+                          `✅ [FALLBACK-DISPATCH] Traditional dispatch successful for order ${id}`
+                        );
+                      } catch (fallbackError) {
+                        console.error(
+                          `❌ [FALLBACK-DISPATCH] Failed for order ${id}:`,
+                          fallbackError
+                        );
+                      }
+                    }
+                  } catch (error) {
+                    console.error(
+                      `❌ Failed to dispatch order ${id} via real-time:`,
+                      error
+                    );
+                    console.log(
+                      `🔄 Falling back to traditional push notifications`
+                    );
+                    // Fallback to traditional push notification method
+                    await riderDispatch.findAndNotifyRiders(
+                      id,
+                      updatedOrder.shopId
+                    );
+                  }
+                })()
               );
             }
           }
@@ -1044,6 +1115,63 @@ const orderRoute = factory
           success: false,
           message: "Failed to start workflow",
           error: error instanceof Error ? error.message : String(error),
+        },
+        500
+      );
+    }
+  })
+
+  // Test endpoint: Manually trigger rider dispatch for any order
+  .post("/:id/test-dispatch", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const env = c.env;
+
+      console.log(
+        `🧪 [TEST-DISPATCH] Manual dispatch trigger for order: ${id}`
+      );
+
+      const order = await db.query.orderTable.findFirst({
+        where: eq(orderTable.id, id),
+        columns: { id: true, status: true, shopId: true },
+      });
+
+      if (!order) {
+        return c.json({ error: "Order not found" }, 404);
+      }
+
+      console.log(`🧪 [TEST-DISPATCH] Found order:`, {
+        id: order.id,
+        status: order.status,
+        shopId: order.shopId,
+      });
+
+      const riderDispatch = new RiderDispatchService();
+
+      const dispatchResult = await riderDispatch.dispatchOrderWithRealTime(
+        id,
+        env
+      );
+
+      console.log(`🧪 [TEST-DISPATCH] Result:`, dispatchResult);
+
+      return c.json({
+        success: true,
+        message: `Manual dispatch triggered for order ${id}`,
+        result: dispatchResult,
+        order: {
+          id: order.id,
+          status: order.status,
+          shopId: order.shopId,
+        },
+      });
+    } catch (error) {
+      console.error(`🧪 [TEST-DISPATCH] Error:`, error);
+      return c.json(
+        {
+          error: "Test dispatch failed",
+          details: error.message,
         },
         500
       );

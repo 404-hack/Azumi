@@ -1,9 +1,17 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { riderState } from '$lib/states/riderState.svelte';
-	import { Bike, Clock, Wallet, Settings, LogOut, Menu, X, History } from 'lucide-svelte';
-	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
+	import { Bike, Clock, Wallet, Settings, LogOut, Menu, X, History } from 'lucide-svelte';	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
+	import OrderAcceptanceModal from '$lib/components/OrderAcceptanceModal.svelte';
+	import DebugPanel from '$lib/components/DebugPanel.svelte';
+
+	interface Props {
+		children: Snippet;
+	}
+
+	let { children }: Props = $props();
 
 	let isSidebarOpen = $state(false);
 	let currentPath = $derived(page.url.pathname);
@@ -45,15 +53,18 @@
 		console.log('Logging out...');
 	}
 </script>
-	<NotificationPermissionBanner context="rider" />
+
+<NotificationPermissionBanner context="rider" />
 
 <div class="flex h-screen">
-	<!-- Mobile sidebar backdrop -->
-	{#if isSidebarOpen}
+	<!-- Mobile sidebar backdrop -->	{#if isSidebarOpen}
 		<div
 			class="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
+			role="button"
+			tabindex="0"
 			onclick={() => (isSidebarOpen = false)}
-		/>
+			onkeydown={(e) => e.key === 'Escape' && (isSidebarOpen = false)}
+		></div>
 	{/if}
 
 	<!-- Sidebar -->
@@ -75,9 +86,9 @@
 				<span class="sr-only">Close sidebar</span>
 			</Button>
 		</div>
-
 		<nav class="flex-1 space-y-1 p-2">
 			{#each navigation as item}
+				{@const IconComponent = item.icon}
 				<a
 					href={item.href}
 					onclick={() => (isSidebarOpen = false)}
@@ -87,7 +98,7 @@
 						? 'bg-accent text-accent-foreground'
 						: 'text-muted-foreground'}"
 				>
-					<svelte:component this={item.icon} class="h-4 w-4" />
+					<IconComponent class="h-4 w-4" />
 					{item.name}
 				</a>
 			{/each}
@@ -109,19 +120,22 @@
 				<Menu class="h-5 w-5" />
 				<span class="sr-only">Open sidebar</span>
 			</Button>
-			<div class="ml-auto flex items-center gap-4">
-				<div class="flex items-center gap-2">
-					<div class="h-8 w-8 rounded-full bg-muted" />
+			<div class="ml-auto flex items-center gap-4">				<div class="flex items-center gap-2">
+					<div class="h-8 w-8 rounded-full bg-muted"></div>
 					<div>
 						<div class="text-sm font-medium">John Rider</div>
 						<div class="text-xs text-muted-foreground">rider@example.com</div>
 					</div>
 				</div>
-			</div>
-		</div>
-
+			</div>		</div>
 		<div class="p-6">
-			<slot />
-		</div>
-	</div>
+			{@render children()}
+		</div>	</div>
 </div>
+
+<!-- Order Acceptance Modal - Global overlay for all rider pages -->
+<OrderAcceptanceModal />
+
+<!-- Debug Panel - Remove in production -->
+ 
+<DebugPanel />

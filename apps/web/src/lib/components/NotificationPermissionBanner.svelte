@@ -36,14 +36,22 @@
 				'Get notified when your order is confirmed, being prepared, and out for delivery.'
 		}
 	};
-
 	onMount(() => {
 		fcmStore.initialize();
 
 		if (showOnlyIfNotGranted) {
-			showBanner = !fcmStore.hasPermission && fcmStore.canRequestPermission;
+			// Show banner if user doesn't have FCM token AND notifications are supported
+			// This covers: no browser permission OR browser has permission but user has no token
+			showBanner = !fcmStore.token && fcmStore.isSupported && !fcmStore.isBlocked;
 		} else {
 			showBanner = true;
+		}
+	});
+
+	// Reactive effect to hide banner when user gets a token
+	$effect(() => {
+		if (showOnlyIfNotGranted && fcmStore.token) {
+			showBanner = false;
 		}
 	});
 
