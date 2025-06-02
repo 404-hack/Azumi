@@ -81,7 +81,7 @@ export function createFCMStore() {
 			isLoading = false;
 			await loadToken();
 			return;
-		}// Check if the token is registered on the server
+		} // Check if the token is registered on the server
 		const isRegistered = await checkTokenRegistrationStatus(fetchedToken);
 
 		notificationPermissionStatus = Notification.permission;
