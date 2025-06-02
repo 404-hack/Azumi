@@ -1,45 +1,61 @@
 <script lang="ts">
 	import { orderAcceptanceState } from '$lib/states/orderAcceptanceState.svelte';
+	import { riderDispatchState } from '$lib/states/riderDispatchState.svelte';
 	import { cn } from '$lib/utils';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
-	import { MapPin, Clock, DollarSign, Package, Navigation, X } from 'lucide-svelte';
+	import { MapPin, Clock, DollarSign, Package, Navigation, X, AlertTriangle } from 'lucide-svelte';
 	
 	console.log('🎬 OrderAcceptanceModal: Component loaded/mounted');
 	
 	let { class: className = '' } = $props();
 	
-	// Add reactive logging to track state changes
 	$effect(() => {
 		console.log('👁️ OrderAcceptanceModal: isVisible changed to:', orderAcceptanceState.isVisible);
 		console.log('📦 OrderAcceptanceModal: currentOrder changed to:', orderAcceptanceState.currentOrder);
+		if (orderAcceptanceState.currentOrder) {
+			console.log('💰 OrderAcceptanceModal: Computed values:', {
+				estimatedEarnings: orderAcceptanceState.estimatedEarnings,
+				formattedTimeRemaining: orderAcceptanceState.formattedTimeRemaining,
+				timeLeft: orderAcceptanceState.timeLeft,
+				deliveryFee: orderAcceptanceState.currentOrder.deliveryFee,
+				pickupAddress: orderAcceptanceState.currentOrder.pickupLocation.address,
+				deliveryAddress: orderAcceptanceState.currentOrder.deliveryLocation.address
+			});
+		}
 	});
 </script>
 
 {#if orderAcceptanceState.isVisible && orderAcceptanceState.currentOrder}
+	<!-- Debug log for modal visibility -->
+	{console.log('🎭 OrderAcceptanceModal: RENDERING MODAL - isVisible:', orderAcceptanceState.isVisible, 'hasOrder:', !!orderAcceptanceState.currentOrder)}
 	<div 
 		class={cn(
 			"fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4",
 			"animate-in fade-in-0 duration-300",
 			className
 		)}
-	>
-		<Card class={cn(
+	>		<Card class={cn(
 			"w-full max-w-md mx-auto shadow-2xl border-2",
 			"animate-in slide-in-from-bottom-4 duration-500",
-			orderAcceptanceState.urgencyLevel === 'critical' && "border-red-500 shadow-red-500/20",
-			orderAcceptanceState.urgencyLevel === 'urgent' && "border-orange-500 shadow-orange-500/20",
-			orderAcceptanceState.urgencyLevel === 'normal' && "border-green-500 shadow-green-500/20"
-		)}>
-			<CardHeader class="space-y-3">
+			orderAcceptanceState.urgencyLevel() === 'critical' && "border-red-500 shadow-red-500/20 animate-pulse",
+			orderAcceptanceState.urgencyLevel() === 'urgent' && "border-orange-500 shadow-orange-500/20",
+			orderAcceptanceState.urgencyLevel() === 'normal' && "border-green-500 shadow-green-500/20"
+		)}><CardHeader class="space-y-3">
+				{#if riderDispatchState.hasPendingOrder}
+					<div class="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+						<AlertTriangle class="w-4 h-4 text-amber-600" />
+						<span class="text-sm text-amber-700 font-medium">No new orders until you respond</span>
+					</div>
+				{/if}
+				
 				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-2">
-						<div class={cn(
+					<div class="flex items-center gap-2">						<div class={cn(
 							"w-3 h-3 rounded-full animate-pulse",
-							orderAcceptanceState.urgencyLevel === 'critical' && "bg-red-500",
-							orderAcceptanceState.urgencyLevel === 'urgent' && "bg-orange-500",
-							orderAcceptanceState.urgencyLevel === 'normal' && "bg-green-500"
+							orderAcceptanceState.urgencyLevel() === 'critical' && "bg-red-500",
+							orderAcceptanceState.urgencyLevel() === 'urgent' && "bg-orange-500",
+							orderAcceptanceState.urgencyLevel() === 'normal' && "bg-green-500"
 						)}></div>
 						<CardTitle class="text-lg font-bold">New Order Available</CardTitle>
 					</div>
@@ -48,12 +64,11 @@
 					</Badge>
 				</div>
 				
-				<div class="text-center">
-					<div class={cn(
+				<div class="text-center">					<div class={cn(
 						"text-4xl font-bold tabular-nums transition-colors duration-300",
-						orderAcceptanceState.urgencyLevel === 'critical' && "text-red-600",
-						orderAcceptanceState.urgencyLevel === 'urgent' && "text-orange-600",
-						orderAcceptanceState.urgencyLevel === 'normal' && "text-green-600"
+						orderAcceptanceState.urgencyLevel() === 'critical' && "text-red-600",
+						orderAcceptanceState.urgencyLevel() === 'urgent' && "text-orange-600",
+						orderAcceptanceState.urgencyLevel() === 'normal' && "text-green-600"
 					)}>
 						{orderAcceptanceState.formattedTimeRemaining}s
 					</div>
@@ -115,16 +130,15 @@
 							<X class="w-4 h-4 mr-2" />
 						{/if}
 						Decline
-					</Button>
-							<Button 
+					</Button>					<Button 
 						size="lg"
 						disabled={orderAcceptanceState.hasResponded || orderAcceptanceState.isAccepting}
 						onclick={() => orderAcceptanceState.acceptOrder()}
 						class={cn(
 							"shadow-lg transition-all duration-300",
-							orderAcceptanceState.urgencyLevel === 'critical' && "bg-red-600 hover:bg-red-700",
-							orderAcceptanceState.urgencyLevel === 'urgent' && "bg-orange-600 hover:bg-orange-700",
-							orderAcceptanceState.urgencyLevel === 'normal' && "bg-green-600 hover:bg-green-700"
+							orderAcceptanceState.urgencyLevel() === 'critical' && "bg-red-600 hover:bg-red-700",
+							orderAcceptanceState.urgencyLevel() === 'urgent' && "bg-orange-600 hover:bg-orange-700",
+							orderAcceptanceState.urgencyLevel() === 'normal' && "bg-green-600 hover:bg-green-700"
 						)}
 					>
 						{#if orderAcceptanceState.isAccepting}
@@ -139,7 +153,9 @@
 				<div class="text-xs text-center text-muted-foreground pt-2 border-t">
 					Tap Accept to start this delivery • Auto-declines in {orderAcceptanceState.formattedTimeRemaining}s
 				</div>
-			</CardContent>
-		</Card>
+			</CardContent>		</Card>
 	</div>
+{:else}
+	<!-- Debug log for when modal is NOT rendered -->
+	{console.log('🚫 OrderAcceptanceModal: NOT RENDERING - isVisible:', orderAcceptanceState.isVisible, 'hasOrder:', !!orderAcceptanceState.currentOrder)}
 {/if}

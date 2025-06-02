@@ -21,7 +21,7 @@
 	} from 'lucide-svelte';
 	import { formatCurrency } from '$lib/utils';
 	import { onMount } from 'svelte';
-	import OrderNotificationCard from '$lib/components/rider/OrderNotificationCard.svelte';
+
 	import LocationTracker from '$lib/components/rider/LocationTracker.svelte';
 	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 
@@ -64,22 +64,12 @@
 						<Wifi class="h-4 w-4" />
 						<span class="text-sm font-medium">Connected</span>
 					</div>
-				{:else}
-					<div class="flex items-center gap-2 text-red-600">
+				{:else}					<div class="flex items-center gap-2 text-red-600">
 						<WifiOff class="h-4 w-4" />
 						<span class="text-sm font-medium">Disconnected</span>
 					</div>
 				{/if}
 			</div>
-
-			{#if riderDispatchState.availableOrders.length > 0}
-				<div class="flex items-center gap-2 text-blue-600">
-					<Bell class="h-4 w-4" />
-					<span class="text-sm font-medium"
-						>{riderDispatchState.availableOrders.length} available orders</span
-					>
-				</div>
-			{/if}
 		</div>
 
 		<div class="flex items-center gap-2">
@@ -103,15 +93,6 @@
 
 	<LocationTracker />
 
-	<!-- Pending Order Notifications -->
-	{#if riderDispatchState.availableOrders.length > 0}
-		<div class="space-y-4">
-			<h2 class="text-lg font-semibold">Available Orders</h2>
-			{#each riderDispatchState.availableOrders as order (order.id)}
-				<OrderNotificationCard {order} />
-			{/each}
-		</div>
-	{/if}
 	<!-- Stats Overview -->
 	<div class="grid gap-4 md:grid-cols-4">
 		<Card class="p-4">

@@ -27,36 +27,48 @@ interface OrderDetails {
 
 type UrgencyLevel = 'normal' | 'urgent' | 'critical';
 
-class OrderAcceptanceState {	isVisible = $state(false);
+class OrderAcceptanceState {
+	isVisible = $state(false);
 	currentOrder = $state<OrderDetails | null>(null);
-	timeLeft = $state(30);
 	isAccepting = $state(false);
 	isRejecting = $state(false);
 	hasResponded = $state(false);
-	urgencyLevel = $state<UrgencyLevel>('normal');
-	
+	timeLeft = $state(30);
 	private countdownInterval: NodeJS.Timeout | null = null;
 
+	urgencyLevel = $derived((): UrgencyLevel => {
+		if (this.timeLeft <= 10) return 'critical';
+		if (this.timeLeft <= 15) return 'urgent';
+		return 'normal';
+	});
 	showOrderOffer(order: OrderDetails) {
 		console.log('🚨 OrderAcceptanceState: showOrderOffer called with:', order);
-		
+
+		// Force cleanup any existing state first
 		if (this.isVisible) {
-			console.log('⚠️ OrderAcceptanceState: Modal already visible, replacing current order');
+			console.log(
+				'⚠️ OrderAcceptanceState: Modal already visible, force cleaning before showing new order'
+			);
+			this.cleanup();
 		}
-				this.currentOrder = order;
+
+		// Reset all state completely
+		this.currentOrder = order;
 		this.isVisible = true;
 		this.hasResponded = false;
 		this.timeLeft = 30;
-		this.urgencyLevel = 'normal';
-		
+
+		// Start countdown timer
+		this.startCountdown();
+
 		console.log('✅ OrderAcceptanceState: Modal state set to visible');
 		console.log('📊 OrderAcceptanceState: Current state:', {
 			isVisible: this.isVisible,
 			currentOrder: this.currentOrder,
-			timeLeft: this.timeLeft
+			timeLeft: this.timeLeft,
+			hasResponded: this.hasResponded
 		});
-		
-		this.startCountdown();
+
 		this.playNotificationSound();
 		this.triggerVibration();
 
@@ -64,67 +76,80 @@ class OrderAcceptanceState {	isVisible = $state(false);
 	}
 	hideOrderOffer() {
 		console.log('🚪 OrderAcceptanceState: Hiding modal and cleaning up');
-		
+
 		this.isVisible = false;
 		this.currentOrder = null;
 		this.hasResponded = false;
-		this.timeLeft = 30;
-		this.urgencyLevel = 'normal';
+		this.timeLeft = 30; // Reset timer
 		this.cleanup();
-		
+
 		console.log('✅ OrderAcceptanceState: Modal hidden and state reset');
 	}
-
-	private startCountdown() {
-		console.log('⏰ OrderAcceptanceState: Starting 30-second countdown timer');
-		
-		this.cleanup();
-				this.countdownInterval = setInterval(() => {
-			this.timeLeft--;
-			console.log(`⏱️ OrderAcceptanceState: Timer tick - ${this.timeLeft} seconds remaining`);
-			
-			if (this.timeLeft <= 10) {
-				this.urgencyLevel = 'critical';
-				console.log('🔴 OrderAcceptanceState: Entering CRITICAL urgency (≤10s)');
-			} else if (this.timeLeft <= 15) {
-				this.urgencyLevel = 'urgent';
-				console.log('🟠 OrderAcceptanceState: Entering URGENT urgency (≤15s)');
-			}
-			
-			if (this.timeLeft <= 0) {
-				console.log('⏰ OrderAcceptanceState: Timer expired - auto-closing modal');
-				this.hideModal();
-			}
-		}, 1000);
-	}
 	private cleanup() {
+		console.log('🧹 OrderAcceptanceState: Cleaning up countdown timer');
 		if (this.countdownInterval) {
-			console.log('🧹 OrderAcceptanceState: Clearing countdown interval');
 			clearInterval(this.countdownInterval);
 			this.countdownInterval = null;
 		}
 	}
+	private startCountdown() {
+		console.log('⏱️ OrderAcceptanceState: Starting 30-second countdown');
+
+		// Clear any existing countdown
+		if (this.countdownInterval) {
+			clearInterval(this.countdownInterval);
+		}
+
+		this.countdownInterval = setInterval(() => {
+			this.timeLeft--;
+			console.log(`⏰ OrderAcceptanceState: Timer countdown - ${this.timeLeft}s remaining`);
+
+			if (this.timeLeft <= 0) {
+				console.log('⏰ OrderAcceptanceState: Timer expired, auto-rejecting order');
+				// Clear interval immediately to prevent negative numbers
+				if (this.countdownInterval) {
+					clearInterval(this.countdownInterval);
+					this.countdownInterval = null;
+				}
+				this.timeLeft = 0; // Ensure it stays at 0
+				this.autoRejectOrder();
+			}
+		}, 1000);
+	}
+
+	private async autoRejectOrder() {
+		if (!this.currentOrder || this.hasResponded) return;
+
+		console.log('⚡ OrderAcceptanceState: Auto-rejecting order due to timeout');
+		await this.rejectOrder();
+	}
 	private playNotificationSound() {
 		console.log('🔊 OrderAcceptanceState: Attempting to play notification sound');
-		
+
 		if (browser) {
 			try {
 				const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-				const oscillator = audioContext.createOscillator();
-				const gainNode = audioContext.createGain();
-				
-				oscillator.connect(gainNode);
-				gainNode.connect(audioContext.destination);
-				
-				oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-				oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-				oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
-				
-				gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-				gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-				
-				oscillator.start(audioContext.currentTime);
-				oscillator.stop(audioContext.currentTime + 0.3);
+
+				const playTone = (frequency: number, startTime: number, duration: number) => {
+					const oscillator = audioContext.createOscillator();
+					const gainNode = audioContext.createGain();
+
+					oscillator.connect(gainNode);
+					gainNode.connect(audioContext.destination);
+
+					oscillator.frequency.setValueAtTime(frequency, startTime);
+					gainNode.gain.setValueAtTime(0.3, startTime);
+					gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+					oscillator.start(startTime);
+					oscillator.stop(startTime + duration);
+				};
+
+				const now = audioContext.currentTime;
+				playTone(800, now, 0.3);
+				playTone(600, now + 0.4, 0.3);
+				playTone(800, now + 0.8, 0.3);
+				playTone(1000, now + 1.2, 0.5);
 			} catch (error) {
 				console.warn('Could not play notification sound:', error);
 			}
@@ -133,7 +158,7 @@ class OrderAcceptanceState {	isVisible = $state(false);
 
 	private triggerVibration() {
 		console.log('📳 OrderAcceptanceState: Attempting to trigger vibration');
-				if (browser && 'vibrate' in navigator) {
+		if (browser && 'vibrate' in navigator) {
 			navigator.vibrate([200, 100, 200, 100, 200]);
 			console.log('✅ OrderAcceptanceState: Vibration triggered');
 		}
@@ -141,7 +166,7 @@ class OrderAcceptanceState {	isVisible = $state(false);
 
 	async acceptOrder() {
 		console.log('✅ OrderAcceptanceState: Accept button clicked');
-		
+
 		if (!this.currentOrder || this.hasResponded) {
 			console.log('⚠️ OrderAcceptanceState: Cannot accept - no order or already responded');
 			return;
@@ -149,7 +174,7 @@ class OrderAcceptanceState {	isVisible = $state(false);
 
 		this.isAccepting = true;
 		this.hasResponded = true;
-		
+
 		console.log('📤 OrderAcceptanceState: Sending accept request to server...', {
 			orderId: this.currentOrder.id
 		});
@@ -181,7 +206,7 @@ class OrderAcceptanceState {	isVisible = $state(false);
 
 	async rejectOrder() {
 		console.log('❌ OrderAcceptanceState: Reject button clicked');
-		
+
 		if (!this.currentOrder || this.hasResponded) {
 			console.log('⚠️ OrderAcceptanceState: Cannot reject - no order or already responded');
 			return;
@@ -189,7 +214,7 @@ class OrderAcceptanceState {	isVisible = $state(false);
 
 		this.isRejecting = true;
 		this.hasResponded = true;
-		
+
 		console.log('📤 OrderAcceptanceState: Sending reject request to server...', {
 			orderId: this.currentOrder.id
 		});
@@ -220,20 +245,38 @@ class OrderAcceptanceState {	isVisible = $state(false);
 	}
 	private hideModal() {
 		console.log('🚪 OrderAcceptanceState: Hiding modal and cleaning up');
-		
+
 		this.isVisible = false;
 		this.currentOrder = null;
 		this.hasResponded = false;
 		this.timeLeft = 30;
-		this.urgencyLevel = 'normal';
-		this.cleanup();		
+		this.cleanup();
 		console.log('✅ OrderAcceptanceState: Modal hidden and state reset');
 	}
 
 	destroy() {
 		console.log('💀 OrderAcceptanceState: Destroying state and cleaning up');
 		this.cleanup();
-	}
+	} // Computed properties for the modal using $derived
+	estimatedEarnings = $derived(
+		!this.currentOrder
+			? '0'
+			: (() => {
+					const platformCommission = 0.15;
+					const earnings = this.currentOrder.deliveryFee * (1 - platformCommission);
+					return Math.round(earnings).toLocaleString();
+				})()
+	);
+
+	formattedTimeRemaining = $derived(this.timeLeft.toString().padStart(2, '0'));
+
+	totalOrderValue = $derived(
+		!this.currentOrder ? '0' : this.currentOrder.orderValue.toLocaleString()
+	);
+
+	deliveryFeeFormatted = $derived(
+		!this.currentOrder ? '0' : this.currentOrder.deliveryFee.toLocaleString()
+	);
 }
 
 export const orderAcceptanceState = new OrderAcceptanceState();
