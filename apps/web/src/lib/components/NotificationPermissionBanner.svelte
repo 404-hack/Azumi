@@ -35,24 +35,33 @@
 			description:
 				'Get notified when your order is confirmed, being prepared, and out for delivery.'
 		}
-	};
-	onMount(() => {
+	};	onMount(() => {
 		fcmStore.initialize();
+	});
+
+	// Reactive effect to show/hide banner based on FCM store state
+	$effect(() => {		console.log('🔔 Banner effect triggered:', {
+			showOnlyIfNotGranted,
+			token: fcmStore.token,
+			isSupported: fcmStore.isSupported,
+			isBlocked: fcmStore.isBlocked,
+			notificationPermission: fcmStore.notificationPermissionStatus,
+			isTokenRegisteredOnServer: fcmStore.isTokenRegisteredOnServer,
+			needsRegistration: fcmStore.needsRegistration
+		});
 
 		if (showOnlyIfNotGranted) {
-			// Show banner if user doesn't have FCM token AND notifications are supported
-			// This covers: no browser permission OR browser has permission but user has no token
-			showBanner = !fcmStore.token && fcmStore.isSupported && !fcmStore.isBlocked;
+			// Show banner if:
+			// 1. User doesn't have FCM token AND notifications are supported AND not blocked
+			// 2. OR user has token but it's not registered on server
+			showBanner = (
+				(!fcmStore.token && fcmStore.isSupported && !fcmStore.isBlocked) ||
+				fcmStore.needsRegistration
+			);
 		} else {
 			showBanner = true;
 		}
-	});
-
-	// Reactive effect to hide banner when user gets a token
-	$effect(() => {
-		if (showOnlyIfNotGranted && fcmStore.token) {
-			showBanner = false;
-		}
+		console.log('🔔 Banner showBanner set to:', showBanner);
 	});
 
 	async function handleEnableNotifications() {

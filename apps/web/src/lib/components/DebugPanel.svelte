@@ -38,20 +38,27 @@
 		console.log('- Current order:', orderAcceptanceState.currentOrder);
 		console.log('- Location:', riderDispatchState.currentLocation);
 		console.log('- Connection error:', riderDispatchState.connectionError);
-	}
-	function forceReconnect() {
+	}	function forceReconnect() {
 		console.log('🔄 MANUAL: Forcing reconnection...');
 		riderDispatchState.manualReconnect();
 	}
-
-	// Reactive connection status colors
-	$: connectionColor = 
+	
+	function clearPendingState() {
+		console.log('🧹 MANUAL: Clearing pending order state...');
+		riderDispatchState.clearAllPendingOrders();
+		if (orderAcceptanceState.isVisible) {
+			orderAcceptanceState.hideOrderOffer();
+		}
+	}// Reactive connection status colors using $derived
+	const connectionColor = $derived(
 		riderDispatchState.connectionStatus === 'connected' ? 'bg-green-500' :
 		riderDispatchState.connectionStatus === 'connecting' ? 'bg-yellow-500' :
 		riderDispatchState.connectionStatus === 'failed' ? 'bg-red-500' :
-		'bg-gray-500';
+		'bg-gray-500'
+	);
 		
-	$: hasLocation = !!riderDispatchState.currentLocation;
+	// Use $derived for Svelte 5 compatibility
+	const hasLocation = $derived(!!riderDispatchState.currentLocation);
 </script>
 
 <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
@@ -60,19 +67,30 @@
 		<div class="flex items-center gap-2 mb-2">
 			<div class="w-3 h-3 rounded-full {connectionColor}"></div>
 			<span class="font-semibold">{riderDispatchState.connectionStatus}</span>
-		</div>
-		<div class="space-y-1 text-gray-600">
+		</div>		<div class="space-y-1 text-gray-600">
 			<div>📍 Location: {hasLocation ? '✅' : '❌'}</div>
+			{#if riderDispatchState.currentLocation}
+				<div class="text-xs">Lat: {riderDispatchState.currentLocation.lat.toFixed(6)}</div>
+				<div class="text-xs">Lng: {riderDispatchState.currentLocation.lng.toFixed(6)}</div>
+			{/if}
 			<div>🔗 WebSocket: {riderDispatchState.isConnected ? '✅' : '❌'}</div>
 			<div>📦 Orders: {riderDispatchState.availableOrders.length}</div>
+			<div>🎯 Tracking: {riderDispatchState.isLocationTracking ? '✅' : '❌'}</div>
+			<div>⏳ Pending: {riderDispatchState.hasPendingOrder ? '🔒' : '🔓'}</div>
+			{#if riderDispatchState.pendingOrderId}
+				<div class="text-xs text-orange-600">ID: {riderDispatchState.pendingOrderId.slice(0, 8)}...</div>
+			{/if}
 			{#if riderDispatchState.connectionError}
 				<div class="text-red-600">⚠️ {riderDispatchState.connectionError}</div>
 			{/if}
 		</div>
 	</div>
-
 	<Button onclick={testOrderModal} variant="destructive" size="sm">
 		🧪 Test Order Modal
+	</Button>
+	
+	<Button onclick={clearPendingState} variant="secondary" size="sm">
+		🧹 Clear Pending
 	</Button>
 	
 	<Button onclick={forceReconnect} variant="outline" size="sm">
@@ -86,5 +104,6 @@
 	<div class="text-xs text-gray-500 bg-white px-2 py-1 rounded border">
 		WS: {riderDispatchState.isConnected ? '🟢' : '🔴'}
 		Modal: {orderAcceptanceState.isVisible ? '👁️' : '❌'}
+		Pending: {riderDispatchState.hasPendingOrder ? '🔒' : '🔓'}
 	</div>
 </div>

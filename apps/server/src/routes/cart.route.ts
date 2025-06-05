@@ -24,10 +24,10 @@ import {
 } from "../lib/db/schema"; // Assuming these are correctly exported from schema index
 import {
   calculateDeliveryFee,
-  calculateHaversineDistance,
   estimateTravelTime,
   isShopCurrentlyOpen,
-} from "../lib/utils/shop.utils"; // Import shop utilities
+} from "../lib/utils/shop.utils";
+import { calculateDistance } from "../lib/utils/geo";
 
 // Helper function to calculate totals
 const calculateCartTotals = (
@@ -397,12 +397,7 @@ const cartRoute = factory
           shopLng !== undefined
         ) {
           distance = parseFloat(
-            calculateHaversineDistance(
-              userLat,
-              userLng,
-              shopLat,
-              shopLng
-            ).toFixed(2)
+            calculateDistance(userLat, userLng, shopLat, shopLng).toFixed(2)
           );
           deliveryFee = calculateDeliveryFee(distance);
           estimatedTime = estimateTravelTime(distance);

@@ -68,45 +68,50 @@ class RiderDispatchState {
 
 		console.log('🚀 RiderDispatchState: Initializing with enhanced connection monitoring');
 		this.startLocationTracking();
-		this.startConnectionHealthCheck();
 		this.startOrderUpdateInterval();
-
 		if (this.riderId) {
-			this.ensureConnection();
+			this.connectIfReady();
 		}
 	}
 	cleanup() {
 		console.log('🧹 RiderDispatchState: Cleaning up with health monitoring');
-		this.disconnectWebSocket();
-		this.stopLocationTracking();
-		this.stopConnectionHealthCheck();
-		this.stopOrderUpdateInterval();
+
+		// Clear pending order state
+		this.hasPendingOrder = false;
+		this.pendingOrderId = null;
+		console.log('🔓 RiderDispatchState: Cleared all pending order state');
+
+		// Clear timers
 		this.clearAllOrderTimers();
+
+		// Stop intervals
+		this.stopOrderUpdateInterval();
+
+		// Stop location tracking
+		this.stopLocationTracking();
+
+		// Close WebSocket
+		if (this.ws) {
+			this.ws.close();
+			this.ws = null;
+		}
+
+		// Clear heartbeat
+		if (this.heartbeatInterval) {
+			clearInterval(this.heartbeatInterval);
+			this.heartbeatInterval = null;
+		}
+
+		this.isConnected = false;
+		this.connectionStatus = 'disconnected';
 	}
 	private async connectWebSocket() {
-		console.log('🔌 RiderDispatchState: Attempting WebSocket connection:', {
-			browser,
-			hasLocation: !!this.currentLocation,
-			hasRiderId: !!this.riderId,
-			currentStatus: this.connectionStatus,
-			hasExistingWs: !!this.ws
-		});
-
-		if (!browser || !this.currentLocation || !this.riderId) {
-			console.log('❌ RiderDispatchState: Missing requirements for connection');
-			this.connectionStatus = 'failed';
+		if (!browser || !this.currentLocation || !this.riderId || this.isConnected) {
 			return;
 		}
 
-		// Prevent multiple simultaneous connection attempts
-		if (this.connectionStatus === 'connecting' || this.ws?.readyState === WebSocket.CONNECTING) {
-			console.log('⏳ RiderDispatchState: Connection already in progress, skipping...');
-			return;
-		}
-
-		// Close existing connection if any
-		if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-			console.log('🔄 RiderDispatchState: Closing existing connection before reconnecting');
+		// Close existing connection
+		if (this.ws) {
 			this.ws.close();
 			this.ws = null;
 		}
@@ -114,16 +119,12 @@ class RiderDispatchState {
 		this.connectionStatus = 'connecting';
 
 		try {
-			// Use the API base URL instead of window.location
 			const apiUrl = new URL(PUBLIC_API_BASE_URL);
 			const protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:';
 			const wsUrl = `${protocol}//${apiUrl.host}/api/rider/ws?riderId=${this.riderId}&lat=${this.currentLocation.lat}&lng=${this.currentLocation.lng}`;
 
-			console.log('🔌 Connecting to dispatch system:', wsUrl);
-
 			this.ws = new WebSocket(wsUrl);
 			this.ws.onopen = () => {
-				console.log('✅ Connected to dispatch system');
 				this.isConnected = true;
 				this.connectionStatus = 'connected';
 				this.connectionError = null;
@@ -132,9 +133,7 @@ class RiderDispatchState {
 				this.lastMessageReceived = Date.now();
 				this.startHeartbeat();
 
-				// Handle pending availability update
 				if (this.pendingAvailabilityUpdate !== null) {
-					console.log('Processing pending availability update:', this.pendingAvailabilityUpdate);
 					this.updateAvailabilityStatus(this.pendingAvailabilityUpdate);
 					this.pendingAvailabilityUpdate = null;
 				}
@@ -149,36 +148,28 @@ class RiderDispatchState {
 				}
 			};
 			this.ws.onclose = () => {
-				console.log('🔌 Disconnected from dispatch system');
 				this.isConnected = false;
 				this.connectionStatus = 'disconnected';
 				this.stopHeartbeat();
 				this.scheduleReconnect();
 			};
-
 			this.ws.onerror = (error) => {
-				console.error('❌ WebSocket error:', error);
 				this.connectionError = 'Connection error occurred';
 				this.connectionStatus = 'failed';
 			};
 		} catch (error) {
-			console.error('❌ Failed to connect to dispatch system:', error);
 			this.connectionError = 'Failed to connect';
 			this.connectionStatus = 'failed';
 			this.scheduleReconnect();
 		}
 	}
-
 	private scheduleReconnect() {
-		if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+		if (this.reconnectAttempts >= 3) {
 			this.connectionError = 'Max reconnection attempts reached';
 			return;
 		}
 
-		const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
-		console.log(
-			`⏰ Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`
-		);
+		const delay = 5000; // Fixed 5 second delay
 
 		setTimeout(() => {
 			this.reconnectAttempts++;
@@ -240,7 +231,7 @@ class RiderDispatchState {
 					});
 				}
 				break;
-			case 'new_order':
+			case 'new_order': {
 				console.log('🔔 New order received:', message.order);
 
 				if (this.hasPendingOrder) {
@@ -277,11 +268,17 @@ class RiderDispatchState {
 					pendingOrderId: this.pendingOrderId
 				});
 				break;
+			}
 			case 'order_expired':
 				console.log('⏰ Order expired:', message.orderId);
+				this.clearPendingOrder(message.orderId);
 				this.availableOrders = this.availableOrders.filter((order) => order.id !== message.orderId);
 				this.clearOrderTimer(message.orderId);
-				this.clearPendingOrder(message.orderId);
+
+				// Hide modal if it's showing this order
+				if (orderAcceptanceState.currentOrder?.id === message.orderId) {
+					orderAcceptanceState.hideOrderOffer();
+				}
 				break;
 
 			case 'heartbeat_ack':
@@ -317,39 +314,67 @@ class RiderDispatchState {
 		}
 	}
 	async acceptOrder(orderId: string) {
-		try {
-			const response = await fetch(`/api/rider/dispatch/accept-order/${orderId}`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' }
-			});
+		console.log(`✅ RiderDispatchState: Accepting order ${orderId}`);
 
-			if (response.ok) {
-				this.availableOrders = this.availableOrders.filter((order) => order.id !== orderId);
-				this.clearOrderTimer(orderId);
-				this.clearPendingOrder(orderId);
-				console.log('✅ Order accepted:', orderId);
-			} else {
-				throw new Error('Failed to accept order');
-			}
-		} catch (error) {
-			console.error('Failed to accept order:', error);
-			throw error;
+		// Clear pending state immediately
+		this.hasPendingOrder = false;
+		this.pendingOrderId = null;
+
+		// Remove from available orders
+		this.availableOrders = this.availableOrders.filter((order) => order.id !== orderId);
+		this.clearOrderTimer(orderId);
+
+		// Send acceptance to server via WebSocket
+		if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+			this.ws.send(
+				JSON.stringify({
+					type: 'accept_order',
+					data: { orderId }
+				})
+			);
 		}
 	}
 
-	rejectOrder(orderId: string) {
+	async rejectOrder(orderId: string) {
+		console.log(`❌ RiderDispatchState: Rejecting order ${orderId}`);
+
+		// Clear pending state immediately
+		this.hasPendingOrder = false;
+		this.pendingOrderId = null;
+
+		// Remove from available orders
 		this.availableOrders = this.availableOrders.filter((order) => order.id !== orderId);
 		this.clearOrderTimer(orderId);
-		this.clearPendingOrder(orderId);
-		console.log('❌ Order rejected:', orderId);
-	}
 
+		// Send rejection to server via WebSocket
+		if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+			this.ws.send(
+				JSON.stringify({
+					type: 'reject_order',
+					data: { orderId }
+				})
+			);
+		}
+	}
 	private clearPendingOrder(orderId: string) {
+		console.log(
+			`🔍 RiderDispatchState: Checking to clear pending order - orderId: ${orderId}, current pending: ${this.pendingOrderId}`
+		);
+
 		if (this.pendingOrderId === orderId) {
 			this.hasPendingOrder = false;
 			this.pendingOrderId = null;
 			console.log('🔓 RiderDispatchState: Cleared pending order state for:', orderId);
+		} else {
+			console.log('ℹ️ RiderDispatchState: Order not pending, no state to clear');
 		}
+	}
+
+	// Public method to manually clear pending state (for error recovery)
+	public clearAllPendingOrders() {
+		console.log('🔄 RiderDispatchState: Manually clearing all pending order state');
+		this.hasPendingOrder = false;
+		this.pendingOrderId = null;
 	}
 
 	private startLocationTracking() {
@@ -366,29 +391,28 @@ class RiderDispatchState {
 					lng: position.coords.longitude
 				};
 
+				console.log('📍 Location update received:', newLocation);
+
 				const isFirstLocation = !this.currentLocation;
 				this.currentLocation = newLocation;
 				this.lastLocationUpdate = Date.now();
 				this.updateLocationOnServer(newLocation);
 
-				// Auto-connect when location becomes available for the first time
+				console.log('📍 Location set in state:', this.currentLocation);
+
 				if (isFirstLocation && this.riderId) {
-					console.log('📍 RiderDispatchState: First location acquired, ensuring connection...');
-					this.ensureConnection();
-				}
-				// Or reconnect if we were disconnected
-				else if (
+					this.connectIfReady();
+				} else if (
 					!this.isConnected &&
 					this.riderId &&
 					this.connectionStatus !== 'connecting' &&
-					this.reconnectAttempts < this.maxReconnectAttempts
+					this.reconnectAttempts < 3
 				) {
-					console.log('📍 RiderDispatchState: Location updated, attempting reconnection...');
-					this.ensureConnection();
+					this.connectIfReady();
 				}
 			},
 			(error) => {
-				console.error('Location tracking error:', error);
+				console.error('📍 Location tracking error:', error);
 				this.isLocationTracking = false;
 			},
 			{
@@ -473,99 +497,15 @@ class RiderDispatchState {
 		this.availableOrders = [];
 	}
 	setRiderId(riderId: string) {
-		console.log('Setting rider ID:', riderId);
 		this.riderId = riderId;
-		if (this.currentLocation && !this.isConnected) {
-			console.log('Attempting WebSocket connection with rider ID and location');
-			this.connectWebSocket();
-		} else {
-			console.log('Cannot connect WebSocket:', {
-				hasLocation: !!this.currentLocation,
-				isConnected: this.isConnected,
-				riderId: this.riderId
-			});
-		}
+		this.connectIfReady();
 	}
 
-	// Enhanced connection management with health monitoring
-	private ensureConnection() {
-		console.log('🔄 RiderDispatchState: Ensuring connection...', {
-			hasLocation: !!this.currentLocation,
-			hasRiderId: !!this.riderId,
-			currentStatus: this.connectionStatus,
-			isConnected: this.isConnected
-		});
-
-		if (!this.currentLocation) {
-			console.log('⏳ RiderDispatchState: Waiting for location before connecting...');
-			// Will retry when location is available
+	private connectIfReady() {
+		if (!this.riderId || !this.currentLocation || this.isConnected) {
 			return;
 		}
-
-		if (this.connectionStatus === 'connected') {
-			console.log('✅ RiderDispatchState: Already connected');
-			return;
-		}
-
-		if (this.connectionStatus === 'connecting') {
-			console.log('⏳ RiderDispatchState: Connection already in progress');
-			return;
-		}
-
 		this.connectWebSocket();
-	}
-
-	private startConnectionHealthCheck() {
-		this.connectionHealthCheck = setInterval(() => {
-			this.checkConnectionHealth();
-		}, 10000); // Check every 10 seconds
-	}
-
-	private stopConnectionHealthCheck() {
-		if (this.connectionHealthCheck) {
-			clearInterval(this.connectionHealthCheck);
-			this.connectionHealthCheck = null;
-		}
-	}
-
-	private checkConnectionHealth() {
-		const now = Date.now();
-		const timeSinceLastMessage = now - this.lastMessageReceived;
-
-		console.log('🔍 RiderDispatchState: Health check', {
-			connectionStatus: this.connectionStatus,
-			isConnected: this.isConnected,
-			timeSinceLastMessage,
-			missedHeartbeats: this.missedHeartbeats,
-			hasLocation: !!this.currentLocation,
-			hasRiderId: !!this.riderId
-		});
-
-		// If we should be connected but haven't received messages
-		if (this.connectionStatus === 'connected' && timeSinceLastMessage > 60000) {
-			console.log('⚠️ RiderDispatchState: Connection appears stale, reconnecting...');
-			this.missedHeartbeats++;
-
-			if (this.missedHeartbeats >= this.maxMissedHeartbeats) {
-				console.log('❌ RiderDispatchState: Too many missed heartbeats, forcing reconnection');
-				this.forceReconnect();
-			}
-		}
-
-		// Auto-connect if we have location and rider ID but not connected
-		if (this.currentLocation && this.riderId && this.connectionStatus === 'disconnected') {
-			console.log('🔄 RiderDispatchState: Auto-reconnecting (has location and rider ID)');
-			this.ensureConnection();
-		}
-	}
-	private forceReconnect() {
-		console.log('🔄 RiderDispatchState: Force reconnecting...');
-		this.disconnectWebSocket();
-		this.reconnectAttempts = 0; // Reset attempts for fresh start
-		this.missedHeartbeats = 0;
-		setTimeout(() => {
-			this.ensureConnection();
-		}, 1000);
 	}
 
 	// Timer management methods for individual order countdown timers
@@ -628,21 +568,29 @@ class RiderDispatchState {
 	private expireOrder(orderId: string) {
 		console.log(`⏰ Order ${orderId} expired after 30 seconds`);
 
+		// Clear pending state if this is the pending order
+		this.clearPendingOrder(orderId);
+
+		// Remove from available orders
 		this.availableOrders = this.availableOrders.filter((order) => order.id !== orderId);
 		this.clearOrderTimer(orderId);
 
+		// Hide modal if it's showing this order
 		if (orderAcceptanceState.currentOrder?.id === orderId) {
 			orderAcceptanceState.hideOrderOffer();
 		}
+
+		console.log(`✅ Order ${orderId} fully expired and cleaned up`);
 	}
 
 	// Public methods for external access
 	public getConnectionStatus() {
 		return this.connectionStatus;
 	}
-
 	public manualReconnect() {
-		this.forceReconnect();
+		this.disconnectWebSocket();
+		this.reconnectAttempts = 0;
+		this.connectIfReady();
 	}
 }
 

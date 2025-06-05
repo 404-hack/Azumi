@@ -46,11 +46,14 @@ interface OrderInfo {
 }
 
 export class RiderDispatchService {
-  private MAX_PICKUP_DISTANCE_KM = 5; // Maximum distance in km for pickup
+  private MAX_PICKUP_DISTANCE_KM = 50; // Maximum distance in km for pickup
   private AVG_SPEED_KM_H = 20; // Average rider speed in km/h
-  private PRIMARY_RIDER_TIMEOUT_MS = 45 * 1000; // 45 seconds for the first rider (backend buffer)
-  private SECONDARY_RIDER_TIMEOUT_MS = 60 * 1000; // 60 seconds for secondary batch
-  private SECONDARY_BATCH_SIZE = 3; // Notify next 2-4 (using 3 as an example)
+  private PRIMARY_RIDER_TIMEOUT_MS = 30 * 1000; // 30 seconds for tier 1 (best rider)
+  private SECONDARY_RIDER_TIMEOUT_MS = 45 * 1000; // 45 seconds for tier 2 (next best)
+  private TERTIARY_RIDER_TIMEOUT_MS = 60 * 1000; // 60 seconds for tier 3 (all remaining)
+  private SECONDARY_BATCH_SIZE = 3; // Notify next 3 riders in tier 2
+  private PUSH_NOTIFICATION_TIMEOUT_MS = 30 * 1000; // 30 seconds for push notification fallback
+  private REAL_TIME_PREFERRED = true; // Always try real-time first
 
   constructor(private c?: Context) {
     // Context is now optional since we're using direct env access
@@ -268,10 +271,11 @@ export class RiderDispatchService {
         // TODO: Implement further escalation logic if no riders are found at all (e.g., alert admin, widen search)
         return;
       }
-
       console.log(
         `RiderDispatchService: Found ${availableRiders.length} potential riders for order ${orderId}.`
-      ); // Tier 1: Notify the single best rider
+      );
+
+      // Tier 1: Notify the single best rider
       const primaryRiderInfo = availableRiders[0];
       if (primaryRiderInfo) {
         console.log(
@@ -281,7 +285,8 @@ export class RiderDispatchService {
           [primaryRiderInfo.rider],
           orderId,
           shopId,
-          "Tier 1 Offer"
+          "Tier 1 Offer",
+          orderInfo
         );
 
         // Wait for primary rider timeout
@@ -323,7 +328,8 @@ export class RiderDispatchService {
           secondaryRiders.map((item) => item.rider),
           orderId,
           shopId,
-          "Tier 2 Offer"
+          "Tier 2 Offer",
+          orderInfo
         );
 
         // Wait for secondary batch timeout
@@ -348,14 +354,57 @@ export class RiderDispatchService {
         console.log(
           `RiderDispatchService: Tier 2 - No more riders available for secondary batch for order ${orderId}.`
         );
-      } // Tier 3: Final escalation stage
-      console.log(
-        `RiderDispatchService: Tier 3 - Reached final escalation stage for order ${orderId}. No riders accepted after all attempts.`
+      }
+
+      // Tier 3: Broadcast to all remaining riders
+      const remainingRiders = availableRiders.slice(
+        1 + this.SECONDARY_BATCH_SIZE
       );
 
-      // TODO: Implement tier 3 escalation logic later
+      if (remainingRiders.length > 0) {
+        console.log(
+          `RiderDispatchService: Tier 3 - Broadcasting to all ${remainingRiders.length} remaining riders for order ${orderId}. Waiting ${this.TERTIARY_RIDER_TIMEOUT_MS / 1000}s...`
+        );
+        await this.sendNotificationsToRiders(
+          remainingRiders.map((item) => item.rider),
+          orderId,
+          shopId,
+          "Tier 3 Offer",
+          orderInfo
+        );
+
+        // Wait for tertiary batch timeout
+        await new Promise((resolve) =>
+          setTimeout(resolve, this.TERTIARY_RIDER_TIMEOUT_MS)
+        );
+
+        // Check if order was accepted during the timeout
+        const orderStillNeedsAssignmentTier3 =
+          await this.isOrderStillAvailable(orderId);
+
+        if (!orderStillNeedsAssignmentTier3) {
+          console.log(
+            `RiderDispatchService: Order ${orderId} was accepted by one of the remaining riders.`
+          );
+          return; // Stop the process
+        }
+        console.log(
+          `RiderDispatchService: Tier 3 - No riders from remaining batch accepted order ${orderId} within ${this.TERTIARY_RIDER_TIMEOUT_MS / 1000}s timeframe.`
+        );
+      } else {
+        console.log(
+          `RiderDispatchService: Tier 3 - No remaining riders available for broadcast for order ${orderId}.`
+        );
+      }
+
+      // Tier 4: Final escalation stage - no one accepted
       console.log(
-        `RiderDispatchService: Tier 3 - Order ${orderId} escalation handling to be implemented.`
+        `RiderDispatchService: Tier 4 - Final escalation stage for order ${orderId}. No riders accepted after all tier attempts.`
+      );
+
+      // TODO: Implement tier 4 escalation logic later (admin alerts, wider search radius, etc.)
+      console.log(
+        `RiderDispatchService: Tier 4 - Order ${orderId} escalation handling to be implemented later.`
       );
     } catch (error) {
       console.error(
@@ -571,13 +620,14 @@ export class RiderDispatchService {
    * @param orderId The order ID
    * @param shopId The shop ID
    * @param offerType The type of offer (e.g., "Tier 1 Offer", "Tier 2 Offer")
+   * @param orderInfo The order information containing location coordinates
    * @returns Promise<void>
-   */
-  private async sendNotificationsToRiders(
+   */ private async sendNotificationsToRiders(
     riders: RiderForNotification[],
     orderId: string,
     shopId: string | null | undefined,
-    offerType: string
+    offerType: string,
+    orderInfo: OrderInfo
   ): Promise<void> {
     const db = createClient(env.DB);
 
@@ -585,7 +635,9 @@ export class RiderDispatchService {
       console.log(
         `RiderDispatchService: [${offerType}] Sending notification to rider ${rider.id} (${rider.firstName} ${rider.lastName}) for order ${orderId}. Shop: ${shopId || "N/A"}.`
       );
+
       try {
+        // Send push notification
         const pushNotificationService = new PushNotificationService();
         if (!rider.userId) {
           console.warn(`❌ Skipping rider ${rider.id} - no userId available`);
@@ -606,7 +658,59 @@ export class RiderDispatchService {
 
         console.log(
           `✅ Push notification sent to rider ${rider.id} for order ${orderId}`
-        );
+        ); // Also send real-time WebSocket message using the old system's "new_order" message type
+        try {
+          const id = env.RIDER_DISPATCH.idFromName("global-rider-dispatch");
+          const stub = env.RIDER_DISPATCH.get(id); // Create order object in the format expected by the old dispatch system
+          const orderForDispatch = {
+            id: orderId,
+            shopId: shopId || "",
+            pickupLocation: {
+              lat: orderInfo.shopLocation.latitude || 0,
+              lng: orderInfo.shopLocation.longitude || 0,
+            },
+            deliveryLocation: {
+              lat: orderInfo.deliveryLocation.latitude || 0,
+              lng: orderInfo.deliveryLocation.longitude || 0,
+            },
+            total: 0, // Placeholder - the DO will handle the display
+            deliveryFee: 0, // Placeholder - the DO will handle the display
+            offerType: offerType,
+            title: "🚴‍♂️ New Delivery Opportunity!",
+            body: "New order available for pickup. Tap to accept and start earning!",
+          };
+          const response = await stub.fetch(
+            new Request(`http://rider-dispatch/dispatch-order`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                order: orderForDispatch,
+                targetRiders: [rider.id], // Send to this specific rider only
+              }),
+            })
+          );
+          if (response.ok) {
+            const result = (await response.json()) as any;
+            if (result.success && result.notifiedRiders > 0) {
+              console.log(
+                `✅ Real-time "new_order" message sent to rider ${rider.id} for order ${orderId}`
+              );
+            } else {
+              console.log(
+                `⚠️ Rider ${rider.id} not connected to real-time system for order ${orderId}`
+              );
+            }
+          } else {
+            console.log(
+              `⚠️ Failed to send real-time message to rider ${rider.id} for order ${orderId}`
+            );
+          }
+        } catch (realtimeError) {
+          console.log(
+            `⚠️ Failed to send real-time notification to rider ${rider.id}:`,
+            realtimeError
+          );
+        }
       } catch (error) {
         console.error(
           `❌ Failed to send notification to rider ${rider.id} for order ${orderId}:`,
@@ -656,9 +760,8 @@ export class RiderDispatchService {
       }
     }
   }
-
   /**
-   * Enhanced dispatch method that uses Durable Objects for real-time notifications
+   * Enhanced dispatch method that uses the tiered system for fair rider distribution
    */
   public async dispatchOrderWithRealTime(
     orderId: string,
@@ -670,117 +773,15 @@ export class RiderDispatchService {
   }> {
     try {
       console.log(
-        `🚀 [DISPATCH] Starting real-time dispatch for order ${orderId}`
-      );
-      console.log(
-        `🔍 [DISPATCH] Finding available riders for order ${orderId}`
-      );
-      const { orderInfo, availableRiders } =
-        await this.findAvailableRiders(orderId);
-      console.log(
-        `🔍 [DISPATCH] Found ${availableRiders.length} available riders`
+        `🚀 [DISPATCH] Starting tiered dispatch for order ${orderId}`
       );
 
-      if (availableRiders.length === 0) {
-        console.log(
-          `⚠️ [DISPATCH] No available riders found for order ${orderId}`
-        );
-        return {
-          success: false,
-          notifiedRiders: 0,
-          dispatchMethod: "realtime",
-        };
-      }
-      console.log(`🔍 [DISPATCH] Getting order details for dispatch...`);
-      // Get order details for dispatch
-      const db = createClient(env.DB);
-      const order = await db.query.orderTable.findFirst({
-        where: eq(orderTable.id, orderId),
-      });
-      console.log(`🔍 [DISPATCH] Order query completed`);
-
-      if (!order) {
-        throw new Error(`Order ${orderId} not found for dispatch`);
-      }
-      console.log(`🔍 [DISPATCH] Getting order items separately...`);
-      // Get order items separately
-      const orderItems = await db.query.orderItemTable.findMany({
-        where: eq(orderItemTable.orderId, orderId),
-      });
-      console.log(`🔍 [DISPATCH] Order items query completed`);
-
-      console.log(`🔍 [DISPATCH] Getting shop details separately...`);
-      // Get shop details separately
-      const shop = await db.query.shopTable.findFirst({
-        where: eq(shopTable.id, order.shopId),
-        columns: {
-          name: true,
-          address: true,
-          latitude: true,
-          longitude: true,
-        },
-      });
-      console.log(`🔍 [DISPATCH] Shop query completed`);
-
-      if (!shop) {
-        throw new Error(`Shop not found for order ${orderId}`);
-      }
-
-      // Prepare order data for real-time dispatch
-      const dispatchOrder = {
-        id: orderId,
-        shopId: order.shopId,
-        pickupLocation: {
-          lat: orderInfo.shopLocation.latitude || 0,
-          lng: orderInfo.shopLocation.longitude || 0,
-          address: shop.address || "Shop location",
-        },
-        deliveryLocation: {
-          lat: orderInfo.deliveryLocation.latitude || 0,
-          lng: orderInfo.deliveryLocation.longitude || 0,
-          address: order.addressName || "Delivery location",
-        },
-        orderValue: order.total,
-        deliveryFee: order.deliveryFee,
-        itemCount: orderItems?.length || 0,
-        estimatedDistance: availableRiders[0]?.metrics.totalDistanceKm || 0,
-        estimatedDuration:
-          availableRiders[0]?.metrics.estimatedTotalMinutes || 30,
-      };
-
-      // Try real-time dispatch via Durable Objects first
-      try {
-        const riderIds = availableRiders.map((r) => r.rider.id);
-        const realTimeResult = await this.dispatchViaRealTime(
-          env,
-          dispatchOrder,
-          riderIds
-        );
-
-        if (realTimeResult.success && realTimeResult.notifiedRiders > 0) {
-          console.log(
-            `✅ [DISPATCH] Real-time dispatch successful: ${realTimeResult.notifiedRiders} riders notified`
-          );
-          return {
-            success: true,
-            notifiedRiders: realTimeResult.notifiedRiders,
-            dispatchMethod: "realtime",
-          };
-        }
-      } catch (realTimeError) {
-        console.error(
-          `❌ [DISPATCH] Real-time dispatch failed:`,
-          realTimeError
-        );
-      } // Fallback to push notifications
-      console.log(
-        `🔄 [DISPATCH] Falling back to push notifications for order ${orderId}`
-      );
-      await this.findAndNotifyRiders(orderId, order.shopId);
+      // Use the tiered system directly instead of real-time "fastest wins"
+      await this.findAndNotifyRiders(orderId, null);
 
       return {
         success: true,
-        notifiedRiders: 0,
+        notifiedRiders: 1, // At minimum, tier 1 rider gets notified
         dispatchMethod: "push_notification",
       };
     } catch (error) {
@@ -791,7 +792,7 @@ export class RiderDispatchService {
       return {
         success: false,
         notifiedRiders: 0,
-        dispatchMethod: "realtime",
+        dispatchMethod: "push_notification",
       };
     }
   }
@@ -831,9 +832,8 @@ export class RiderDispatchService {
         `🔥 [REALTIME-DISPATCH] Sending request body:`,
         JSON.stringify(requestBody, null, 2)
       );
-
       const response = await stub.fetch(
-        new Request("https://rider-dispatch/dispatch-order", {
+        new Request(`http://rider-dispatch/dispatch-order`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(requestBody),
@@ -858,17 +858,16 @@ export class RiderDispatchService {
 
   /**
    * Get WebSocket connection URL for a rider
-   */
-  public getWebSocketUrl(
+   */ public getWebSocketUrl(
     riderId: string,
     lat: number,
     lng: number,
     env: any
   ): string {
-    // In development, use localhost. In production, use the actual domain
-    const baseUrl = env.CLIENT_URL?.includes("localhost")
-      ? "ws://localhost:8787"
-      : "wss://your-domain.com";
+    // Convert HTTP/HTTPS to WS/WSS based on env.BASE_URL
+    const baseUrl = env.BASE_URL?.startsWith("https://")
+      ? env.BASE_URL.replace("https://", "wss://")
+      : env.BASE_URL?.replace("http://", "ws://");
 
     const params = new URLSearchParams({
       riderId,
@@ -876,7 +875,7 @@ export class RiderDispatchService {
       lng: lng.toString(),
     });
 
-    return `${baseUrl}/rider/ws?${params}`;
+    return `${baseUrl}/api/rider/ws?${params}`;
   }
   /**
    * Update rider status in the real-time system
@@ -897,9 +896,8 @@ export class RiderDispatchService {
       if (update.location) {
         updateType = "location_update";
       }
-
       const response = await stub.fetch(
-        new Request("https://rider-dispatch/rider-status", {
+        new Request(`http://rider-dispatch/rider-status`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

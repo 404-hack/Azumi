@@ -19,9 +19,9 @@ import {
 import { env } from "cloudflare:workers";
 import {
   calculateDeliveryFee,
-  calculateHaversineDistance,
   isShopCurrentlyOpen,
 } from "../lib/utils/shop.utils";
+import { calculateDistance } from "../lib/utils/geo";
 import { DAYS_OF_WEEK } from "../lib/constant";
 import { RiderDispatchService } from "../services/riderDispatch.service";
 
@@ -446,7 +446,7 @@ const orderRoute = factory
         shopLat !== undefined &&
         shopLng !== undefined
       ) {
-        const distance = calculateHaversineDistance(
+        const distance = calculateDistance(
           data.userLatitude,
           data.userLongitude,
           shopLat,
@@ -1032,7 +1032,7 @@ const orderRoute = factory
                       try {
                         await riderDispatch.findAndNotifyRiders(
                           id,
-                          order.shopId
+                          updatedOrder.shopId
                         );
                         console.log(
                           `✅ [FALLBACK-DISPATCH] Traditional dispatch successful for order ${id}`

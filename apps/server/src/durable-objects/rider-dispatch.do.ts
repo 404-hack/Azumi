@@ -1,17 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
+import { calculateDistance } from "../lib/utils/geo";
 
 interface RiderLocation {
   lat: number;
   lng: number;
   lastUpdate: number;
-  isAvailable: boolean;
   riderId: string;
-}
-
-interface RiderConnection {
-  riderId: string;
-  websocket: WebSocket;
-  connectedAt: number;
 }
 
 interface AvailableOrder {
@@ -52,7 +46,7 @@ interface LocationUpdateMessage {
 interface StatusUpdateMessage {
   type: "status_update";
   riderId: string;
-  isAvailable: boolean;
+  availabilityStatus: "AVAILABLE" | "UNAVAILABLE" | "BUSY";
 }
 
 interface RiderStatusMessage {
@@ -65,18 +59,20 @@ interface Env {
 }
 
 export class RiderDispatch extends DurableObject {
-  private connections = new Map<string, RiderConnection>();
   private riderLocations = new Map<string, RiderLocation>();
-  private pendingOrders = new Map<string, AvailableOrder>();
+  // private pendingOrders = new Map<string, AvailableOrder>();
   private readonly LOCATION_CLEANUP_INTERVAL = 5 * 60 * 1000;
   private readonly HEARTBEAT_TIMEOUT = 2 * 60 * 1000;
+  private cleanupIntervalId?: ReturnType<typeof setInterval>;
 
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
 
-    setInterval(() => {
-      this.cleanupStaleLocations();
-    }, this.LOCATION_CLEANUP_INTERVAL);
+    if (!this.cleanupIntervalId) {
+      this.cleanupIntervalId = setInterval(() => {
+        this.cleanupStaleLocations();
+      }, this.LOCATION_CLEANUP_INTERVAL);
+    }
   }
 
   private cleanupStaleLocations(): void {
@@ -88,26 +84,18 @@ export class RiderDispatch extends DurableObject {
       }
     }
   }
-
-  private updateRiderLocation(
-    riderId: string,
-    lat: number,
-    lng: number,
-    isAvailable: boolean = true
-  ): void {
+  private updateRiderLocation(riderId: string, lat: number, lng: number): void {
     this.riderLocations.set(riderId, {
       riderId,
       lat,
       lng,
       lastUpdate: Date.now(),
-      isAvailable,
     });
   }
 
   private getRiderLocation(riderId: string): RiderLocation | null {
     return this.riderLocations.get(riderId) || null;
   }
-
   private findNearbyRiders(
     orderLat: number,
     orderLng: number,
@@ -116,9 +104,7 @@ export class RiderDispatch extends DurableObject {
     const nearbyRiders: (RiderLocation & { distance: number })[] = [];
 
     for (const [riderId, location] of this.riderLocations) {
-      if (!location.isAvailable) continue;
-
-      const distance = this.calculateDistance(
+      const distance = calculateDistance(
         orderLat,
         orderLng,
         location.lat,
@@ -131,26 +117,6 @@ export class RiderDispatch extends DurableObject {
 
     return nearbyRiders.sort((a, b) => a.distance - b.distance);
   }
-
-  private calculateDistance(
-    lat1: number,
-    lng1: number,
-    lat2: number,
-    lng2: number
-  ): number {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLng = ((lng2 - lng1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
@@ -166,9 +132,15 @@ export class RiderDispatch extends DurableObject {
       return this.handleRiderStatusUpdate(request);
     }
 
+    if (
+      url.pathname === "/send-order-notification" &&
+      request.method === "POST"
+    ) {
+      return this.handleOrderNotification(request);
+    }
+
     return new Response("Not found", { status: 404 });
   }
-
   private async handleWebSocketConnection(request: Request): Promise<Response> {
     const upgradeHeader = request.headers.get("Upgrade");
     if (!upgradeHeader || upgradeHeader !== "websocket") {
@@ -191,16 +163,12 @@ export class RiderDispatch extends DurableObject {
 
     server.serializeAttachment({
       riderId,
+      lat,
+      lng,
       connectedAt: Date.now(),
     });
 
-    this.connections.set(riderId, {
-      riderId,
-      websocket: server,
-      connectedAt: Date.now(),
-    });
-
-    this.updateRiderLocation(riderId, lat, lng, true);
+    this.updateRiderLocation(riderId, lat, lng);
 
     const currentOrders = await this.getAvailableOrdersForRider(
       riderId,
@@ -225,40 +193,68 @@ export class RiderDispatch extends DurableObject {
   private async handleOrderDispatch(request: Request): Promise<Response> {
     try {
       console.log(`🔥 [DO] handleOrderDispatch called`);
-      
+
       const requestBody = await request.json();
-      console.log(`🔥 [DO] Request body:`, JSON.stringify(requestBody, null, 2));
-      
+      console.log(
+        `🔥 [DO] Request body:`,
+        JSON.stringify(requestBody, null, 2)
+      );
+
       const { order, targetRiders } = requestBody as {
         order: AvailableOrder;
         targetRiders?: string[];
       };
 
-      console.log(`🔥 [DO] Dispatching order ${order.id} to riders`, { targetRiders });
-      console.log(`🔥 [DO] Current connections:`, Array.from(this.connections.keys()));
-      console.log(`🔥 [DO] Current rider locations:`, Array.from(this.riderLocations.keys()));
+      console.log(`🔥 [DO] Dispatching order ${order.id} to riders`, {
+        targetRiders,
+      });
+
+      const connectedSockets = this.ctx.getWebSockets();
+      const connectedRiderIds = connectedSockets
+        .map((ws) => {
+          const attachment = ws.deserializeAttachment() as any;
+          return attachment?.riderId;
+        })
+        .filter(Boolean);
+
+      console.log(`🔥 [DO] Current connections:`, connectedRiderIds);
+      console.log(
+        `🔥 [DO] Current rider locations:`,
+        Array.from(this.riderLocations.keys())
+      );
 
       const nearbyRiders = this.findNearbyRiders(
         order.pickupLocation.lat,
         order.pickupLocation.lng,
-        10
+        1000
       );
 
-      console.log(`🔥 [DO] Found ${nearbyRiders.length} nearby riders:`, nearbyRiders.map(r => ({ riderId: r.riderId, distance: r.distance })));
+      console.log(
+        `🔥 [DO] Found ${nearbyRiders.length} nearby riders:`,
+        nearbyRiders.map((r) => ({ riderId: r.riderId, distance: r.distance }))
+      );
 
       let notifiedCount = 0;
 
       for (const riderLocation of nearbyRiders) {
         console.log(`🔥 [DO] Processing rider ${riderLocation.riderId}`);
-        
+
         if (targetRiders && !targetRiders.includes(riderLocation.riderId)) {
-          console.log(`🔥 [DO] Skipping rider ${riderLocation.riderId} - not in target list`);
+          console.log(
+            `🔥 [DO] Skipping rider ${riderLocation.riderId} - not in target list`
+          );
           continue;
         }
 
-        const connection = this.connections.get(riderLocation.riderId);
-        if (!connection) {
-          console.log(`🔥 [DO] No WebSocket connection found for rider ${riderLocation.riderId}`);
+        const riderWebSocket = connectedSockets.find((ws) => {
+          const attachment = ws.deserializeAttachment() as any;
+          return attachment?.riderId === riderLocation.riderId;
+        });
+
+        if (!riderWebSocket) {
+          console.log(
+            `🔥 [DO] No WebSocket connection found for rider ${riderLocation.riderId}`
+          );
           continue;
         }
 
@@ -272,8 +268,11 @@ export class RiderDispatch extends DurableObject {
             riderId: riderLocation.riderId,
           };
 
-          console.log(`🔥 [DO] Sending message to rider ${riderLocation.riderId}:`, JSON.stringify(message, null, 2));
-          connection.websocket.send(JSON.stringify(message));
+          console.log(
+            `🔥 [DO] Sending message to rider ${riderLocation.riderId}:`,
+            JSON.stringify(message, null, 2)
+          );
+          riderWebSocket.send(JSON.stringify(message));
           notifiedCount++;
           console.log(
             `✅ [DO] Order ${order.id} sent to rider ${riderLocation.riderId}, distance: ${riderLocation.distance}km`
@@ -283,7 +282,6 @@ export class RiderDispatch extends DurableObject {
             `❌ [DO] Failed to send order to rider ${riderLocation.riderId}:`,
             error
           );
-          this.connections.delete(riderLocation.riderId);
           this.riderLocations.delete(riderLocation.riderId);
         }
       }
@@ -291,18 +289,115 @@ export class RiderDispatch extends DurableObject {
       const result = {
         success: true,
         notifiedRiders: notifiedCount,
-        orderId: order.id,      };
-      
+        orderId: order.id,
+      };
+
       console.log(`🔥 [DO] Final result:`, result);
 
+      return new Response(JSON.stringify(result), {
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("Error dispatching order:", error);
       return new Response(
-        JSON.stringify(result),
+        JSON.stringify({
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        }),
         {
+          status: 500,
           headers: { "Content-Type": "application/json" },
         }
       );
+    }
+  }
+  private async handleOrderNotification(request: Request): Promise<Response> {
+    try {
+      const requestBody = await request.json();
+      const { orderId, riderId, orderDetails, tier, timeLimit } =
+        requestBody as {
+          orderId: string;
+          riderId: string;
+          orderDetails: AvailableOrder;
+          tier: number;
+          timeLimit: number;
+        };
+
+      console.log(
+        `📨 [DO] Order notification for rider ${riderId}, order ${orderId}, tier ${tier}`
+      );
+
+      const connectedSockets = this.ctx.getWebSockets();
+      const riderWebSocket = connectedSockets.find((ws) => {
+        const attachment = ws.deserializeAttachment() as any;
+        return attachment?.riderId === riderId;
+      });
+
+      if (!riderWebSocket) {
+        console.log(
+          `⚠️ [DO] No WebSocket connection found for rider ${riderId}`
+        );
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Rider not connected",
+            riderId,
+          }),
+          {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      try {
+        const notificationMessage = {
+          type: "order_confirmation_modal",
+          orderId,
+          orderDetails,
+          tier,
+          timeLimit,
+          timestamp: Date.now(),
+        };
+
+        riderWebSocket.send(JSON.stringify(notificationMessage));
+
+        console.log(
+          `✅ [DO] Order confirmation modal sent to rider ${riderId} for order ${orderId}`
+        );
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            riderId,
+            orderId,
+            notificationSent: true,
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        console.error(
+          `❌ [DO] Failed to send notification to rider ${riderId}:`,
+          error
+        );
+        this.riderLocations.delete(riderId);
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Failed to send notification",
+            riderId,
+          }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
     } catch (error) {
-      console.error("Error dispatching order:", error);
+      console.error("Error handling order notification:", error);
       return new Response(
         JSON.stringify({
           success: false,
@@ -328,23 +423,11 @@ export class RiderDispatch extends DurableObject {
       if (!riderLocation) {
         return new Response("Rider not found", { status: 404 });
       }
-
       switch (type) {
         case "location_update":
-          this.updateRiderLocation(
-            riderId,
-            data.lat,
-            data.lng,
-            riderLocation.isAvailable
-          );
+          this.updateRiderLocation(riderId, data.lat, data.lng);
           break;
         case "availability_update":
-          this.updateRiderLocation(
-            riderId,
-            riderLocation.lat,
-            riderLocation.lng,
-            data.isAvailable
-          );
           break;
       }
 
@@ -384,7 +467,8 @@ export class RiderDispatch extends DurableObject {
   ): Promise<void> {
     try {
       const attachment = ws.deserializeAttachment() as any;
-      if (!attachment?.riderId) return;      const data = JSON.parse(message.toString()) as RiderStatusMessage;
+      if (!attachment?.riderId) return;
+      const data = JSON.parse(message.toString()) as RiderStatusMessage;
 
       // Only log non-heartbeat messages to reduce console noise
       if (data.type !== "heartbeat") {
@@ -404,8 +488,7 @@ export class RiderDispatch extends DurableObject {
             this.updateRiderLocation(
               attachment.riderId,
               data.data.lat,
-              data.data.lng,
-              currentLocation?.isAvailable ?? true
+              data.data.lng
             );
           }
           break;
@@ -424,7 +507,6 @@ export class RiderDispatch extends DurableObject {
       console.error("Error processing WebSocket message:", error);
     }
   }
-
   async webSocketClose(
     ws: WebSocket,
     code: number,
@@ -434,7 +516,6 @@ export class RiderDispatch extends DurableObject {
     try {
       const attachment = ws.deserializeAttachment() as any;
       if (attachment?.riderId) {
-        this.connections.delete(attachment.riderId);
         this.riderLocations.delete(attachment.riderId);
         console.log(
           `Rider ${attachment.riderId} disconnected from dispatch system`
@@ -444,22 +525,12 @@ export class RiderDispatch extends DurableObject {
       console.error("Error handling WebSocket close:", error);
     }
   }
-
   private async handleRiderStatusFromWebSocket(
     riderId: string,
     data: any
   ): Promise<void> {
     const currentLocation = this.riderLocations.get(riderId);
     if (!currentLocation) return;
-
-    if (data.isAvailable !== undefined) {
-      this.updateRiderLocation(
-        riderId,
-        currentLocation.lat,
-        currentLocation.lng,
-        data.isAvailable
-      );
-    }
   }
 
   async broadcastToAllRiders(message: any): Promise<number> {
@@ -476,8 +547,18 @@ export class RiderDispatch extends DurableObject {
     }
     return sentCount;
   }
-
-  async getConnectedRiders(): Promise<RiderConnection[]> {
-    return Array.from(this.connections.values());
+  async getConnectedRiders(): Promise<
+    { riderId: string; connectedAt: number }[]
+  > {
+    const connectedSockets = this.ctx.getWebSockets();
+    return connectedSockets
+      .map((ws) => {
+        const attachment = ws.deserializeAttachment() as any;
+        return {
+          riderId: attachment?.riderId || "unknown",
+          connectedAt: attachment?.connectedAt || Date.now(),
+        };
+      })
+      .filter((rider) => rider.riderId !== "unknown");
   }
 }

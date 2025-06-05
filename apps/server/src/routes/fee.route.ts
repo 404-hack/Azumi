@@ -1,10 +1,8 @@
 import { z } from "zod";
 import { factory } from "../lib/factory";
 import { zValidator } from "@hono/zod-validator";
-import {
-  calculateHaversineDistance,
-  calculateDeliveryFee,
-} from "../lib/utils/shop.utils";
+import { calculateDistance } from "../lib/utils/geo";
+import { calculateDeliveryFee } from "../lib/utils/shop.utils";
 
 const deliveryFeeQuerySchema = z.object({
   userLat: z.coerce.number().min(-90).max(90),
@@ -18,13 +16,7 @@ const deliveryFeeRoute = factory
   .get("/", zValidator("query", deliveryFeeQuerySchema), async (c) => {
     try {
       const { userLat, userLng, shopLat, shopLng } = c.req.valid("query");
-
-      const distanceKm = calculateHaversineDistance(
-        userLat,
-        userLng,
-        shopLat,
-        shopLng
-      );
+      const distanceKm = calculateDistance(userLat, userLng, shopLat, shopLng);
       const fee = calculateDeliveryFee(distanceKm);
 
       return c.json({ data: { deliveryFee: fee } });

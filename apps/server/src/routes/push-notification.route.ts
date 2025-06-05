@@ -603,4 +603,45 @@ pushNotificationRoute.post(
   }
 );
 
+pushNotificationRoute.post(
+  "/check-token",
+  zValidator(
+    "json",
+    z.object({
+      token: z.string().min(1),
+    })
+  ),
+  async (c) => {
+    const session = c.get("session");
+    if (!session) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const { token } = c.req.valid("json");
+    const db = c.get("db");
+
+    try {
+      const existingToken = await db
+        .select({ id: pushTokenTable.id })
+        .from(pushTokenTable)
+        .where(
+          and(
+            eq(pushTokenTable.token, token),
+            eq(pushTokenTable.userId, session.userId),
+            eq(pushTokenTable.isActive, true)
+          )
+        )
+        .limit(1);
+
+      return c.json({
+        isRegistered: existingToken.length > 0,
+        tokenExists: existingToken.length > 0,
+      });
+    } catch (error) {
+      console.error("Error checking token registration:", error);
+      return c.json({ error: "Failed to check token" }, 500);
+    }
+  }
+);
+
 export default pushNotificationRoute;
