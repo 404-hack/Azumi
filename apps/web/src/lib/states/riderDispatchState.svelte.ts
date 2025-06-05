@@ -231,7 +231,7 @@ class RiderDispatchState {
 					});
 				}
 				break;
-			case 'new_order':
+			case 'new_order': {
 				console.log('🔔 New order received:', message.order);
 
 				if (this.hasPendingOrder) {
@@ -268,6 +268,7 @@ class RiderDispatchState {
 					pendingOrderId: this.pendingOrderId
 				});
 				break;
+			}
 			case 'order_expired':
 				console.log('⏰ Order expired:', message.orderId);
 				this.clearPendingOrder(message.orderId);

@@ -19,10 +19,10 @@ import { DAYS_OF_WEEK } from "../lib/constant";
 import {
   isShopCurrentlyOpen,
   parseTimeStringToMinutes,
-  calculateHaversineDistance, // Import new utility function
-  calculateDeliveryFee, // Import new utility function
-  estimateTravelTime, // Import new utility function
-} from "../lib/utils/shop.utils"; // Import helpers
+  calculateDeliveryFee,
+  estimateTravelTime,
+} from "../lib/utils/shop.utils";
+import { calculateDistance } from "../lib/utils/geo";
 import { z } from "zod";
 
 const shopRoute = factory
@@ -159,12 +159,7 @@ const shopRoute = factory
             }
 
             // Calculate actual distance using Haversine formula (use imported function)
-            const distance = calculateHaversineDistance(
-              lat,
-              lng,
-              shopLat,
-              shopLng
-            );
+            const distance = calculateDistance(lat, lng, shopLat, shopLng);
 
             // Calculate isOpen status (inactive shops are always closed)
             const isOpen = shop.active
@@ -557,12 +552,7 @@ const shopRoute = factory
         ) {
           console.log("this actually runs2");
           distance = parseFloat(
-            calculateHaversineDistance(
-              userLat,
-              userLng,
-              shopLat,
-              shopLng
-            ).toFixed(2)
+            calculateDistance(userLat, userLng, shopLat, shopLng).toFixed(2)
           );
           deliveryFee = calculateDeliveryFee(distance);
           estimatedTime = estimateTravelTime(distance);
