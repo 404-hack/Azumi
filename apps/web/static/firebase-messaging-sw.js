@@ -24,8 +24,8 @@ const recentNotifications = new Set();
 messaging.onBackgroundMessage((payload) => {
 	console.log('🔥 [SW] BACKGROUND message received (app not in focus):', payload);
 
-	const notificationTitle = payload.notification?.title || 'New Message';
-	const notificationBody = payload.notification?.body || 'You have a new message';
+	const notificationTitle = payload.data?.title || 'New Message';
+	const notificationBody = payload.data?.body || 'You have a new message';
 
 	// Create a unique ID for this notification to prevent duplicates
 	const notificationId = `${notificationTitle}-${notificationBody}-${Date.now()}`;
@@ -41,12 +41,11 @@ messaging.onBackgroundMessage((payload) => {
 	setTimeout(() => {
 		recentNotifications.delete(shortId);
 	}, 2000);
-
 	const notificationOptions = {
 		body: notificationBody,
 		icon: '/logo.png',
 		badge: '/logo.png',
-		image: payload.notification?.image,
+		image: payload.data?.image,
 		data: payload.data || {},
 		tag: shortId,
 		requireInteraction: false,

@@ -144,11 +144,9 @@ export function createFCMStore() {
 				actionLabel = 'Accept Delivery';
 			} else if (action === 'view_available_orders') {
 				actionLabel = 'View Orders';
-			}
-
-			// ONLY show toast notification for foreground - no browser notifications
+			} // ONLY show toast notification for foreground - no browser notifications
 			if (notificationUrl) {
-				toast.info(`${payload.notification?.title}: ${payload.notification?.body}`, {
+				toast.info(`${payload.data?.title}: ${payload.data?.body}`, {
 					action: {
 						label: actionLabel,
 						onClick: () => {
@@ -176,7 +174,7 @@ export function createFCMStore() {
 					}
 				});
 			} else {
-				toast.info(`${payload.notification?.title}: ${payload.notification?.body}`);
+				toast.info(`${payload.data?.title}: ${payload.data?.body}`);
 			}
 
 			// DO NOT create additional browser notifications in foreground
