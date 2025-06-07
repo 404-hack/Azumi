@@ -58,28 +58,13 @@ export class PushNotificationService {
     backoffMultiplier: 2,
     maxDelayMs: 10000,
   };
+
   private getFirebaseConfig() {
-    console.log('🔥 [PUSH] Getting Firebase config...');
-    console.log('🔥 [PUSH] PROJECT_ID exists:', !!env.FIREBASE_PROJECT_ID);
-    console.log('🔥 [PUSH] CLIENT_EMAIL exists:', !!env.FIREBASE_CLIENT_EMAIL);
-    console.log('🔥 [PUSH] PRIVATE_KEY exists:', !!env.FIREBASE_PRIVATE_KEY);
-    console.log('🔥 [PUSH] PROJECT_ID value:', env.FIREBASE_PROJECT_ID);
-    console.log('🔥 [PUSH] CLIENT_EMAIL value:', env.FIREBASE_CLIENT_EMAIL);
-    console.log('🔥 [PUSH] PRIVATE_KEY length:', env.FIREBASE_PRIVATE_KEY?.length || 0);
-    
-    const config = {
+    return {
       projectId: env.FIREBASE_PROJECT_ID,
       clientEmail: env.FIREBASE_CLIENT_EMAIL,
       privateKey: env.FIREBASE_PRIVATE_KEY,
     };
-    
-    console.log('🔥 [PUSH] Firebase config created:', {
-      projectId: config.projectId,
-      clientEmail: config.clientEmail,
-      privateKeyLength: config.privateKey?.length || 0
-    });
-    
-    return config;
   }
 
   private async sleep(ms: number): Promise<void> {
@@ -139,32 +124,25 @@ export class PushNotificationService {
     token: string,
     payload: NotificationPayload
   ): Promise<boolean> {
-    console.log('📢 [NOTIFICATION] sendNotification called:', {
-      tokenLength: token?.length || 0,
-      title: payload.title,
-      body: payload.body,
-      hasData: !!payload.data,
-      dataKeys: payload.data ? Object.keys(payload.data) : []
-    });
-    
     try {
       const message: FirebaseMessage = {
         token,
-        notification: {
+        data: {
           title: payload.title,
           body: payload.body,
+          ...payload.data,
         },
-        data: payload.data || {},
+        webpush: {
+          fcm_options: {
+            link: payload.data?.clickAction || "/",
+          },
+        },
       };
 
-      console.log('📢 [NOTIFICATION] Calling sendFirebaseMessage...');
       await sendFirebaseMessage(this.getFirebaseConfig(), message);
-      console.log('📢 [NOTIFICATION] sendFirebaseMessage successful');
       return true;
     } catch (error) {
-      console.error("📢 [NOTIFICATION] Failed to send FCM notification:", error);
-      console.error("📢 [NOTIFICATION] Error type:", typeof error);
-      console.error("📢 [NOTIFICATION] Error constructor:", error?.constructor?.name);
+      console.error("Failed to send FCM notification:", error);
       return false;
     }
   }
@@ -177,60 +155,38 @@ export class PushNotificationService {
     data,
     clickAction,
   }: SendToTokenOptions): Promise<SendToTokenResult> {
-    console.log('🔥 [PUSH] sendToToken called with:', {
-      tokenLength: token?.length || 0,
-      title,
-      body,
-      hasData: !!data,
-      dataKeys: data ? Object.keys(data) : []
-    });
-    
     try {
-      console.log('🔥 [PUSH] Creating Firebase message...');
       const message: FirebaseMessage = {
         token,
-        notification: {
+        data: {
           title,
           body,
-          image,
+          icon: icon || "",
+          image: image || "",
+          ...data,
         },
-        data: data || {},
+        webpush: {
+          fcm_options: {
+            link: clickAction || "/",
+          },
+        },
       };
-      
-      console.log('🔥 [PUSH] Message created:', {
-        hasToken: !!message.token,
-        notificationTitle: message.notification?.title,
-        dataKeys: Object.keys(message.data || {})
-      });
 
-      console.log('🔥 [PUSH] Calling sendFirebaseMessage...');
       const result = await sendFirebaseMessage(
         this.getFirebaseConfig(),
         message
       );
-      
-      console.log('🔥 [PUSH] sendFirebaseMessage result:', result);
 
       return {
         success: true,
         messageId: result.name,
       };
     } catch (error) {
-      console.error('🔥 [PUSH] Error in sendToToken:', error);
-      console.error('🔥 [PUSH] Error type:', typeof error);
-      console.error('🔥 [PUSH] Error constructor:', error?.constructor?.name);
-      
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       const isInvalidToken =
         errorMessage.includes("invalid-registration-token") ||
         errorMessage.includes("registration-token-not-registered");
-
-      console.log('🔥 [PUSH] Returning error result:', {
-        success: false,
-        error: errorMessage,
-        invalidToken: isInvalidToken
-      });
 
       return {
         success: false,
@@ -266,7 +222,6 @@ export class PushNotificationService {
       retryConfig
     );
   }
-
   async sendToMultipleTokens({
     tokens,
     title,
@@ -281,12 +236,18 @@ export class PushNotificationService {
     responses: SendToTokenResult[];
   }> {
     const message = {
-      notification: {
+      data: {
         title,
         body,
-        image,
+        icon: icon || "",
+        image: image || "",
+        ...data,
       },
-      data: data || {},
+      webpush: {
+        fcm_options: {
+          link: clickAction || "/",
+        },
+      },
       tokens,
     };
 
@@ -320,7 +281,6 @@ export class PushNotificationService {
       };
     }
   }
-
   async sendToTopic({
     topic,
     title,
@@ -333,12 +293,18 @@ export class PushNotificationService {
     try {
       const message: FirebaseMessage = {
         topic,
-        notification: {
+        data: {
           title,
           body,
-          image,
+          icon: icon || "",
+          image: image || "",
+          ...data,
         },
-        data: data || {},
+        webpush: {
+          fcm_options: {
+            link: clickAction || "/",
+          },
+        },
       };
 
       const result = await sendFirebaseMessage(
@@ -398,22 +364,13 @@ export class PushNotificationService {
         error: error instanceof Error ? error.message : String(error),
       };
     }
-  }  async sendNotificationToUser(
+  }
+  async sendNotificationToUser(
     userId: string,
     payload: NotificationPayload
   ): Promise<boolean> {
-    console.log('👤 [USER_NOTIFICATION] Sending notification to user:', {
-      userId,
-      title: payload.title,
-      body: payload.body,
-      hasData: !!payload.data,
-      dataKeys: payload.data ? Object.keys(payload.data) : []
-    });
-    
     try {
       const db = createClient(env.DB);
-      console.log('👤 [USER_NOTIFICATION] Querying push tokens for user...');
-      
       const tokenRecords = await db
         .select({ token: pushTokenTable.token })
         .from(pushTokenTable)
@@ -424,48 +381,33 @@ export class PushNotificationService {
           )
         );
 
-      console.log('👤 [USER_NOTIFICATION] Found tokens:', {
-        userId,
-        tokenCount: tokenRecords.length,
-        tokens: tokenRecords.map(r => ({ length: r.token.length, prefix: r.token.substring(0, 20) }))
-      });
-
       if (tokenRecords.length === 0) {
-        console.log(`👤 [USER_NOTIFICATION] No active push tokens found for user: ${userId}`);
+        console.log(`No active push tokens found for user: ${userId}`);
         return false;
       }
 
-      console.log('👤 [USER_NOTIFICATION] Sending to individual tokens...');
-      const sendPromises = tokenRecords.map(async (record, index) => {
-        console.log(`👤 [USER_NOTIFICATION] Sending to token ${index + 1}/${tokenRecords.length}...`);
-        
+      const sendPromises = tokenRecords.map(async (record) => {
         try {
           const success = await this.sendNotification(record.token, payload);
-          console.log(`👤 [USER_NOTIFICATION] Token ${index + 1} result:`, success);
-          
           if (success) {
-            console.log(`👤 [USER_NOTIFICATION] Updating lastUsedAt for successful token...`);
             await db
               .update(pushTokenTable)
               .set({ lastUsedAt: new Date() })
               .where(eq(pushTokenTable.token, record.token));
           } else {
-            console.log(`👤 [USER_NOTIFICATION] Marking failed token as inactive...`);
             await db
               .update(pushTokenTable)
               .set({ isActive: false })
               .where(eq(pushTokenTable.token, record.token));
-            console.log(`👤 [USER_NOTIFICATION] Marked token as inactive for user: ${userId}`);
+            console.log(`Marked token as inactive for user: ${userId}`);
           }
           return success;
         } catch (error) {
-          console.error(`👤 [USER_NOTIFICATION] Error sending to token ${index + 1}:`, error);
-          console.log(`👤 [USER_NOTIFICATION] Marking error token as inactive...`);
           await db
             .update(pushTokenTable)
             .set({ isActive: false })
             .where(eq(pushTokenTable.token, record.token));
-          console.log(`👤 [USER_NOTIFICATION] Marked failed token as inactive for user: ${userId}`);
+          console.log(`Marked failed token as inactive for user: ${userId}`);
           return false;
         }
       });
@@ -475,22 +417,12 @@ export class PushNotificationService {
         (result) => result.status === "fulfilled" && result.value === true
       ).length;
 
-      console.log(`👤 [USER_NOTIFICATION] Final results:`, {
-        userId,
-        successCount,
-        totalTokens: tokenRecords.length,
-        successRate: `${successCount}/${tokenRecords.length}`,
-        overallSuccess: successCount > 0
-      });
-
       console.log(
-        `👤 [USER_NOTIFICATION] Sent notifications to ${successCount}/${tokenRecords.length} active devices for user: ${userId}`
+        `Sent notifications to ${successCount}/${tokenRecords.length} active devices for user: ${userId}`
       );
       return successCount > 0;
     } catch (error) {
-      console.error("👤 [USER_NOTIFICATION] Failed to send notification to user:", error);
-      console.error("👤 [USER_NOTIFICATION] Error type:", typeof error);
-      console.error("👤 [USER_NOTIFICATION] Error message:", error instanceof Error ? error.message : String(error));
+      console.error("Failed to send notification to user:", error);
     }
     return false;
   }
