@@ -5,7 +5,16 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Separator } from '$lib/components/ui/separator';
-	import { MapPin, Phone, Clock, Package, Navigation, Car, CheckCircle, AlertCircle } from 'lucide-svelte';
+	import {
+		MapPin,
+		Phone,
+		Clock,
+		Package,
+		Navigation,
+		Car,
+		CheckCircle,
+		AlertCircle
+	} from 'lucide-svelte';
 	import { formatCurrency } from '$lib/utils';
 	import { riderOrderService, type OrderDetails } from '$lib/services/riderOrderService';
 	import { toast } from 'svelte-sonner';
@@ -50,11 +59,11 @@
 
 	async function markPickedUp() {
 		if (isLoading) return;
-		
+
 		isLoading = true;
 		try {
 			const success = await riderOrderService.markOrderPickedUp(order.id);
-			
+
 			if (success) {
 				order.status = 'PICKED_UP';
 				toast.success('Order marked as picked up');
@@ -70,11 +79,11 @@
 
 	async function markDelivered() {
 		if (isLoading) return;
-		
+
 		isLoading = true;
 		try {
 			const success = await riderOrderService.markOrderDelivered(order.id);
-			
+
 			if (success) {
 				order.status = 'DELIVERED';
 				toast.success('Order marked as delivered');
@@ -121,10 +130,10 @@
 	</div>
 
 	<Card class="p-6">
-		<div class="flex items-center justify-between mb-4">
+		<div class="mb-4 flex items-center justify-between">
 			<h2 class="text-lg font-semibold">Order #{order.orderNumber}</h2>
 			<div class="text-right">
-				<div class="text-sm text-muted-foreground">Total</div>
+				<div class="text-muted-foreground text-sm">Total</div>
 				<div class="text-lg font-bold">{formatCurrency(order.total)}</div>
 			</div>
 		</div>
@@ -132,17 +141,17 @@
 		<div class="grid gap-4 md:grid-cols-2">
 			<div class="space-y-3">
 				<div class="flex items-start gap-3">
-					<MapPin class="mt-1 h-4 w-4 text-muted-foreground" />
+					<MapPin class="text-muted-foreground mt-1 h-4 w-4" />
 					<div class="space-y-1">
 						<div class="font-medium">Pickup Location</div>
-						<div class="text-sm text-muted-foreground">{order.pickupLocation.address}</div>
+						<div class="text-muted-foreground text-sm">{order.pickupLocation.address}</div>
 						<div class="flex gap-2">
 							<Button size="sm" variant="outline" onclick={startNavigation}>
-								<Navigation class="h-3 w-3 mr-1" />
+								<Navigation class="mr-1 h-3 w-3" />
 								Navigate
 							</Button>
 							<Button size="sm" variant="outline" onclick={callShop}>
-								<Phone class="h-3 w-3 mr-1" />
+								<Phone class="mr-1 h-3 w-3" />
 								Call Shop
 							</Button>
 						</div>
@@ -153,14 +162,14 @@
 					<MapPin class="mt-1 h-4 w-4 text-orange-500" />
 					<div class="space-y-1">
 						<div class="font-medium">Delivery Location</div>
-						<div class="text-sm text-muted-foreground">{order.deliveryLocation.address}</div>
+						<div class="text-muted-foreground text-sm">{order.deliveryLocation.address}</div>
 						<div class="flex gap-2">
 							<Button size="sm" variant="outline" onclick={navigateToCustomer}>
-								<Navigation class="h-3 w-3 mr-1" />
+								<Navigation class="mr-1 h-3 w-3" />
 								Navigate
 							</Button>
 							<Button size="sm" variant="outline" onclick={callCustomer}>
-								<Phone class="h-3 w-3 mr-1" />
+								<Phone class="mr-1 h-3 w-3" />
 								Call Customer
 							</Button>
 						</div>
@@ -170,15 +179,15 @@
 
 			<div class="space-y-3">
 				<div class="flex items-center gap-2">
-					<Clock class="h-4 w-4 text-muted-foreground" />
+					<Clock class="text-muted-foreground h-4 w-4" />
 					<span class="text-sm">{order.estimatedDuration} mins estimated</span>
 				</div>
 				<div class="flex items-center gap-2">
-					<Car class="h-4 w-4 text-muted-foreground" />
+					<Car class="text-muted-foreground h-4 w-4" />
 					<span class="text-sm">{order.estimatedDistance.toFixed(1)} km total distance</span>
 				</div>
 				<div class="flex items-center gap-2">
-					<Package class="h-4 w-4 text-muted-foreground" />
+					<Package class="text-muted-foreground h-4 w-4" />
 					<span class="text-sm">{order.items.length} items</span>
 				</div>
 			</div>
@@ -186,26 +195,26 @@
 	</Card>
 
 	<Card class="p-6">
-		<h3 class="font-semibold mb-4">Shop Information</h3>
+		<h3 class="mb-4 font-semibold">Shop Information</h3>
 		<div class="space-y-2">
 			<div class="flex items-center justify-between">
 				<span class="font-medium">{order.shop.name}</span>
 				<Button size="sm" variant="outline" onclick={callShop}>
-					<Phone class="h-3 w-3 mr-1" />
+					<Phone class="mr-1 h-3 w-3" />
 					Call
 				</Button>
 			</div>
-			<div class="text-sm text-muted-foreground">{order.shop.address}</div>
+			<div class="text-muted-foreground text-sm">{order.shop.address}</div>
 		</div>
 	</Card>
 
 	<Card class="p-6">
-		<h3 class="font-semibold mb-4">Customer Information</h3>
+		<h3 class="mb-4 font-semibold">Customer Information</h3>
 		<div class="space-y-2">
 			<div class="flex items-center justify-between">
 				<span class="font-medium">{order.customer.name}</span>
 				<Button size="sm" variant="outline" onclick={callCustomer}>
-					<Phone class="h-3 w-3 mr-1" />
+					<Phone class="mr-1 h-3 w-3" />
 					Call
 				</Button>
 			</div>
@@ -213,19 +222,19 @@
 	</Card>
 
 	<Card class="p-6">
-		<h3 class="font-semibold mb-4">Order Items</h3>
+		<h3 class="mb-4 font-semibold">Order Items</h3>
 		<div class="space-y-3">
 			{#each order.items as item}
 				<div class="flex items-center justify-between">
 					<div>
 						<div class="font-medium">{item.name}</div>
 						{#if item.specialInstructions}
-							<div class="text-sm text-muted-foreground">{item.specialInstructions}</div>
+							<div class="text-muted-foreground text-sm">{item.specialInstructions}</div>
 						{/if}
 					</div>
 					<div class="text-right">
 						<div>{item.quantity}x</div>
-						<div class="text-sm text-muted-foreground">{formatCurrency(item.price)}</div>
+						<div class="text-muted-foreground text-sm">{formatCurrency(item.price)}</div>
 					</div>
 				</div>
 				{#if item !== order.items[order.items.length - 1]}
@@ -235,9 +244,9 @@
 		</div>
 
 		{#if order.specialInstructions}
-			<div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+			<div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
 				<div class="flex items-start gap-2">
-					<AlertCircle class="h-4 w-4 text-amber-600 mt-0.5" />
+					<AlertCircle class="mt-0.5 h-4 w-4 text-amber-600" />
 					<div>
 						<div class="font-medium text-amber-800">Special Instructions</div>
 						<div class="text-sm text-amber-700">{order.specialInstructions}</div>
@@ -248,7 +257,7 @@
 	</Card>
 
 	<Card class="p-6">
-		<h3 class="font-semibold mb-4">Payment Summary</h3>
+		<h3 class="mb-4 font-semibold">Payment Summary</h3>
 		<div class="space-y-2">
 			<div class="flex justify-between">
 				<span>Order Total</span>
@@ -267,23 +276,23 @@
 	</Card>
 
 	{#if order.status === 'RIDER_ASSIGNED'}
-		<div class="sticky bottom-4 bg-background p-4 border rounded-lg shadow-lg">
+		<div class="bg-background sticky bottom-4 rounded-lg border p-4 shadow-lg">
 			<Button class="w-full" size="lg" onclick={markPickedUp} disabled={isLoading}>
 				{#if isLoading}
-					<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+					<div class="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
 				{:else}
-					<CheckCircle class="h-4 w-4 mr-2" />
+					<CheckCircle class="mr-2 h-4 w-4" />
 				{/if}
 				Mark as Picked Up
 			</Button>
 		</div>
 	{:else if order.status === 'PICKED_UP' || order.status === 'IN_TRANSIT'}
-		<div class="sticky bottom-4 bg-background p-4 border rounded-lg shadow-lg">
+		<div class="bg-background sticky bottom-4 rounded-lg border p-4 shadow-lg">
 			<Button class="w-full" size="lg" onclick={markDelivered} disabled={isLoading}>
 				{#if isLoading}
-					<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+					<div class="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
 				{:else}
-					<CheckCircle class="h-4 w-4 mr-2" />
+					<CheckCircle class="mr-2 h-4 w-4" />
 				{/if}
 				Mark as Delivered
 			</Button>

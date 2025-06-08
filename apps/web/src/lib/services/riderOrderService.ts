@@ -8,6 +8,7 @@ export interface OrderDetails {
 	total: number;
 	deliveryFee: number;
 	createdAt: string;
+	riderConfirmationCode?: number;
 	pickupLocation: {
 		address: string;
 		latitude: number;
@@ -98,12 +99,11 @@ export class RiderOrderService {
 			return false;
 		}
 	}
-
-	async markOrderDelivered(orderId: string, deliveryCode?: string): Promise<boolean> {
+	async markOrderDelivered(orderId: string, confirmationCode?: number): Promise<boolean> {
 		try {
 			const response = await client.rider.orders[':id'].deliver.$post({
 				param: { id: orderId },
-				json: { deliveryCode }
+				json: { confirmationCode }
 			});
 
 			return response.ok;

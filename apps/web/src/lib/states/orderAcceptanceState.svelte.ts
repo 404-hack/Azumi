@@ -199,6 +199,11 @@ class OrderAcceptanceState {
 				await riderDispatchState.acceptOrder(orderId);
 				toast.success('Order accepted! Navigating to details...');
 				this.hideModal();
+
+				// Navigate to active delivery page
+				await import('$app/navigation').then(({ goto }) => {
+					goto('/rider/deliveries/active');
+				});
 			} else {
 				console.error('❌ OrderAcceptanceState: Accept request failed:', response.status);
 				const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
