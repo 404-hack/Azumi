@@ -5,6 +5,7 @@ import {
   WorkflowStepEvent,
 } from "cloudflare:workers";
 import { PushNotificationService } from "../services/push-notification.service";
+import { RiderDispatchService } from "../services/riderDispatch.service";
 import { createClient } from "../lib/db";
 import { env } from "cloudflare:workers";
 import {
@@ -197,20 +198,15 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
         console.log(
           `✅ [WORKFLOW-VENDOR] Vendor notified successfully for order: ${params.orderId}`
-        );
-      } else if (paymentResult.type === "payment_failed") {
+        );      } else if (paymentResult.type === "payment_failed") {
         console.log(
           `❌ [WORKFLOW-PAYMENT] Payment failed for order: ${params.orderId}`
         );
         console.log(
           `❌ [WORKFLOW-PAYMENT] Failure reason:`,
-          paymentResult.payload.reason
+          paymentResult.payload || "No reason provided"
         );
 
-        // Notify customer about payment failure
-        console.log(
-          `📢 [WORKFLOW-CUSTOMER] Notifying customer about payment failure for order: ${params.orderId}`
-        );
         await this.notifyCustomer(
           {
             id: params.orderId,
@@ -224,9 +220,8 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           `✅ [WORKFLOW-CUSTOMER] Customer notified about payment failure for order: ${params.orderId}`
         );
 
-        // End workflow execution for failed payment
         throw new Error(
-          `Payment failed for order ${params.orderId}: ${paymentResult.payload.reason}`
+          `Payment failed for order ${params.orderId}: ${paymentResult.payload || "Unknown error"}`
         );
       }
     } catch (error) {
@@ -517,14 +512,6 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       params
     );
   }
-
-  /**
-   * Process refund for cancelled order
-   */
-  private async processRefund(params: OrderParams): Promise<void> {
-    console.log(`Processing refund for order: ${params.orderId}`);
-    // Would integrate with payment gateway's refund API
-  }
   /**
    * Phase 3: Wait for vendor to prepare order and mark as ready
    */
@@ -551,45 +538,160 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       },
       params
     );
-  }
-  /**
+  }  /**
    * Phase 4: Assign rider for delivery
    */
   private async assignRider(
     params: OrderParams,
     step: WorkflowStep
   ): Promise<any> {
-    console.log(`Finding suitable rider for order: ${params.orderId}`); // This would trigger rider selection algorithm
-    // Wait for rider assignment event (initiated by system)
-    const riderAssignment = (await step.waitForEvent("rider_assigned", {
-      type: "rider_assigned",
-      timeout: "30 minutes",
-    })) as WorkflowStepEvent<{
-      orderId: string;
-      riderId: string;
-      timestamp: string;
-      estimatedPickupTime?: string;
-    }>;
+    console.log(`🚀 [RIDER-ASSIGNMENT] Finding suitable rider for order: ${params.orderId}`);
+    
+    try {
+      const riderAssignment = (await step.waitForEvent("rider_assigned", {
+        type: "rider_assigned", 
+        timeout: "30 minutes",
+      })) as WorkflowStepEvent<{
+        orderId: string;
+        riderId: string;
+        timestamp: string;
+        estimatedPickupTime?: string;
+      }>;
 
-    // Extract data from the event payload
-    const riderData = riderAssignment.payload;
-    console.log(
-      `Rider ${riderData.riderId} assigned to order: ${params.orderId}`
-    ); // Notify customer about rider assignment
-    await this.notifyCustomer(
-      {
-        id: params.orderId,
-        status: "RIDER_ASSIGNED",
-        updatedAt: new Date().toISOString(),
-        riderId: riderData.riderId,
-      },
-      params
-    );
+      const riderData = riderAssignment.payload;
+      console.log(
+        `✅ [RIDER-ASSIGNMENT] Rider ${riderData.riderId} assigned to order: ${params.orderId}`
+      );
 
-    // Notify assigned rider about their new delivery
-    await this.notifyAssignedRider(params, riderData.riderId);
+      await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: "RIDER_ASSIGNED", 
+          updatedAt: new Date().toISOString(),
+          riderId: riderData.riderId,
+        },
+        params
+      );
 
-    return riderAssignment;
+      await this.notifyAssignedRider(params, riderData.riderId);
+
+      return riderAssignment;
+    } catch (error) {
+      console.error(
+        `⏰ [RIDER-ASSIGNMENT] Timeout occurred for order ${params.orderId} after 30 minutes - no rider accepted`
+      );
+      
+      if (error instanceof Error && error.message.includes('timeout')) {
+        return await this.handleRiderAssignmentTimeout(params, step);
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Handle rider assignment timeout with fallback scenarios
+   */
+  private async handleRiderAssignmentTimeout(
+    params: OrderParams,
+    step: WorkflowStep
+  ): Promise<any> {
+    console.log(`🔄 [TIMEOUT-HANDLER] Starting timeout handling for order ${params.orderId}`);
+      try {
+      const db = createClient(env.DB);
+      const riderDispatchService = new RiderDispatchService();
+      
+      console.log(`📊 [TIMEOUT-HANDLER] Scenario 1: Attempting auto-assignment for order ${params.orderId}`);
+      const autoAssignResult = await riderDispatchService.autoAssignRider(params.orderId);
+      
+      if (autoAssignResult.success && autoAssignResult.riderId) {
+        console.log(
+          `✅ [TIMEOUT-HANDLER] Auto-assignment successful - rider ${autoAssignResult.riderId} assigned to order ${params.orderId}`
+        );
+        
+        await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: "RIDER_ASSIGNED",
+            updatedAt: new Date().toISOString(),
+            riderId: autoAssignResult.riderId,
+          },
+          params
+        );
+
+        await this.notifyAssignedRider(params, autoAssignResult.riderId);
+
+        return {
+          type: "rider_assigned",
+          payload: {
+            orderId: params.orderId,
+            riderId: autoAssignResult.riderId,
+            timestamp: new Date().toISOString(),
+            estimatedPickupTime: "15 minutes",
+            assignmentMethod: "auto_assigned_after_timeout"
+          }
+        };
+      }
+      
+      console.log(`⚠️ [TIMEOUT-HANDLER] Scenario 2: Auto-assignment failed, cancelling order ${params.orderId}`);
+      console.log(`📝 [TIMEOUT-HANDLER] Reason: ${autoAssignResult.message}`);
+        await db
+        .update(orderTable)
+        .set({
+          status: "CANCELLED",
+          cancelReason: "No riders available within 30-minute timeout",
+          canceledAt: new Date().toISOString()
+        })
+        .where(eq(orderTable.id, params.orderId));
+
+      await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: "CANCELLED",
+          updatedAt: new Date().toISOString(),
+        },
+        params
+      );
+
+      await this.processRefund(params);
+
+      console.log(`❌ [TIMEOUT-HANDLER] Order ${params.orderId} cancelled due to rider assignment timeout`);
+      
+      throw new Error(`Order ${params.orderId} cancelled: No riders available within timeout period`);
+      
+    } catch (timeoutError) {
+      console.error(
+        `💥 [TIMEOUT-HANDLER] Critical error during timeout handling for order ${params.orderId}:`,
+        timeoutError
+      );
+      throw timeoutError;
+    }
+  }
+
+  /**
+   * Process refund for cancelled order
+   */
+  private async processRefund(params: OrderParams): Promise<void> {
+    try {
+      console.log(`💰 [REFUND] Processing refund for order ${params.orderId}`);
+      
+      const pushNotificationService = new PushNotificationService();
+      await pushNotificationService.sendNotificationToUser(params.customerId, {
+        title: "🔄 Refund Processed",
+        body: `Your payment for order #${params.orderId.slice(-6)} has been refunded due to no available riders.`,
+        data: {
+          type: "refund_processed",
+          orderId: params.orderId,
+          refundReason: "no_riders_available",
+          action: "view_order_details",
+          link: `/orders/${params.orderId}`,
+        },
+      });
+
+      console.log(`✅ [REFUND] Refund notification sent for order ${params.orderId}`);
+    } catch (error) {
+      console.error(`❌ [REFUND] Failed to process refund for order ${params.orderId}:`, error);
+    }
   }
   /**
    * Notify assigned rider about their new delivery

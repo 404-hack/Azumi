@@ -1208,9 +1208,10 @@ const riderRoute = factory
     const db = c.get("db");
     const rider = c.get("rider");
     const riderId = rider?.id;
+    const userId = rider?.userId;
     const orderId = c.req.param("orderId");
 
-    if (!riderId) {
+    if (!riderId || !userId) {
       return c.json({ error: "Rider not found" }, 404);
     }
 
@@ -1226,29 +1227,25 @@ const riderRoute = factory
       if (!order) {
         return c.json({ error: "Order not available for pickup" }, 404);
       }
+      await db
+        .update(orderTable)
+        .set({
+          riderId: userId,
+          status: "RIDER_ASSIGNED",
+        })
+        .where(eq(orderTable.id, orderId));
 
-      await db.transaction(async (tx) => {
-        await tx
-          .update(orderTable)
-          .set({
-            riderId,
-            status: "RIDER_ASSIGNED",
-          })
-          .where(eq(orderTable.id, orderId));
-
-        await tx
-          .update(riderTable)
-          .set({
-            currentOrderId: orderId,
-          })
-          .where(eq(riderTable.id, riderId));
-      });
+      await db
+        .update(riderTable)
+        .set({
+          currentOrderId: orderId,
+        })
+        .where(eq(riderTable.id, riderId));
 
       // Update dispatch service
       const riderDispatchService = new RiderDispatchService();
       await riderDispatchService.updateRiderRealTimeStatus(c.env, riderId, {
         isAvailable: false,
-        isOnline: true,
       });
 
       return c.json({
