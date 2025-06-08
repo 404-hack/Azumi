@@ -44,6 +44,41 @@ async function getTokenIfPermissionGranted() {
 	return null;
 }
 
+function generateVendorSirenSound() {
+	try {
+		console.log('🚨 Generating loud siren sound for vendor order...');
+
+		if (typeof window !== 'undefined' && 'AudioContext' in window) {
+			const audioContext = new AudioContext();
+
+			// Create multiple overlapping siren sounds for maximum attention
+			for (let cycle = 0; cycle < 5; cycle++) {
+				setTimeout(() => {
+					const oscillator = audioContext.createOscillator();
+					const gainNode = audioContext.createGain();
+
+					oscillator.connect(gainNode);
+					gainNode.connect(audioContext.destination);
+
+					// Siren frequency sweep: 800Hz to 400Hz and back
+					oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+					oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
+					oscillator.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 1);
+
+					// Very loud volume
+					gainNode.gain.setValueAtTime(0.8, audioContext.currentTime);
+					gainNode.gain.exponentialRampToValueAtTime(0.1, audioContext.currentTime + 1);
+
+					oscillator.start(audioContext.currentTime);
+					oscillator.stop(audioContext.currentTime + 1);
+				}, cycle * 300);
+			}
+		}
+	} catch (error) {
+		console.warn('🚨 Error generating siren sound:', error);
+	}
+}
+
 export function createFCMStore() {
 	let token = $state<string | null>(null);
 	let notificationPermissionStatus = $state<NotificationPermission | null>(null);
@@ -128,13 +163,23 @@ export function createFCMStore() {
 		messageUnsubscribe = onMessage(messaging, (payload) => {
 			if (Notification.permission !== 'granted') return;
 
-			console.log('🔥 FOREGROUND notification received - showing toast only:', payload);
-
-			// Support both 'url' (vendor) and 'link' (rider) properties
+			console.log('🔥 FOREGROUND notification received - showing toast only:', payload); // Support both 'url' (vendor) and 'link' (rider) properties
 			const notificationUrl = payload.data?.url || payload.data?.link;
 			const notificationType = payload.data?.type;
 			const action = payload.data?.action;
 			const orderId = payload.data?.orderId;
+
+			// Play loud siren sound for vendor order notifications
+			if (notificationType === 'new_order' || notificationType === 'order_created') {
+				const isVendorOrder =
+					payload.data?.isVendorOrder === 'true' ||
+					payload.data?.category === 'vendor' ||
+					notificationType === 'new_order';
+
+				if (isVendorOrder) {
+					generateVendorSirenSound();
+				}
+			}
 
 			// Create action button based on notification type
 			let actionLabel = 'View';
@@ -196,6 +241,16 @@ export function createFCMStore() {
 			);
 			console.log('🔥 [FCM Store] isBlocked:', notificationPermissionStatus === 'denied');
 
+			// Listen for messages from service worker about vendor orders
+			if ('serviceWorker' in navigator) {
+				navigator.serviceWorker.addEventListener('message', (event) => {
+					if (event.data && event.data.type === 'VENDOR_ORDER_NOTIFICATION') {
+						console.log('🚨 [FCM Store] Received vendor order notification from service worker');
+						generateVendorSirenSound();
+					}
+				});
+			}
+
 			// Debug service worker registrations
 			if ('serviceWorker' in navigator) {
 				navigator.serviceWorker.getRegistrations().then((registrations) => {
@@ -211,7 +266,6 @@ export function createFCMStore() {
 			console.warn('🔥 [FCM Store] Notifications not supported in this browser');
 		}
 	}
-
 	function destroy() {
 		if (messageUnsubscribe) {
 			messageUnsubscribe();
@@ -286,6 +340,21 @@ export function createFCMStore() {
 			console.error('Error sending demo notification:', error);
 			return false;
 		}
+	}
+
+	async function sendVendorOrderDemo() {
+		return await sendDemoNotification({
+			title: 'New Vendor Order! 🚨',
+			body: 'Order #12345 - Customer is waiting for your response',
+			data: {
+				type: 'new_order',
+				isVendorOrder: 'true',
+				category: 'vendor',
+				orderId: '12345',
+				url: '/vendor/orders/12345',
+				action: 'view_order'
+			}
+		});
 	}
 	async function subscribeToTopic(topicName: string) {
 		try {
@@ -381,7 +450,6 @@ export function createFCMStore() {
 			setupMessageListener();
 		}
 	});
-
 	return {
 		get token() {
 			return token;
@@ -414,6 +482,7 @@ export function createFCMStore() {
 		destroy,
 		requestNotificationAndGetToken,
 		sendDemoNotification,
+		sendVendorOrderDemo,
 		subscribeToTopic,
 		unsubscribeFromTopic
 	};
