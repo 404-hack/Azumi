@@ -33,6 +33,13 @@ export const PAYMENT_STATUS = [
   "REVERSED",
 ] as const;
 
+export const REFUND_STATUS = [
+  "PENDING",
+  "PROCESSING",
+  "COMPLETED",
+  "FAILED",
+] as const;
+
 export const RIDER_APPLICATION_STATUS = [
   "DRAFT",
   "PENDING",

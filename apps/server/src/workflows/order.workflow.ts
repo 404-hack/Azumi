@@ -6,6 +6,7 @@ import {
 } from "cloudflare:workers";
 import { PushNotificationService } from "../services/push-notification.service";
 import { RiderDispatchService } from "../services/riderDispatch.service";
+import { PaystackService } from "../services/paystack.service";
 import { createClient } from "../lib/db";
 import { env } from "cloudflare:workers";
 import {
@@ -198,7 +199,8 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
         console.log(
           `✅ [WORKFLOW-VENDOR] Vendor notified successfully for order: ${params.orderId}`
-        );      } else if (paymentResult.type === "payment_failed") {
+        );
+      } else if (paymentResult.type === "payment_failed") {
         console.log(
           `❌ [WORKFLOW-PAYMENT] Payment failed for order: ${params.orderId}`
         );
@@ -538,18 +540,20 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       },
       params
     );
-  }  /**
+  } /**
    * Phase 4: Assign rider for delivery
    */
   private async assignRider(
     params: OrderParams,
     step: WorkflowStep
   ): Promise<any> {
-    console.log(`🚀 [RIDER-ASSIGNMENT] Finding suitable rider for order: ${params.orderId}`);
-    
+    console.log(
+      `🚀 [RIDER-ASSIGNMENT] Finding suitable rider for order: ${params.orderId}`
+    );
+
     try {
       const riderAssignment = (await step.waitForEvent("rider_assigned", {
-        type: "rider_assigned", 
+        type: "rider_assigned",
         timeout: "30 minutes",
       })) as WorkflowStepEvent<{
         orderId: string;
@@ -566,7 +570,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       await this.notifyCustomer(
         {
           id: params.orderId,
-          status: "RIDER_ASSIGNED", 
+          status: "RIDER_ASSIGNED",
           updatedAt: new Date().toISOString(),
           riderId: riderData.riderId,
         },
@@ -580,11 +584,11 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       console.error(
         `⏰ [RIDER-ASSIGNMENT] Timeout occurred for order ${params.orderId} after 30 minutes - no rider accepted`
       );
-      
-      if (error instanceof Error && error.message.includes('timeout')) {
+
+      if (error instanceof Error && error.message.includes("timeout")) {
         return await this.handleRiderAssignmentTimeout(params, step);
       }
-      
+
       throw error;
     }
   }
@@ -596,19 +600,25 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     params: OrderParams,
     step: WorkflowStep
   ): Promise<any> {
-    console.log(`🔄 [TIMEOUT-HANDLER] Starting timeout handling for order ${params.orderId}`);
-      try {
+    console.log(
+      `🔄 [TIMEOUT-HANDLER] Starting timeout handling for order ${params.orderId}`
+    );
+    try {
       const db = createClient(env.DB);
       const riderDispatchService = new RiderDispatchService();
-      
-      console.log(`📊 [TIMEOUT-HANDLER] Scenario 1: Attempting auto-assignment for order ${params.orderId}`);
-      const autoAssignResult = await riderDispatchService.autoAssignRider(params.orderId);
-      
+
+      console.log(
+        `📊 [TIMEOUT-HANDLER] Scenario 1: Attempting auto-assignment for order ${params.orderId}`
+      );
+      const autoAssignResult = await riderDispatchService.autoAssignRider(
+        params.orderId
+      );
+
       if (autoAssignResult.success && autoAssignResult.riderId) {
         console.log(
           `✅ [TIMEOUT-HANDLER] Auto-assignment successful - rider ${autoAssignResult.riderId} assigned to order ${params.orderId}`
         );
-        
+
         await this.notifyCustomer(
           {
             id: params.orderId,
@@ -628,19 +638,21 @@ export class OrderWorkflow extends WorkflowEntrypoint {
             riderId: autoAssignResult.riderId,
             timestamp: new Date().toISOString(),
             estimatedPickupTime: "15 minutes",
-            assignmentMethod: "auto_assigned_after_timeout"
-          }
+            assignmentMethod: "auto_assigned_after_timeout",
+          },
         };
       }
-      
-      console.log(`⚠️ [TIMEOUT-HANDLER] Scenario 2: Auto-assignment failed, cancelling order ${params.orderId}`);
+
+      console.log(
+        `⚠️ [TIMEOUT-HANDLER] Scenario 2: Auto-assignment failed, cancelling order ${params.orderId}`
+      );
       console.log(`📝 [TIMEOUT-HANDLER] Reason: ${autoAssignResult.message}`);
-        await db
+      await db
         .update(orderTable)
         .set({
           status: "CANCELLED",
           cancelReason: "No riders available within 30-minute timeout",
-          canceledAt: new Date().toISOString()
+          canceledAt: new Date().toISOString(),
         })
         .where(eq(orderTable.id, params.orderId));
 
@@ -655,10 +667,13 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
       await this.processRefund(params);
 
-      console.log(`❌ [TIMEOUT-HANDLER] Order ${params.orderId} cancelled due to rider assignment timeout`);
-      
-      throw new Error(`Order ${params.orderId} cancelled: No riders available within timeout period`);
-      
+      console.log(
+        `❌ [TIMEOUT-HANDLER] Order ${params.orderId} cancelled due to rider assignment timeout`
+      );
+
+      throw new Error(
+        `Order ${params.orderId} cancelled: No riders available within timeout period`
+      );
     } catch (timeoutError) {
       console.error(
         `💥 [TIMEOUT-HANDLER] Critical error during timeout handling for order ${params.orderId}:`,
@@ -667,30 +682,168 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       throw timeoutError;
     }
   }
-
   /**
    * Process refund for cancelled order
    */
   private async processRefund(params: OrderParams): Promise<void> {
     try {
       console.log(`💰 [REFUND] Processing refund for order ${params.orderId}`);
-      
-      const pushNotificationService = new PushNotificationService();
-      await pushNotificationService.sendNotificationToUser(params.customerId, {
-        title: "🔄 Refund Processed",
-        body: `Your payment for order #${params.orderId.slice(-6)} has been refunded due to no available riders.`,
-        data: {
-          type: "refund_processed",
-          orderId: params.orderId,
-          refundReason: "no_riders_available",
-          action: "view_order_details",
-          link: `/orders/${params.orderId}`,
+
+      if (!params.paymentTransactionId) {
+        console.warn(
+          `⚠️ [REFUND] No payment transaction ID found for order ${params.orderId}`
+        );
+        return;
+      }
+
+      const db = createClient(env.DB);
+      const order = await db.query.orderTable.findFirst({
+        where: eq(orderTable.id, params.orderId),
+        columns: {
+          id: true,
+          total: true,
+          status: true,
+          paymentStatus: true,
+          refundStatus: true,
+          refundReference: true,
         },
       });
 
-      console.log(`✅ [REFUND] Refund notification sent for order ${params.orderId}`);
+      if (!order) {
+        console.error(`❌ [REFUND] Order not found: ${params.orderId}`);
+        return;
+      }
+
+      if (order.refundStatus === "COMPLETED") {
+        console.log(`⚠️ [REFUND] Order ${params.orderId} already refunded`);
+        return;
+      }
+      if (order.paymentStatus !== "COMPLETED") {
+        console.log(
+          `⚠️ [REFUND] Order ${params.orderId} payment was not successful, skipping refund`
+        );
+        return;
+      }
+
+      const paystackService = new PaystackService();
+
+      await db
+        .update(orderTable)
+        .set({
+          refundStatus: "PROCESSING",
+        })
+        .where(eq(orderTable.id, params.orderId));
+
+      const refundResponse = await paystackService.refundTransaction(
+        params.paymentTransactionId,
+        order.total,
+        "NGN",
+        "Order cancelled - no riders available",
+        "Automatic refund due to order cancellation"
+      );
+
+      if (refundResponse.status && refundResponse.data) {
+        await db
+          .update(orderTable)
+          .set({
+            refundStatus: "COMPLETED",
+            refundReference: refundResponse.data.transaction.reference,
+            refundedAt: new Date().toISOString(),
+          })
+          .where(eq(orderTable.id, params.orderId));
+
+        console.log(
+          `✅ [REFUND] Paystack refund successful for order ${params.orderId}:`,
+          {
+            refundId: refundResponse.data.id,
+            refundAmount: refundResponse.data.amount,
+            refundReference: refundResponse.data.transaction.reference,
+          }
+        );
+
+        const pushNotificationService = new PushNotificationService();
+        await pushNotificationService.sendNotificationToUser(
+          params.customerId,
+          {
+            title: "🔄 Refund Processed",
+            body: `Your payment for order #${params.orderId.slice(-6)} has been refunded. Please allow 3-5 business days for the refund to reflect in your account.`,
+            data: {
+              type: "refund_processed",
+              orderId: params.orderId,
+              refundReference: refundResponse.data.transaction.reference,
+              refundAmount: refundResponse.data.amount.toString(),
+              action: "view_order_details",
+              link: `/orders/${params.orderId}`,
+            },
+          }
+        );
+
+        console.log(
+          `✅ [REFUND] Refund notification sent for order ${params.orderId}`
+        );
+      } else {
+        await db
+          .update(orderTable)
+          .set({
+            refundStatus: "FAILED",
+          })
+          .where(eq(orderTable.id, params.orderId));
+
+        console.error(
+          `❌ [REFUND] Paystack refund failed for order ${params.orderId}:`,
+          refundResponse.message
+        );
+
+        const pushNotificationService = new PushNotificationService();
+        await pushNotificationService.sendNotificationToUser(
+          params.customerId,
+          {
+            title: "⚠️ Refund Processing Issue",
+            body: `There was an issue processing your refund for order #${params.orderId.slice(-6)}. Our support team will contact you shortly.`,
+            data: {
+              type: "refund_failed",
+              orderId: params.orderId,
+              action: "contact_support",
+              link: `/support/orders/${params.orderId}`,
+            },
+          }
+        );
+      }
     } catch (error) {
-      console.error(`❌ [REFUND] Failed to process refund for order ${params.orderId}:`, error);
+      console.error(
+        `❌ [REFUND] Failed to process refund for order ${params.orderId}:`,
+        error
+      );
+
+      try {
+        const db = createClient(env.DB);
+        await db
+          .update(orderTable)
+          .set({
+            refundStatus: "FAILED",
+          })
+          .where(eq(orderTable.id, params.orderId));
+
+        const pushNotificationService = new PushNotificationService();
+        await pushNotificationService.sendNotificationToUser(
+          params.customerId,
+          {
+            title: "⚠️ Refund Processing Issue",
+            body: `There was an issue processing your refund for order #${params.orderId.slice(-6)}. Our support team will contact you shortly.`,
+            data: {
+              type: "refund_failed",
+              orderId: params.orderId,
+              action: "contact_support",
+              link: `/support/orders/${params.orderId}`,
+            },
+          }
+        );
+      } catch (notificationError) {
+        console.error(
+          `❌ [REFUND] Failed to send error notification for order ${params.orderId}:`,
+          notificationError
+        );
+      }
     }
   }
   /**

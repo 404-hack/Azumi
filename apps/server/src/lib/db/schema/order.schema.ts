@@ -2,7 +2,12 @@ import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 import { timestamps } from "./utils.schema";
 import { userTable } from "./auth.schema";
-import { ORDER_STATUS, PAYMENT_STATUS, PAYMENT_METHODS } from "../../constant";
+import {
+  ORDER_STATUS,
+  PAYMENT_STATUS,
+  PAYMENT_METHODS,
+  REFUND_STATUS,
+} from "../../constant";
 import { menuItemTable } from "./menu.schema";
 import { relations } from "drizzle-orm";
 import { shopTable } from "./shop.schema";
@@ -57,11 +62,12 @@ export const orderTable = sqliteTable("order", {
   pickedUpAt: text("picked_up_at"),
   deliveredAt: text("delivered_at"),
   canceledAt: text("canceled_at"),
-  cancelReason: text("cancel_reason"),
-
-  // Refund information
+  cancelReason: text("cancel_reason"), // Refund information
   refundAmount: real("refund_amount").default(0),
   refundReason: text("refund_reason"),
+  refundStatus: text("refund_status", { enum: REFUND_STATUS }),
+  refundReference: text("refund_reference"),
+  refundedAt: text("refunded_at"),
 
   ...timestamps,
 });
