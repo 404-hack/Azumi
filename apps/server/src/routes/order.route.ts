@@ -43,9 +43,6 @@ const orderRoute = factory
       const vendorId = c.req.query("vendorId");
       const customerId = c.req.query("customerId");
       const status = c.req.query("status");
-      const limit = Number(c.req.query("limit")) || 50;
-      const page = Number(c.req.query("page")) || 1;
-      const offset = (page - 1) * limit;
 
       // Base query conditions
       let whereConditions = [];
@@ -62,7 +59,7 @@ const orderRoute = factory
 
       // Filter by status if specified
       if (status) {
-        whereConditions.push(eq(orderTable.status, status));
+        whereConditions.push(eq(orderTable.status, status as any));
       }
 
       // If user is a vendor, only show their orders
@@ -81,28 +78,22 @@ const orderRoute = factory
         where: finalWhereCondition,
         with: {
           items: true,
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              address: true,
+              coverImage: true,
+              latitude: true,
+              longitude: true,
+            },
+          },
         },
         orderBy: [desc(orderTable.createdAt)],
-        limit,
-        offset,
       });
-
-      // Count total orders for pagination
-      const countResult = await db
-        .select({ count: db.fn.count() })
-        .from(orderTable)
-        .where(finalWhereCondition);
-
-      const totalCount = Number(countResult[0]?.count || 0);
 
       return c.json({
         data: orders,
-        pagination: {
-          total: totalCount,
-          page,
-          limit,
-          pages: Math.ceil(totalCount / limit),
-        },
       });
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -120,9 +111,9 @@ const orderRoute = factory
       if (!user) {
         return c.json({ error: "Unauthorized" }, 401);
       }
-
+      // paymentTransactionId
       const order = await db.query.orderTable.findFirst({
-        where: eq(orderTable.paymentTransactionId, id), // Query by paymentTransactionId
+        where: eq(orderTable.id, id), // Query by paymentTransactionId
         with: {
           items: {
             with: {
@@ -529,10 +520,10 @@ const orderRoute = factory
             .insert(orderItemTable)
             .values({
               orderId: order.id,
-              menuItemId: item.menuItem.id, // Corrected: Use ID from the resolved menuItem object
-              menuItemName: item.menuItem.name, // Corrected: Use name from the resolved menuItem object
+              menuItemId: item.menuItem!.id,
+              menuItemName: item.menuItem!.name,
               quantity: item.quantity,
-              unitPrice: Number(item.menuItem.price) || 0,
+              unitPrice: Number(item.menuItem!.price) || 0,
               totalPrice: Number(item.totalPrice) || 0,
               specialInstructions: item.specialInstructions || null,
             })
@@ -541,8 +532,8 @@ const orderRoute = factory
 
           console.log("[ORDER_ROUTE] Created order item:", {
             orderItemId: orderItem.id,
-            menuItemId: item.menuItem.id,
-            menuItemName: item.menuItem.name,
+            menuItemId: item.menuItem!.id,
+            menuItemName: item.menuItem!.name,
             quantity: item.quantity,
             totalPrice: item.totalPrice,
           });
@@ -554,11 +545,10 @@ const orderRoute = factory
             );
             await db.insert(orderItemOptionTable).values(
               item.options.map((cartOption) => ({
-                // cartOption is a cartItemOption from cart.items.options
                 orderItemId: orderItem.id,
-                optionId: cartOption.option.id, // Corrected: Use ID from the resolved option object within cartOption
+                optionId: cartOption.option!.id,
                 optionGroupId: cartOption.optionGroupId,
-                optionName: cartOption.option.name, // Corrected: Use name from the resolved option object within cartOption
+                optionName: cartOption.option!.name,
                 quantity: cartOption.quantity,
                 price: Number(cartOption.price) || 0,
               }))
@@ -667,14 +657,14 @@ const orderRoute = factory
         );
       }
 
-      const accessCodeData = await accessCodeRes.json();
+      const accessCodeData = (await accessCodeRes.json()) as any;
       console.log("[ORDER_ROUTE] Paystack response received:", {
-        status: accessCodeData.status,
-        hasAccessCode: !!accessCodeData.data?.access_code,
+        status: accessCodeData?.status,
+        hasAccessCode: !!accessCodeData?.data?.access_code,
         orderId: order.id,
       });
 
-      if (!accessCodeData.status || !accessCodeData.data?.access_code) {
+      if (!accessCodeData?.status || !accessCodeData?.data?.access_code) {
         console.error("[ORDER_ROUTE] Invalid Paystack response:", {
           accessCodeData,
           orderId: order.id,
@@ -696,7 +686,7 @@ const orderRoute = factory
         })
         .where(eq(orderTable.id, order.id));
 
-      const accessCode = accessCodeData.data.access_code;
+      const accessCode = accessCodeData?.data?.access_code;
 
       console.log("[ORDER_ROUTE] Starting order workflow");
 
@@ -820,7 +810,7 @@ const orderRoute = factory
     async (c) => {
       try {
         const { id } = c.req.param();
-        const { status, cancelReason } = c.req.valid("json"); // Include cancelReason
+        const { status, reason: cancelReason } = c.req.valid("json");
         const db = c.get("db");
 
         const user = c.get("user"); // Removed duplicate session declaration
@@ -985,7 +975,6 @@ const orderRoute = factory
               );
               console.log(`🔍 Environment check:`, {
                 hasEnv: !!env,
-                riderDispatchUrl: env?.RIDER_DISPATCH_URL,
                 durableObjectNamespace: !!env?.RIDER_DISPATCH,
               });
 
@@ -1022,7 +1011,7 @@ const orderRoute = factory
                       }
                     } else {
                       console.log(
-                        `❌ [REALTIME-DISPATCH] FAILED: ${dispatchResult.error} for order ${id}`
+                        `❌ [REALTIME-DISPATCH] FAILED for order ${id}`
                       );
                       console.log(
                         `🔄 [REALTIME-DISPATCH] Attempting fallback dispatch...`
@@ -1171,7 +1160,7 @@ const orderRoute = factory
       return c.json(
         {
           error: "Test dispatch failed",
-          details: error.message,
+          details: (error as any)?.message || String(error),
         },
         500
       );

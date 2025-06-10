@@ -569,6 +569,66 @@ const riderRoute = factory
       }
     }
   )
+  .get("/orders/current", async (c) => {
+    try {
+      const db = c.get("db");
+      const rider = c.get("rider");
+
+      if (!rider) {
+        return c.json({ error: "Rider not found" }, 404);
+      }
+
+      const currentOrder = await db.query.orderTable.findFirst({
+        where: and(
+          eq(orderTable.riderId, rider.userId),
+          inArray(orderTable.status, ["RIDER_ASSIGNED", "IN_TRANSIT"])
+        ),
+        with: {
+          customer: true,
+          shop: true,
+          items: true,
+        },
+      });
+
+      if (!currentOrder) {
+        return c.json({ data: null });
+      }
+
+      const formattedOrder = {
+        id: currentOrder.id,
+        status: currentOrder.status,
+        totalAmount: currentOrder.totalAmount,
+        createdAt: currentOrder.createdAt,
+        shop: {
+          id: currentOrder.shop?.id || "",
+          name: currentOrder.shop?.name || "",
+          phone: currentOrder.shop?.phoneNumber || "",
+          address: currentOrder.shop?.address || "",
+          latitude: currentOrder.shop?.latitude || 0,
+          longitude: currentOrder.shop?.longitude || 0,
+        },
+        customer: {
+          name: currentOrder.customer?.name || "",
+          phone: currentOrder.customer?.phoneNumber || "",
+          address: currentOrder.addressName || "",
+        },
+        items:
+          currentOrder.items?.map((item) => ({
+            id: item.id,
+            name: item.menuItemName,
+            quantity: item.quantity,
+            price: item.unitPrice,
+          })) || [],
+        deliveryNotes: currentOrder.deliveryNotes,
+        riderConfirmationCode: currentOrder.riderConfirmationCode,
+      };
+
+      return c.json({ data: formattedOrder });
+    } catch (error) {
+      console.error("Error fetching current delivery:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
 
   // Get computed todos for the rider
   .get("/todos", async (c) => {
@@ -1246,6 +1306,7 @@ const riderRoute = factory
       const riderDispatchService = new RiderDispatchService();
       await riderDispatchService.updateRiderRealTimeStatus(c.env, riderId, {
         isAvailable: false,
+        isOnline: true,
       });
 
       return c.json({

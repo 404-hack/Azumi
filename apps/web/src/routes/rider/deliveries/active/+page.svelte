@@ -5,6 +5,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Progress } from '$lib/components/ui/progress';
 	import { Input } from '$lib/components/ui/input';
+	import * as InputOTP from '$lib/components/ui/input-otp';
+
 	import { Label } from '$lib/components/ui/label';
 	import {
 		MapPin,
@@ -21,7 +23,7 @@
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
 	let { data } = $props();
-	let currentDelivery = $state<OrderDetails | null>(data.currentDelivery);
+	let currentDelivery = $derived<OrderDetails | null>(data.currentDelivery.data);
 	let isLoading = $state(false);
 	let elapsedTime = $state(0);
 	let timeInterval: NodeJS.Timeout;
@@ -127,16 +129,17 @@
 	}
 	async function markDelivered() {
 		if (!currentDelivery || isLoading) return;
+		console.log('🚀 ~ markDelivered ~ confirmationCode:', confirmationCode);
 
 		if (!showConfirmationInput) {
 			showConfirmationInput = true;
 			return;
 		}
 
-		if (!confirmationCode || confirmationCode.length !== 4) {
-			toast.error('Please enter the 4-digit confirmation code');
-			return;
-		}
+		// if (!confirmationCode) {
+		// 	toast.error('Please enter the 4-digit confirmation code');
+		// 	return;
+		// }
 
 		isLoading = true;
 		try {
@@ -168,7 +171,7 @@
 
 	function navigateToPickup() {
 		if (!currentDelivery) return;
-		const { latitude, longitude } = currentDelivery.pickupLocation;
+		const { latitude, longitude } = currentDelivery.shop;
 		const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
 		window.open(url, '_blank');
 	}
@@ -241,7 +244,7 @@
 						<div class="space-y-1">
 							<div class="font-medium">Pickup from {currentDelivery.shop.name}</div>
 							<div class="text-muted-foreground text-sm">
-								{currentDelivery.pickupLocation.address}
+								{currentDelivery.shop.address}
 							</div>
 							<div class="flex gap-2">
 								<Button size="sm" variant="outline" onclick={navigateToPickup}>
@@ -261,7 +264,7 @@
 						<div class="space-y-1">
 							<div class="font-medium">Deliver to {currentDelivery.customer.name}</div>
 							<div class="text-muted-foreground text-sm">
-								{currentDelivery.deliveryLocation.address}
+								{currentDelivery.customer.address}
 							</div>
 							<div class="flex gap-2">
 								<Button size="sm" variant="outline" onclick={navigateToDelivery}>
@@ -318,7 +321,7 @@
 				{#each currentDelivery.items as item}
 					<div class="flex items-center justify-between">
 						<div>
-							<div class="font-medium">{item.name}</div>
+							<!-- <div class="font-medium">{item.name}</div> -->
 							{#if item.specialInstructions}
 								<div class="text-muted-foreground text-sm">{item.specialInstructions}</div>
 							{/if}
@@ -359,14 +362,42 @@
 				{#if showConfirmationInput}
 					<div class="space-y-2">
 						<Label for="confirmationCode">Enter 4-digit confirmation code from customer:</Label>
-						<Input
+						<!-- <Input
 							id="confirmationCode"
 							type="number"
 							placeholder="1234"
 							bind:value={confirmationCode}
-							maxlength="4"
 							class="text-center font-mono text-lg"
-						/>
+						/> -->
+						<InputOTP.Root
+							maxlength={4}
+							bind:value={confirmationCode}
+							class="flex items-center justify-center gap-2"
+							type="tel"
+							inputmode="numeric"
+							pattern="[0-9]*"
+							autocomplete="one-time-code"
+						>
+							{#snippet children({ cells })}
+								<InputOTP.Group>
+									{#each cells.slice(0, 2) as cell}
+										<InputOTP.Slot
+											{cell}
+											class="border-input bg-background focus:border-primary focus:ring-primary h-10 w-10 rounded-md border text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:ring-1"
+										/>
+									{/each}
+								</InputOTP.Group>
+								<InputOTP.Separator class="text-muted-foreground">-</InputOTP.Separator>
+								<InputOTP.Group>
+									{#each cells.slice(2) as cell}
+										<InputOTP.Slot
+											{cell}
+											class="border-input bg-background focus:border-primary focus:ring-primary h-10 w-10 rounded-md border text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:ring-1"
+										/>
+									{/each}
+								</InputOTP.Group>
+							{/snippet}
+						</InputOTP.Root>
 					</div>
 				{/if}
 				<Button class="w-full" size="lg" onclick={markDelivered} disabled={isLoading}>
