@@ -21,14 +21,15 @@
 	import ProductModal from '$lib/components/modal/ProductModal.svelte';
 	import { getShopOpeningInfo } from '$lib/utils/shop.utils'; // Import the new utility function
 	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
-
 	let loading = $state(false);
 	let couponCode = '';
 	let { data } = $props(); // data no longer includes deliveryFee
 	let deliveryNotes = $state('');
 	let vendorNotes = $state('');
 	let deliveryFee = $state(0); // Use $state again for async updates
-	let serviceFee = $state(0);
+
+	// Calculate service fee: 10% of subtotal, capped at ₦1,000
+	let serviceFee = $derived(Math.min(Math.round(data.cart.subtotal * 0.1), 100000));
 
 	// Get information about when the shop will open today
 	const openingInfo = $derived(
@@ -64,7 +65,7 @@
 					const { reference, status, message, trxref } = transaction;
 					toast.success('Payment successful!');
 					if (status === 'success') {
-						await goto(`/checkout/${data.cart.shop.id}/confirmation/${trxref}`);
+						await goto(`/checkout/${data.cart.shop.id}/confirmation/${responseData?.data.orderId}`);
 					}
 				},
 				onCancel() {
@@ -170,7 +171,7 @@
 			<!-- Delivery Info -->
 			<div class="flex items-center">
 				<div class="flex items-center gap-2">
-					<Bike class="size-4 text-primary" />
+					<Bike class="text-primary size-4" />
 					{#if data.cart.shop.estimatedTime}
 						<span>{data.cart.shop.estimatedTime}</span>
 					{:else if data.cart.shop.distance !== undefined}
@@ -179,7 +180,7 @@
 				</div>
 				{#if data.cart.shop.distance !== undefined}
 					<div class="mx-2 flex items-center gap-2">
-						<MapPin class="size-4 text-primary" />
+						<MapPin class="text-primary size-4" />
 						<span>{data.cart.shop.distance} km</span>
 					</div>
 				{/if}
@@ -262,7 +263,7 @@
 									<span class="font-medium">
 										{activeLocation.current.name || 'Current Location'}
 									</span>
-									<span class="block text-sm text-muted-foreground">
+									<span class="text-muted-foreground block text-sm">
 										{activeLocation.current.address || 'No address set'}
 									</span>
 								</div>
@@ -334,12 +335,12 @@
 				<h4 class="font-display text-lg font-semibold tracking-wide md:text-2xl lg:text-3xl">
 					Promo code
 				</h4>
-				<p class="mb-2 mt-4 text-sm text-muted-foreground md:mb-4 md:mt-8">
+				<p class="text-muted-foreground mb-2 mt-4 text-sm md:mb-4 md:mt-8">
 					If you have an <span class="font-display font-medium capitalize text-black">Azumi</span> promo
 					code, enter it below to claim your benefits.
 				</p>
 				<form
-					class="flex w-full items-center rounded-md border-2 bg-white px-3 text-foreground focus-within:ring-2 focus-within:ring-primary md:max-w-lg"
+					class="text-foreground focus-within:ring-primary flex w-full items-center rounded-md border-2 bg-white px-3 focus-within:ring-2 md:max-w-lg"
 				>
 					<input
 						type="text"
@@ -358,13 +359,13 @@
 		<div class="relative z-10 mb-5 w-full lg:mt-[-7.5rem] lg:max-w-[400px]">
 			<div class="left-0 top-[1rem] flex w-full flex-col lg:sticky">
 				<div
-					class="flex flex-col gap-4 rounded border border-[#2021251f] bg-card p-3 lg:p-[1.5rem] lg:shadow-lg"
+					class="bg-card flex flex-col gap-4 rounded border border-[#2021251f] p-3 lg:p-[1.5rem] lg:shadow-lg"
 				>
-					<div class="mb-4 flex items-start gap-3 rounded-lg bg-green-100/50 p-4 text-foreground">
+					<div class="text-foreground mb-4 flex items-start gap-3 rounded-lg bg-green-100/50 p-4">
 						<Info class="mt-1 size-5 flex-shrink-0 text-green-500" />
 						<div>
 							<p class="font-semibold">Delivery includes PIN confirmation</p>
-							<p class="text-sm text-muted-foreground">
+							<p class="text-muted-foreground text-sm">
 								This helps ensure that your order is given to the right person
 							</p>
 						</div>
@@ -377,7 +378,7 @@
 							<p class="text-sm font-medium lg:text-base">
 								Subtotal ({data.cart.totalItems} items)
 							</p>
-							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
+							<span class="text-primary rounded-md px-2 py-1 text-sm font-medium lg:text-base">
 								{formatCurrency(data.cart.subtotal)}
 							</span>
 						</li>
@@ -387,37 +388,47 @@
 								<Popover.Root>
 									<Popover.Trigger>
 										<Button variant="ghost" size="icon-sm" class="h-5 w-5 rounded-full p-0">
-											<Info class="h-4 w-4 text-muted-foreground" />
+											<Info class="text-muted-foreground h-4 w-4" />
 											<span class="sr-only">Service fee information</span>
 										</Button>
 									</Popover.Trigger>
 									<Popover.Content class="w-80 p-4">
 										<div class="space-y-2">
 											<h4 class="font-medium leading-none">Service Fee</h4>
-											<p class="text-sm text-muted-foreground">
+											<p class="text-muted-foreground text-sm">
 												The service fee helps us maintain the platform and provide customer support.
 												This fee supports our operations to ensure a reliable and quality experience
 												for all users.
 											</p>
+											<div class="pt-2">
+												<a
+													href="/service-fee-info"
+													class="text-primary hover:text-primary/80 text-sm font-medium underline-offset-4 hover:underline"
+													target="_blank"
+													rel="noopener noreferrer"
+												>
+													See more details →
+												</a>
+											</div>
 										</div>
 									</Popover.Content>
 								</Popover.Root>
 							</div>
-							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
+							<span class="text-primary rounded-md px-2 py-1 text-sm font-medium lg:text-base">
 								<span class="text-muted-foreground line-through">₦500</span>
 								<span class="ml-2 text-green-600">{formatCurrency(serviceFee)}</span>
 							</span>
 						</li>
 						<li class="flex items-center justify-between">
 							<p class="text-sm font-medium lg:text-base">Delivery Fee</p>
-							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
+							<span class="text-primary rounded-md px-2 py-1 text-sm font-medium lg:text-base">
 								{formatCurrency(deliveryFee)}
 							</span>
 						</li>
 					</ul>
 					<div class="flex items-center justify-between">
 						<p class="text-sm font-medium lg:text-base">Total</p>
-						<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
+						<span class="text-primary rounded-md px-2 py-1 text-sm font-medium lg:text-base">
 							{formatCurrency(total)}
 						</span>
 					</div>

@@ -280,68 +280,20 @@ vendorPaymentRoute.get("/payment-methods", async (c) => {
 // Get vendor wallet balance
 vendorPaymentRoute.get("/wallet", async (c) => {
   try {
-    const shop = c.get("shop");
+    const user = c.get("user");
+    const { VendorPaymentService } = await import(
+      "../services/vendorPayment.service"
+    );
+    const vendorPaymentService = new VendorPaymentService();
 
-    // Calculate total vendor earnings from completed transactions
-    const totalEarningsResult = await db
-      .select({
-        total: sql`SUM(${transactionTable.amount})`.mapWith(Number),
-      })
-      .from(transactionTable)
-      .where(
-        and(
-          eq(transactionTable.userId, c.get("user").id),
-          eq(transactionTable.type, "CREDIT"),
-          eq(transactionTable.status, "COMPLETED")
-        )
-      )
-      .get();
-
-    // Calculate pending amount not yet processed
-    const pendingAmountResult = await db
-      .select({
-        total: sql`SUM(${transactionTable.amount})`.mapWith(Number),
-      })
-      .from(transactionTable)
-      .where(
-        and(
-          eq(transactionTable.userId, c.get("user").id),
-          eq(transactionTable.type, "CREDIT"),
-          eq(transactionTable.status, "PENDING")
-        )
-      )
-      .get();
-
-    // Calculate total withdrawals
-    const withdrawalsResult = await db
-      .select({
-        total: sql`SUM(${transactionTable.amount})`.mapWith(Number),
-      })
-      .from(transactionTable)
-      .where(
-        and(
-          eq(transactionTable.userId, c.get("user").id),
-          eq(transactionTable.type, "DEBIT"),
-          eq(transactionTable.status, "COMPLETED")
-        )
-      )
-      .get();
-
-    const totalEarnings = totalEarningsResult.total || 0;
-    const totalWithdrawals = withdrawalsResult.total || 0;
-    const pendingAmount = pendingAmountResult.total || 0;
-
-    // Calculate available balance
-    const balance = totalEarnings - totalWithdrawals;
+    const walletData = await vendorPaymentService.getVendorWalletBalance(
+      user.id,
+      c.get("db")
+    );
 
     return c.json({
       success: true,
-      data: {
-        balance,
-        pendingAmount,
-        totalEarnings,
-        totalWithdrawals,
-      },
+      data: walletData,
     });
   } catch (error) {
     console.error("Error fetching wallet balance:", error);
@@ -349,6 +301,38 @@ vendorPaymentRoute.get("/wallet", async (c) => {
       {
         success: false,
         message: "Failed to fetch wallet balance",
+      },
+      500
+    );
+  }
+});
+
+// Get vendor transaction history
+vendorPaymentRoute.get("/transactions", async (c) => {
+  try {
+    const user = c.get("user");
+    const limit = parseInt(c.req.query("limit") || "50");
+    const { VendorPaymentService } = await import(
+      "../services/vendorPayment.service"
+    );
+    const vendorPaymentService = new VendorPaymentService();
+
+    const transactions = await vendorPaymentService.getVendorTransactionHistory(
+      user.id,
+      c.get("db"),
+      limit
+    );
+
+    return c.json({
+      success: true,
+      data: transactions,
+    });
+  } catch (error) {
+    console.error("Error fetching transaction history:", error);
+    return c.json(
+      {
+        success: false,
+        message: "Failed to fetch transaction history",
       },
       500
     );

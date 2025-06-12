@@ -54,11 +54,11 @@ export const orderTable = sqliteTable("order", {
   deliveryFee: real("delivery_fee").default(0),
   serviceFee: real("service_fee").default(0),
   discount: real("discount").default(0),
-  total: real("total").notNull(),
-
-  // Timestamps for order progress
+  total: real("total").notNull(), // Timestamps for order progress
+  paymentConfirmedAt: text("payment_confirmed_at"),
   acceptedAt: text("accepted_at"),
   preparedAt: text("prepared_at"),
+  riderAssignedAt: text("rider_assigned_at"),
   pickedUpAt: text("picked_up_at"),
   deliveredAt: text("delivered_at"),
   canceledAt: text("canceled_at"),

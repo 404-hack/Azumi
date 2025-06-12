@@ -217,6 +217,7 @@ const orderRoute = factory
               active: true,
               status: true,
               name: true,
+              minimumOrderAmount: true,
             },
             with: {
               operatingHours: true,
@@ -427,6 +428,30 @@ const orderRoute = factory
 
       console.log("[ORDER_ROUTE] Calculated subtotal:", subtotal);
 
+      // 5. Check Minimum Order Amount
+      const minimumOrderAmount = cart.shop?.minimumOrderAmount || 0;
+
+      if (subtotal < minimumOrderAmount) {
+        console.log("[ORDER_ROUTE] Order below minimum amount:", {
+          subtotal,
+          minimumOrderAmount,
+          shopId: cart.shop.id,
+          shopName: cart.shop.name,
+        });
+        return c.json(
+          {
+            error: `Sorry, the minimum order amount for "${cart.shop.name}" is ₦${minimumOrderAmount.toLocaleString()}. Your current order total is ₦${subtotal.toLocaleString()}. Please add more items to proceed.`,
+          },
+          400
+        );
+      }
+
+      console.log("[ORDER_ROUTE] Order meets minimum amount requirement:", {
+        subtotal,
+        minimumOrderAmount,
+        shopName: cart.shop.name,
+      });
+
       let deliveryFee = 0;
       const shopLat = cart.shop?.latitude;
       const shopLng = cart.shop?.longitude;
@@ -461,7 +486,7 @@ const orderRoute = factory
         );
       }
 
-      const serviceFee = 0; // Example fee
+      const serviceFee = Math.min(Math.round(subtotal * 0.1), 100000); // 10% of subtotal, capped at ₦1,000
       const total = subtotal + deliveryFee + serviceFee - data.discount;
 
       console.log("[ORDER_ROUTE] Final totals:", {
@@ -603,7 +628,7 @@ const orderRoute = factory
       const frontendBaseUrl = "http://localhost:5173"; // Example: Use env var in production
       const callbackUrl = `${frontendBaseUrl}/checkout/callback`; // Redirect URL after payment attempt
 
-      const reference = `ORD-${order.id}-${nanoid(6)}`; // Generate unique reference
+      const reference = `ORD-${nanoid(10)}`; // Generate unique reference
 
       console.log("[ORDER_ROUTE] Initializing Paystack payment:", {
         orderId: order.id,
@@ -658,6 +683,7 @@ const orderRoute = factory
       }
 
       const accessCodeData = (await accessCodeRes.json()) as any;
+      console.log("🚀 ~ .post ~ accessCodeData:", accessCodeData);
       console.log("[ORDER_ROUTE] Paystack response received:", {
         status: accessCodeData?.status,
         hasAccessCode: !!accessCodeData?.data?.access_code,
@@ -891,6 +917,12 @@ const orderRoute = factory
         switch (status) {
           case "CONFIRMED":
             updateData.acceptedAt = nowISO;
+            break;
+          case "READY":
+            updateData.preparedAt = nowISO;
+            break;
+          case "RIDER_ASSIGNED":
+            updateData.riderAssignedAt = nowISO;
             break;
           // "PREPARING" case removed
           case "IN_TRANSIT":

@@ -166,13 +166,13 @@ async function handleSuccessfulPayment(
       orderId: order.id,
       reference,
     });
-
     await db
       .update(orderTable)
       .set({
         paymentStatus: "COMPLETED",
         status: "PAYMENT_CONFIRMED", // Indicates payment is done, workflow will handle next steps
         paymentMethod: paymentChannel.toUpperCase(),
+        paymentConfirmedAt: new Date().toISOString(), // Set payment confirmation timestamp
         // acceptedAt: new Date().toISOString(), // This might be better set when vendor accepts
       })
       .where(eq(orderTable.id, order.id));

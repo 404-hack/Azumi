@@ -9,7 +9,8 @@
 		Clock,
 		Package,
 		User,
-		Receipt
+		Receipt,
+		Bike
 	} from 'lucide-svelte';
 
 	import { formatCurrency, formatDate, formatTime } from '$lib/utils';
@@ -253,6 +254,56 @@
 				{/each}
 			</div>
 		</div>
+
+		<!-- Rider Information (shown when rider is assigned) -->
+		{#if order.rider && (order.status === 'RIDER_ASSIGNED' || order.status === 'IN_TRANSIT')}
+			<div class="rounded-lg bg-white p-4 shadow-sm">
+				<h2 class="mb-3 flex items-center gap-2 font-semibold text-gray-900">
+					<Bike class="text-primary h-4 w-4" />
+					Assigned Rider
+				</h2>
+				<div class="space-y-3">
+					<div class="flex items-center justify-between">
+						<div class="flex-1">
+							<div class="font-medium text-gray-900">{order.rider?.name || 'Rider'}</div>
+							<div class="text-sm text-gray-500">
+								{order.rider?.phoneNumber || 'No phone number'}
+							</div>
+							{#if order.riderAssignedAt}
+								<div class="text-sm text-blue-600">
+									Assigned at: {formatTime(order.riderAssignedAt)}
+								</div>
+							{/if}
+						</div>
+						{#if order.rider?.phoneNumber}
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() => window.open(`tel:${order.rider.phoneNumber}`)}
+								class="shrink-0"
+							>
+								<Phone class="mr-1 h-4 w-4" />
+								Call Rider
+							</Button>
+						{/if}
+					</div>
+					{#if order.status === 'IN_TRANSIT'}
+						<div class="border-primary/20 bg-primary/5 rounded-md border p-3">
+							<div class="flex items-start gap-2">
+								<Bike class="text-primary mt-0.5 h-4 w-4 shrink-0" />
+								<div class="flex-1">
+									<div class="text-primary text-sm font-medium">Order is on the way!</div>
+									<div class="mt-1 text-sm text-gray-700">
+										The rider has picked up the order and is heading to the customer.
+									</div>
+								</div>
+							</div>
+						</div>
+					{/if}
+				</div>
+			</div>
+		{/if}
+
 		<!-- Customer & Delivery Info -->
 		<div class="rounded-lg bg-white p-4 shadow-sm">
 			<h2 class="mb-3 flex items-center gap-2 font-semibold text-gray-900">
@@ -275,7 +326,7 @@
 							class="shrink-0"
 						>
 							<Phone class="mr-1 h-4 w-4" />
-							Call
+							Call Customer
 						</Button>
 					{/if}
 				</div>
@@ -331,17 +382,26 @@
 				</div>
 			</div>
 		</div>
-
 		<!-- Timeline (Historical Info) -->
-		{#if order.acceptedAt}
+		{#if order.acceptedAt || order.riderAssignedAt}
 			<div class="rounded-lg bg-white p-4 shadow-sm">
 				<h2 class="mb-3 flex items-center gap-2 font-semibold text-gray-900">
 					<Clock class="h-4 w-4 text-gray-500" />
 					Timeline
 				</h2>
-				<div class="flex items-center gap-2 text-sm text-gray-600">
-					<div class="h-2 w-2 rounded-full bg-gray-400"></div>
-					<span>Order accepted at: {order.acceptedAt ? formatTime(order.acceptedAt) : 'N/A'}</span>
+				<div class="space-y-2">
+					{#if order.acceptedAt}
+						<div class="flex items-center gap-2 text-sm text-gray-600">
+							<div class="h-2 w-2 rounded-full bg-gray-400"></div>
+							<span>Order accepted at: {formatTime(order.acceptedAt)}</span>
+						</div>
+					{/if}
+					{#if order.riderAssignedAt}
+						<div class="flex items-center gap-2 text-sm text-gray-600">
+							<div class="bg-primary h-2 w-2 rounded-full"></div>
+							<span>Rider assigned at: {formatTime(order.riderAssignedAt)}</span>
+						</div>
+					{/if}
 				</div>
 			</div>
 		{/if}

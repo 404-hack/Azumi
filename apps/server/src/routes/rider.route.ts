@@ -222,15 +222,14 @@ const riderRoute = factory
         // const { accept } = c.req.valid("json"); // No longer needed
         const db = c.get("db");
         const userId = c.get("userId"); // This is the ID of the accepting rider
-        const honoEnv = env;
-
-        // Atomically update the order to assign the rider and change status
+        const honoEnv = env; // Atomically update the order to assign the rider and change status
         // This ensures only the first rider to accept gets the order.
         const result = await db
           .update(orderTable)
           .set({
             riderId: userId,
             status: "RIDER_ASSIGNED", // New status
+            riderAssignedAt: new Date().toISOString(), // Set rider assignment timestamp
             // Optionally set pickedUpAt: null if you want to clear it on re-assignment
           })
           .where(
@@ -366,7 +365,31 @@ const riderRoute = factory
           status: orderTable.status,
         })
         .get();
-      console.log(`Rider ${userId} picked up order ${id}`);
+      console.log(`Rider ${userId} picked up order ${id}`); // PROCESS VENDOR PAYMENT: Update vendor wallet balance on pickup
+      try {
+        const { VendorPaymentService } = await import(
+          "../services/vendorPayment.service"
+        );
+        const vendorPaymentService = new VendorPaymentService();
+
+        const paymentResult = await vendorPaymentService.processPickupPayment(
+          id,
+          db
+        );
+
+        if (paymentResult.success) {
+          console.log(`✅ Vendor payment processed for order ${id}:`, {
+            transactionId: paymentResult.transactionId,
+          });
+        } else {
+          console.error(
+            `❌ Failed to process vendor payment for order ${id}:`,
+            paymentResult.error
+          );
+        }
+      } catch (vendorPaymentError) {
+        console.error("Error processing vendor payment:", vendorPaymentError);
+      }
 
       // WORKFLOW: Notify workflow about pickup
       if (updatedOrder) {
@@ -1292,6 +1315,7 @@ const riderRoute = factory
         .set({
           riderId: userId,
           status: "RIDER_ASSIGNED",
+          riderAssignedAt: new Date().toISOString(), // Set rider assignment timestamp
         })
         .where(eq(orderTable.id, orderId));
 

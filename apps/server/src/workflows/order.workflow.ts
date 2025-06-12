@@ -845,8 +845,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         );
       }
     }
-  }
-  /**
+  } /**
    * Notify assigned rider about their new delivery
    */
   private async notifyAssignedRider(
@@ -855,14 +854,17 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   ): Promise<void> {
     try {
       const pushNotificationService = new PushNotificationService();
+      const riderEarnings = Math.round(params.deliveryFee * 0.7);
 
       await pushNotificationService.sendNotificationToUser(riderId, {
         title: "🎉 New Delivery Assigned!",
-        body: `You've been assigned order #${params.orderId.slice(-6)}. Please head to the pickup location.`,
+        body: `Order #${params.orderId.slice(-6)} - Delivery: ₦${params.deliveryFee.toLocaleString()}, Your earnings: ₦${riderEarnings.toLocaleString()}`,
         data: {
           type: "delivery_assigned",
           orderId: params.orderId,
           shopId: params.shopId,
+          deliveryFee: params.deliveryFee.toString(),
+          riderEarnings: riderEarnings.toString(),
           action: "start_pickup",
           link: `/rider/orders/${params.orderId}/pickup`,
         },
@@ -930,7 +932,6 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       params
     );
   }
-
   /**
    * Process payment settlements to vendor and rider
    */
@@ -940,9 +941,36 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   ): Promise<void> {
     console.log(`Processing payment settlements for order: ${params.orderId}`);
 
-    // Calculate vendor payout (total minus platform fee and rider fee)
-    // Process vendor payout
-    // Process rider payout
+    await step.do("process-rider-earnings", async () => {
+      try {
+        const { RiderPaymentService } = await import(
+          "../services/riderPayment.service"
+        );
+        const riderPaymentService = new RiderPaymentService();
+        const db = createClient(env.DB);
+
+        const paymentResult = await riderPaymentService.processDeliveryPayment(
+          params.orderId,
+          db
+        );
+
+        if (paymentResult.success) {
+          console.log(
+            `✅ Rider payment processed for order ${params.orderId}:`,
+            {
+              transactionId: paymentResult.transactionId,
+            }
+          );
+        } else {
+          console.error(
+            `❌ Failed to process rider payment for order ${params.orderId}:`,
+            paymentResult.error
+          );
+        }
+      } catch (error) {
+        console.error("Error processing rider payment:", error);
+      }
+    });
   }
   /**
    * Request customer feedback after delivery
