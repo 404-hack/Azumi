@@ -149,6 +149,7 @@ const cartRoute = factory
               logo: true,
               slug: true,
               coverImage: true,
+              minimumOrderAmount: true,
             },
           },
         },
@@ -168,6 +169,7 @@ const cartRoute = factory
               slug: cart.shop.slug,
               logo: cart.shop.logo,
               coverImage: cart.shop.coverImage,
+              minimumOrderAmount: cart.shop.minimumOrderAmount || 0,
             }
           : {
               id: "unknown",
@@ -327,6 +329,7 @@ const cartRoute = factory
                 addressName: true,
                 address: true,
                 active: true,
+                minimumOrderAmount: true,
               },
               with: {
                 operatingHours: true, // Fetch operating hours
@@ -775,6 +778,7 @@ const cartRoute = factory
               logo: true,
               slug: true,
               coverImage: true,
+              minimumOrderAmount: true,
             },
           },
         },
@@ -879,6 +883,7 @@ const cartRoute = factory
           slug: finalCartState.shop.slug,
           logo: finalCartState.shop.logo,
           coverImage: finalCartState.shop.coverImage,
+          minimumOrderAmount: finalCartState.shop.minimumOrderAmount || 0, // Ensure default value
         },
         items: finalCartState.items.map((item) => {
           if (!item.menuItem) {
@@ -1072,6 +1077,7 @@ const cartRoute = factory
                 logo: true,
                 slug: true,
                 coverImage: true,
+                minimumOrderAmount: true,
               },
             },
           },
@@ -1178,6 +1184,7 @@ const cartRoute = factory
             slug: finalCartState.shop.slug,
             logo: finalCartState.shop.logo,
             coverImage: finalCartState.shop.coverImage,
+            minimumOrderAmount: finalCartState.shop.minimumOrderAmount || 0,
           },
           items: finalCartState.items.map((item) => {
             if (!item.menuItem) {
@@ -1327,6 +1334,7 @@ const cartRoute = factory
                 logo: true,
                 slug: true,
                 coverImage: true,
+                minimumOrderAmount: true,
               },
             },
           },

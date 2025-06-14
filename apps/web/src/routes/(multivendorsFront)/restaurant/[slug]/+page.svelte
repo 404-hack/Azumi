@@ -289,7 +289,7 @@
 
 			<div class="flex items-center">
 				<div class="flex items-center gap-2">
-					<Bike class="size-4 text-primary" />
+					<Bike class="text-primary size-4" />
 					{#if data.restaurant.estimatedTime}
 						<span>{data.restaurant.estimatedTime}</span>
 					{:else if data.restaurant.distance !== undefined}
@@ -298,7 +298,7 @@
 				</div>
 				{#if data.restaurant.distance !== undefined}
 					<div class="mx-2 flex items-center gap-2">
-						<MapPin class="size-4 text-primary" />
+						<MapPin class="text-primary size-4" />
 						<span>{data.restaurant.distance} km</span>
 					</div>
 				{/if}
@@ -321,7 +321,14 @@
 					</div>
 				{/if}
 			</div>
-
+			{#if data.restaurant.minimumOrderAmount}
+				<div class="flex items-center gap-2">
+					<Info class="size-4" />
+					<span class="text-gray-600">
+						Min order: {formatCurrency(data.restaurant.minimumOrderAmount)}
+					</span>
+				</div>
+			{/if}
 			{#if data.restaurant.addressName || data.restaurant.address}
 				<div class="flex items-center gap-2">
 					<Info class="size-4" />
@@ -382,7 +389,7 @@
 						type="search"
 						bind:value={searchQuery}
 						placeholder="Search menu items..."
-						class="w-full rounded-lg border border-gray-200 bg-gray-50 py-3 pl-10 pr-4 text-sm placeholder-gray-500 outline-none transition-colors focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/10"
+						class="focus:border-primary focus:ring-primary/10 w-full rounded-lg border border-gray-200 bg-gray-50 py-3 pl-10 pr-4 text-sm placeholder-gray-500 outline-none transition-colors focus:bg-white focus:ring-2"
 					/>
 					<Search class="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
 					{#if searchQuery}
@@ -446,7 +453,7 @@
 						<p class="mb-4 text-gray-500">No menu items found matching "{searchQuery}"</p>
 						<button
 							onclick={clearSearch}
-							class="rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20"
+							class="bg-primary/10 text-primary hover:bg-primary/20 rounded-full px-4 py-2 text-sm font-medium"
 						>
 							Clear search
 						</button>
@@ -521,7 +528,7 @@
 					<!-- Address Info -->
 					<div class="p-4">
 						<h3 class="mb-3 flex items-center gap-2 font-medium text-gray-900">
-							<MapPin class="size-5 text-primary" />
+							<MapPin class="text-primary size-5" />
 							Address
 						</h3>
 						<p class="mb-3 text-gray-700">{data.restaurant.address || 'Address not available'}</p>
@@ -555,7 +562,7 @@
 				<!-- Operating Hours Card -->
 				<div class="overflow-hidden rounded-xl bg-white shadow-sm">
 					<div class="bg-primary/10 p-4">
-						<h3 class="flex items-center gap-2 font-medium text-primary">
+						<h3 class="text-primary flex items-center gap-2 font-medium">
 							<Clock class="size-5" />
 							Operating Hours
 						</h3>
@@ -596,7 +603,7 @@
 											{hour.day}
 										</span>
 										{#if hour.day === new Date().toLocaleDateString('en-US', { weekday: 'long' })}
-											<span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary"
+											<span class="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs"
 												>Today</span
 											>
 										{/if}
@@ -629,7 +636,7 @@
 												{day}
 											</span>
 											{#if day === new Date().toLocaleDateString('en-US', { weekday: 'long' })}
-												<span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary"
+												<span class="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs"
 													>Today</span
 												>
 											{/if}
@@ -652,7 +659,7 @@
 					class="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors hover:bg-gray-50"
 				>
 					<span class="flex items-center gap-2 font-medium text-gray-900">
-						<Info class="size-5 text-primary" />
+						<Info class="text-primary size-5" />
 						Additional Information
 					</span>
 					<div
@@ -787,13 +794,13 @@
 		<div class="fixed bottom-8 right-8 z-40">
 			<button
 				onclick={handleCartClick}
-				class="group flex w-full items-center gap-3 rounded-md bg-primary px-4 py-3 text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+				class="bg-primary focus:ring-primary group flex w-full items-center gap-3 rounded-md px-4 py-3 text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2"
 				in:fly={{ y: 50, duration: 300 }}
 			>
 				<div class="relative flex items-center">
 					<ShoppingCart class="size-6" />
 					<span
-						class="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-white text-xs font-bold text-primary"
+						class="text-primary absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-white text-xs font-bold"
 					>
 						{data.shopCart.totalItems}
 					</span>

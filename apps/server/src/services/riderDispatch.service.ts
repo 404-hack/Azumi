@@ -747,7 +747,7 @@ export class RiderDispatchService {
             address: deliveryAddress,
           },
           orderValue: orderValue,
-          deliveryFee: orderData.deliveryFee,
+          deliveryFee: Math.round(orderData.deliveryFee * 0.7),
           estimatedDistance: estimatedDistance,
           estimatedDuration: estimatedDuration,
           itemCount: itemCount,

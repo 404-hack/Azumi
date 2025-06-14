@@ -206,6 +206,16 @@
 				{/if}
 			</div>
 
+			<!-- Minimum Order -->
+			{#if data.cart.shop.minimumOrderAmount}
+				<div class="flex items-center gap-2">
+					<Info class="size-4" />
+					<span class="text-gray-600">
+						Min order: {formatCurrency(data.cart.shop.minimumOrderAmount)}
+					</span>
+				</div>
+			{/if}
+
 			<!-- Shop Address -->
 			{#if data.cart.shop.addressName || data.cart.shop.address}
 				<div class="flex items-center gap-2">
@@ -415,7 +425,7 @@
 								</Popover.Root>
 							</div>
 							<span class="text-primary rounded-md px-2 py-1 text-sm font-medium lg:text-base">
-								<span class="text-muted-foreground line-through">₦500</span>
+								<!-- <span class="text-muted-foreground line-through">₦500</span> -->
 								<span class="ml-2 text-green-600">{formatCurrency(serviceFee)}</span>
 							</span>
 						</li>

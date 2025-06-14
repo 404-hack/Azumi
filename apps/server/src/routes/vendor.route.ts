@@ -1096,8 +1096,7 @@ const vendorRoute = factory
         //   status: response.status,
         //   headers: response.headers,
         //   webSocket: response.webSocket,
-        // });
-        let query = db.query.orderTable.findMany({
+        // });        let query = db.query.orderTable.findMany({
           where: (orders, { eq, and }) => {
             const conditions = [eq(orders.shopId, orgId)];
             if (status) {
@@ -1108,6 +1107,13 @@ const vendorRoute = factory
 
           with: {
             customer: true,
+            shop: {
+              columns: {
+                id: true,
+                name: true,
+                commission: true,
+              },
+            },
             items: {
               columns: {
                 id: true,
@@ -1150,6 +1156,13 @@ const vendorRoute = factory
           and(eq(orders.id, id), eq(orders.shopId, orgId)),
         with: {
           customer: true,
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              commission: true,
+            },
+          },
           items: {
             columns: {
               id: true,
@@ -2261,6 +2274,7 @@ const vendorRoute = factory
 //             promotionId: id,
 //             productId: productId,
 //             createdAt: new Date(),
+
 //           }))
 //         );
 //       }

@@ -324,14 +324,17 @@ const riderRoute = factory
         return c.json({ error: "Internal server error" }, 500);
       }
     }
-  )
-  // Mark order as picked up
+  ) // Mark order as picked up
   .post("/orders/:id/pickup", async (c: Context) => {
     try {
       const { id } = c.req.param();
       const db = c.get("db");
       const userId = c.get("userId");
       const honoEnv = env;
+
+      console.log(
+        `[RIDER_PICKUP] Starting pickup process for order: ${id}, rider: ${userId}`
+      );
 
       // Verify this order is assigned to this rider
       const order = await db.query.orderTable.findFirst({
@@ -341,8 +344,18 @@ const riderRoute = factory
           eq(orderTable.status, "RIDER_ASSIGNED") // Rider can only pickup if RIDER_ASSIGNED
         ),
       });
+      console.log(`[RIDER_PICKUP] Order verification result:`, {
+        found: !!order,
+        orderId: order?.id,
+        currentStatus: order?.status,
+        assignedRider: order?.riderId,
+        requestingRider: userId,
+      });
 
       if (!order) {
+        console.log(
+          `[RIDER_PICKUP] Order verification failed for order: ${id}, rider: ${userId}`
+        );
         return c.json(
           {
             error:
@@ -351,6 +364,10 @@ const riderRoute = factory
           404
         );
       }
+
+      console.log(
+        `[RIDER_PICKUP] Order verification passed, updating status to IN_TRANSIT`
+      );
 
       // Update order status to IN_TRANSIT
       const updatedOrder = await db
@@ -365,30 +382,51 @@ const riderRoute = factory
           status: orderTable.status,
         })
         .get();
-      console.log(`Rider ${userId} picked up order ${id}`); // PROCESS VENDOR PAYMENT: Update vendor wallet balance on pickup
+      console.log(`[RIDER_PICKUP] Rider ${userId} picked up order ${id}`);
+
+      // PROCESS VENDOR PAYMENT: Update vendor wallet balance on pickup
       try {
+        console.log(
+          `[RIDER_PICKUP] Starting vendor payment processing for order ${id}`
+        );
+
         const { VendorPaymentService } = await import(
           "../services/vendorPayment.service"
         );
         const vendorPaymentService = new VendorPaymentService();
+
+        console.log(
+          `[RIDER_PICKUP] VendorPaymentService imported successfully`
+        );
 
         const paymentResult = await vendorPaymentService.processPickupPayment(
           id,
           db
         );
 
+        console.log(
+          `[RIDER_PICKUP] Payment result for order ${id}:`,
+          paymentResult
+        );
+
         if (paymentResult.success) {
-          console.log(`✅ Vendor payment processed for order ${id}:`, {
-            transactionId: paymentResult.transactionId,
-          });
+          console.log(
+            `[RIDER_PICKUP] ✅ Vendor payment processed successfully for order ${id}:`,
+            {
+              transactionId: paymentResult.transactionId,
+            }
+          );
         } else {
           console.error(
-            `❌ Failed to process vendor payment for order ${id}:`,
+            `[RIDER_PICKUP] ❌ Failed to process vendor payment for order ${id}:`,
             paymentResult.error
           );
         }
       } catch (vendorPaymentError) {
-        console.error("Error processing vendor payment:", vendorPaymentError);
+        console.error(
+          "[RIDER_PICKUP] Error processing vendor payment:",
+          vendorPaymentError
+        );
       }
 
       // WORKFLOW: Notify workflow about pickup

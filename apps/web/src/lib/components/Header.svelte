@@ -40,18 +40,18 @@
 </script>
 
 <header
-	class=" top-0 z-50 w-full border-b bg-background/95 backdrop-blur transition-all duration-200 supports-[backdrop-filter]:bg-background/60"
+	class=" bg-background/95 supports-[backdrop-filter]:bg-background/60 top-0 z-50 w-full border-b backdrop-blur transition-all duration-200"
 >
 	<div class="container flex h-16 w-full items-center justify-between gap-4">
 		<!-- Logo and Locatio`n -->
 		<div class="flex items-center gap-4">
 			<a href="/" class="flex items-center space-x-2">
 				<img src="/logo.png" alt="Azumi" class="size-10" />
-				<span class="hidden text-xl font-bold text-primary md:inline">Azumi</span>
+				<span class="text-primary hidden text-xl font-bold md:inline">Azumi</span>
 			</a>
 			{#if activeLocation.current.lat != 0 && activeLocation.current.lng != 0}
 				<button
-					class="group flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+					class="text-muted-foreground hover:text-primary group flex items-center gap-2 text-sm font-medium transition-colors"
 					aria-label="Change location"
 					onclick={() => {
 						addDeliveryAddressModalState.setTrue();
@@ -84,16 +84,15 @@
 				/>
 			</div>
 		</div> -->
-
 		<!-- User Navigation -->
 		<div class="flex items-center gap-3">
-			<!-- Order Sheet Button -->
+			<!-- Order Sheet Button - Hidden on mobile -->
 			{#if page.data.carts && page.data.carts.length}
 				<CartsSheet />
 				<Button
 					variant="outline"
 					size="icon"
-					class="relative  flex items-center gap-2"
+					class="relative hidden items-center gap-2 md:flex"
 					onclick={() => cartsSheetStore.setTrue()}
 				>
 					<ShoppingCart class="h-5 w-5" />
@@ -110,7 +109,7 @@
 					<DropdownMenu.Root>
 						<DropdownMenu.Trigger>
 							<button
-								class="flex items-center gap-1.5 rounded-full bg-background p-1 pr-2 text-white shadow-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+								class="bg-background focus-visible:ring-ring focus-visible:ring-offset-background flex items-center gap-1.5 rounded-full p-1 pr-2 text-white shadow-sm hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
 								aria-label="User menu"
 							>
 								<Avatar class="h-8 w-8">
@@ -133,6 +132,7 @@
 						<DropdownMenu.Content class="w-56" align="end">
 							<DropdownMenu.Label>My Account</DropdownMenu.Label>
 							<DropdownMenu.Separator />
+
 							<DropdownMenu.Item class="cursor-pointer p-3">
 								<a href="/me/personal-info" class="flex w-full items-center justify-between">
 									<div class="flex items-center gap-3">
@@ -148,16 +148,35 @@
 											</AvatarFallback>
 										</Avatar>
 										<div class="flex flex-col">
-											<span class="text-sm text-muted-foreground">Profile</span>
-											<span class="text-base font-semibold text-foreground"
+											<span class="text-muted-foreground text-sm">Profile</span>
+											<span class="text-foreground text-base font-semibold"
 												>{user.name ?? 'User Profile'}</span
 											>
 										</div>
 									</div>
 									<!-- Ensure ChevronRight is imported from lucide-svelte -->
-									<ChevronRight class="h-5 w-5 text-muted-foreground" />
+									<ChevronRight class="text-muted-foreground h-5 w-5" />
 								</a>
 							</DropdownMenu.Item>
+
+							<!-- Cart Button for Mobile -->
+							{#if page.data.carts && page.data.carts.length}
+								<DropdownMenu.Separator class="md:hidden" />
+								<DropdownMenu.Item
+									class="cursor-pointer md:hidden"
+									onclick={() => cartsSheetStore.setTrue()}
+								>
+									<div class="flex w-full items-center justify-between">
+										<div class="flex items-center gap-3">
+											<ShoppingCart class="h-4 w-4" />
+											<span>My Cart</span>
+										</div>
+										<Badge class="flex h-5 w-5 items-center justify-center rounded-full text-xs">
+											{page.data.carts.length}
+										</Badge>
+									</div>
+								</DropdownMenu.Item>
+							{/if}
 
 							{#if isAdmin}
 								<DropdownMenu.Separator />

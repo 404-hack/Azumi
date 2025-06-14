@@ -8,7 +8,7 @@ import { CloudflareBindings, Variables } from "../lib/types/app";
 import { eq, and, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { shopPaymentMethodTable } from "../lib/db/schema/shop.schema";
-import { transactionTable } from "../lib/db/schema/payment.schema";
+import { vendorTransactionTable } from "../lib/db/schema/payment.schema";
 
 // Schema validation
 const bankAccountVerifySchema = z.object({
