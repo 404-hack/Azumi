@@ -29,7 +29,7 @@
 	let deliveryFee = $state(0); // Use $state again for async updates
 
 	// Calculate service fee: 10% of subtotal, capped at ₦1,000
-	let serviceFee = $derived(Math.min(Math.round(data.cart.subtotal * 0.1), 100000));
+	let serviceFee = $derived(Math.min(Math.round(data.cart.subtotal * 0.1), 1000));
 
 	// Get information about when the shop will open today
 	const openingInfo = $derived(

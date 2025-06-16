@@ -1,5 +1,16 @@
 <script lang="ts">
-	import { Store, MapPin, Phone, Mail, Globe, Camera, Save, Loader2, Upload, Trash2 } from 'lucide-svelte';
+	import {
+		Store,
+		MapPin,
+		Phone,
+		Mail,
+		Globe,
+		Camera,
+		Save,
+		Loader2,
+		Upload,
+		Trash2
+	} from 'lucide-svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -16,6 +27,7 @@
 	import { toast } from 'svelte-sonner';
 	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
 	import type { Place } from '$lib/types/places.js';
+	import { useLocation } from '$lib/hooks/useLocation.svelte';
 	import { onDestroy } from 'svelte';
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 	// Get the form from the server
@@ -23,7 +35,14 @@
 
 	// Create the form using superForm
 	const form = superForm(
-		defaults({ ...data.profile, phoneNumber: data.profile.phoneNumber, website:data.profile.website || '' }, zod(updateShopSchema)),
+		defaults(
+			{
+				...data.profile,
+				phoneNumber: data.profile.phoneNumber,
+				website: data.profile.website || ''
+			},
+			zod(updateShopSchema)
+		),
 		{
 			validators: zod(updateShopSchema),
 			SPA: true, // Enable client-side form handling (SPA mode)
@@ -52,25 +71,31 @@
 	);
 	const { form: formData, delayed, submitting, enhance, errors } = form;
 
-	let isGettingLocation = $state(false);
+	const location = useLocation({
+		enableHighAccuracy: true,
+		timeout: 25000,
+		maximumAge: 0,
+		showToasts: true,
+		onLocationUpdate: (loc) => {
+			console.log('Location updated:', loc);
+		},
+		onError: (err) => {
+			console.error('Location error:', err);
+		}
+	});
 
 	async function useCurrentLocation() {
 		try {
-			isGettingLocation = true;
-			const position = await getCurrentPosition();
-			const { latitude, longitude } = position.coords;
+			const result = await location.getCurrentLocation();
 
-			const {address,name} = await reverseGeocode(latitude, longitude);
-			$formData.address = address;
-			$formData.latitude = latitude;
-			$formData.longitude = longitude;
-			$formData.addressName = name; // Update the addressName field with the address
-			toast.success('Location obtained successfully');
+			if (result) {
+				$formData.address = result.address;
+				$formData.latitude = result.coordinates.latitude;
+				$formData.longitude = result.coordinates.longitude;
+				$formData.addressName = result.name;
+			}
 		} catch (error: unknown) {
-			const errorMessage = error instanceof Error ? error.message : 'Failed to get location';
-			toast.error(errorMessage);
-		} finally {
-			isGettingLocation = false;
+			console.error('Location error:', error);
 		}
 	}
 
@@ -171,7 +196,7 @@
 			if (coverImageUrl && coverImageUrl.startsWith('http')) {
 				const res = await fetch(`${PUBLIC_API_BASE_URL}/api/vendor/cover-image`, {
 					method: 'DELETE',
-					credentials:'include'
+					credentials: 'include'
 				});
 
 				if (!res.ok) {
@@ -301,7 +326,6 @@
 										type="url"
 										bind:value={$formData.website}
 										placeholder="Enter website URL"
-										
 									/>
 								{/snippet}
 							</Form.Control>
@@ -339,9 +363,9 @@
 										variant="outline"
 										onclick={() => useCurrentLocation()}
 										class="mt-2 w-full"
-										disabled={isGettingLocation}
+										disabled={location.isLoading}
 									>
-										{#if isGettingLocation}
+										{#if location.isLoading}
 											<Loader2 class="mr-2 h-4 w-4 animate-spin" />
 											Getting location...
 										{:else}
@@ -370,14 +394,18 @@
 				</Card.Header>
 				<Card.Content>
 					<div class="space-y-4">
-						<div class="relative aspect-[21/9] w-full overflow-hidden rounded-lg border-2 border-dashed bg-gray-50">
+						<div
+							class="relative aspect-[21/9] w-full overflow-hidden rounded-lg border-2 border-dashed bg-gray-50"
+						>
 							{#if coverImagePreview}
 								<img
 									src={coverImagePreview}
 									alt="Banner Preview"
 									class="h-full w-full object-cover"
 								/>
-								<div class="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 opacity-0 transition-all hover:bg-black/40 hover:opacity-100">
+								<div
+									class="absolute inset-0 flex items-center justify-center gap-2 bg-black/0 opacity-0 transition-all hover:bg-black/40 hover:opacity-100"
+								>
 									<Button
 										type="button"
 										variant="destructive"

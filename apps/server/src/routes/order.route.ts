@@ -486,7 +486,7 @@ const orderRoute = factory
         );
       }
 
-      const serviceFee = Math.min(Math.round(subtotal * 0.1), 100000); // 10% of subtotal, capped at ₦1,000
+      const serviceFee = Math.min(Math.round(subtotal * 0.1), 1000); // 10% of subtotal, capped at ₦1,000
       const total = subtotal + deliveryFee + serviceFee - data.discount;
 
       console.log("[ORDER_ROUTE] Final totals:", {

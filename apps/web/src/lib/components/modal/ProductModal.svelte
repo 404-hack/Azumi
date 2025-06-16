@@ -661,7 +661,7 @@
 				{/if}
 				<div class="mt-2 flex items-center gap-2">
 					<p class="text-primary font-semibold">{formatCurrency(basePrice)}</p>
-					{#if product.priceDescription !== undefined && product.priceDescription}
+					{#if product.priceDescription}
 						<Badge variant="outline">{product.priceDescription}</Badge>
 					{/if}
 				</div>

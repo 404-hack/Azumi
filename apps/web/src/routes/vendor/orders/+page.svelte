@@ -24,7 +24,7 @@
 </script>
 
 <div class="container space-y-6 py-6">
-	<div class="flex items-center justify-between">
+	<div class="flex flex-wrap items-center justify-between">
 		<h1 class="text-3xl font-semibold">Orders</h1>
 		<div class="relative w-64">
 			<Search class="text-muted-foreground absolute left-2 top-2.5 h-4 w-4" />

@@ -18,7 +18,7 @@
 	import LoginModal from '$lib/components/modal/LoginModal.svelte';
 	import RegisterModal from '$lib/components/modal/RegisterModal.svelte';
 	import PlacesInput from '$lib/components/ui/places-input/places-input.svelte';
-	import { getCurrentPosition, reverseGeocode } from '$lib/utils/geolocation';
+	import { useLocation } from '$lib/hooks/useLocation.svelte';
 	import type { Place } from '$lib/types/places';
 	import { Loader2 } from 'lucide-svelte';
 
@@ -77,13 +77,23 @@
 			}
 		}
 	});
-
 	const { form: formData, enhance, delayed, capture, restore, submit } = form;
 
-	// Optional: Store coordinates for future use
+	const location = useLocation({
+		enableHighAccuracy: true,
+		timeout: 25000,
+		maximumAge: 0,
+		showToasts: true,
+		onLocationUpdate: (loc) => {
+			console.log('Location updated:', loc);
+		},
+		onError: (err) => {
+			console.error('Location error:', err);
+		}
+	});
+
 	let selectedLocation = $state<{ lat: number; lng: number } | null>(null);
 
-	// Function to handle place selection
 	function handlePlaceSelect(place: Place) {
 		if (place) {
 			$formData.address = place.address;
@@ -95,30 +105,22 @@
 		}
 	}
 
-	let isGettingLocation = $state(false);
-
 	async function useCurrentLocation() {
 		try {
-			isGettingLocation = true;
-			const position = await getCurrentPosition();
-			const { latitude, longitude } = position.coords;
+			const result = await location.getCurrentLocation();
 
-			selectedLocation = {
-				lat: latitude,
-				lng: longitude
-			};
-
-			const { address, name } = await reverseGeocode(latitude, longitude);
-			$formData.address = address;
-			$formData.latitude = latitude;
-			$formData.longitude = longitude;
-			$formData.addressName = name || address;
-			toast.success('Location obtained successfully');
+			if (result) {
+				$formData.address = result.address;
+				$formData.latitude = result.coordinates.latitude;
+				$formData.longitude = result.coordinates.longitude;
+				$formData.addressName = result.name;
+				selectedLocation = {
+					lat: result.coordinates.latitude,
+					lng: result.coordinates.longitude
+				};
+			}
 		} catch (error: unknown) {
-			const errorMessage = error instanceof Error ? error.message : 'Failed to get location';
-			toast.error(errorMessage);
-		} finally {
-			isGettingLocation = false;
+			console.error('Location error:', error);
 		}
 	}
 </script>
@@ -133,9 +135,9 @@
 
 <div class=" mx-auto max-w-3xl pt-12 md:px-4">
 	<div class="mb-10 text-center">
-		<Store class="mx-auto mb-6 size-16 text-primary" />
+		<Store class="text-primary mx-auto mb-6 size-16" />
 		<h1 class="font-display text-4xl font-bold tracking-tight md:text-5xl">Create Your Store</h1>
-		<p class="mt-3 text-lg text-muted-foreground">
+		<p class="text-muted-foreground mt-3 text-lg">
 			Join our marketplace and start selling to customers across Africa
 		</p>
 	</div>
@@ -233,15 +235,14 @@
 									Start typing to see address suggestions for locations across Nigeria.
 								</Form.Description>
 							</div>
-
 							<Button
 								type="button"
 								variant="outline"
 								onclick={() => useCurrentLocation()}
 								class="mt-2 w-full"
-								disabled={isGettingLocation}
+								disabled={location.isLoading}
 							>
-								{#if isGettingLocation}
+								{#if location.isLoading}
 									<Loader2 class="mr-2 h-4 w-4 animate-spin" />
 									Getting location...
 								{:else}
@@ -256,7 +257,7 @@
 			</Card.Content>
 
 			<Card.Footer class="flex flex-col space-y-4">
-				<p class="text-xs text-muted-foreground">
+				<p class="text-muted-foreground text-xs">
 					By creating a store, you agree to our Terms of Service and Privacy Policy. You must be at
 					least 18 years old to operate a store on our platform.
 				</p>

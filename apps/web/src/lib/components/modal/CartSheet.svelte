@@ -83,7 +83,7 @@
 						</span>
 					</div>
 
-					<Sheet.Close>
+					<Sheet.Close class="w-full">
 						<Button class="w-full" href="/checkout/{shopCart.shop.id}">Proceed to Checkout</Button>
 					</Sheet.Close>
 				</div>

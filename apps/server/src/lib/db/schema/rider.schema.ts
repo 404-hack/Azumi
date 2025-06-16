@@ -47,7 +47,7 @@ export const riderTable = sqliteTable("riders", {
   currentLat: real("current_lat"),
   currentLng: real("current_lng"),
   currentOrderId: text("current_order_id").references(() => orderTable.id, {
-    onDelete: "cascade",
+    onDelete: "set null",
   }),
   ...timestamps,
 });

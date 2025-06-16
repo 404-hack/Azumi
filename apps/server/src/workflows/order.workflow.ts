@@ -118,7 +118,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
       // PHASE 6: ORDER COMPLETION AND FEEDBACK
       // Process payment settlement to vendor and rider
-      await this.processPaymentSettlements(event.payload, step);
+      await this.processOrderPayouts(event.payload, step);
 
       // Request customer feedback
       await step.sleep("waitBeforeFeedbackRequest", "30 minutes");
@@ -1460,19 +1460,50 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       );
     });
   }
-
   /**
    * Process payment settlements to vendor and rider
-   */
-  private async processPaymentSettlements(
+   */ private async processOrderPayouts(
     params: OrderParams,
     step: WorkflowStep
   ): Promise<void> {
     console.log(`Processing payment settlements for order: ${params.orderId}`);
 
-    // Calculate vendor payout (total minus platform fee and rider fee)
-    // Process vendor payout
-    // Process rider payout
+    await step.do("process_rider_delivery_payment", async () => {
+      try {
+        const { RiderPaymentService } = await import(
+          "../services/riderPayment.service"
+        );
+        const riderPaymentService = new RiderPaymentService();
+
+        const db = createClient(env.DB);
+        const paymentResult = await riderPaymentService.processDeliveryPayment(
+          params.orderId,
+          db
+        );
+
+        if (paymentResult.success) {
+          console.log(
+            `✅ Rider payment processed successfully for order ${params.orderId}:`,
+            {
+              transactionId: paymentResult.transactionId,
+            }
+          );
+          return { success: true, transactionId: paymentResult.transactionId };
+        } else {
+          console.error(
+            `❌ Failed to process rider payment for order ${params.orderId}:`,
+            paymentResult.error
+          );
+          return { success: false, error: paymentResult.error };
+        }
+      } catch (error) {
+        console.error(
+          `Error processing rider payment for order ${params.orderId}:`,
+          error
+        );
+        return { success: false, error: "Failed to process rider payment" };
+      }
+    });
   }
   /**
    * Request customer feedback after delivery
@@ -1600,7 +1631,6 @@ export class OrderWorkflow extends WorkflowEntrypoint {
             action: "view_order",
           },
         };
-
       case "PENDING_VENDOR_RESPONSE":
         return {
           title: "Order Delay Notice ⏰",
@@ -1610,6 +1640,8 @@ export class OrderWorkflow extends WorkflowEntrypoint {
             orderId: order.id,
             status: order.status,
             action: "view_order",
+            link: `/me/order-history/${order.id}`,
+            sound: "order_delay.mp3",
           },
         };
 
