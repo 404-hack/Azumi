@@ -138,7 +138,6 @@
 			console.error('Error:', error);
 		}
 	}
-
 	async function testServiceWorkerNotification() {
 		try {
 			console.log('🔥 Testing service worker notification...');
@@ -163,6 +162,22 @@
 			}
 		} catch (error) {
 			toast.error('Service worker notification failed');
+			console.error('Error:', error);
+		}
+	}
+
+	async function testVendorOrderNotification() {
+		try {
+			console.log('🚨 Testing vendor order notification with siren...');
+			const success = await fcmStore.sendVendorOrderDemo();
+
+			if (success) {
+				toast.success('Vendor order notification sent! Check for siren sound.');
+			} else {
+				toast.error('Failed to send vendor order notification');
+			}
+		} catch (error) {
+			toast.error('Error sending vendor order notification');
 			console.error('Error:', error);
 		}
 	}
@@ -305,7 +320,6 @@
 						{/if}
 						Send Demo Notification (5s delay)
 					</Button>
-
 					<div class="grid grid-cols-1 gap-2 md:grid-cols-2">
 						<Button onclick={testBrowserNotification} variant="outline" class="w-full">
 							<Bell class="mr-2 h-4 w-4" />
@@ -317,6 +331,10 @@
 							Test Service Worker Notification
 						</Button>
 					</div>
+
+					<Button onclick={testVendorOrderNotification} variant="destructive" class="w-full">
+						🚨 Test Vendor Order Siren
+					</Button>
 				</div>
 			</CardContent>
 		</Card>
@@ -348,7 +366,7 @@
 						{/if}
 					</Button>
 				</div>
-				<div class="text-sm text-muted-foreground">
+				<div class="text-muted-foreground text-sm">
 					Topics allow you to receive notifications for specific categories or groups. Popular
 					topics: <Badge variant="outline">general</Badge>, <Badge variant="outline">orders</Badge>, <Badge
 						variant="outline">promotions</Badge

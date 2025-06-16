@@ -222,15 +222,14 @@ const riderRoute = factory
         // const { accept } = c.req.valid("json"); // No longer needed
         const db = c.get("db");
         const userId = c.get("userId"); // This is the ID of the accepting rider
-        const honoEnv = env;
-
-        // Atomically update the order to assign the rider and change status
+        const honoEnv = env; // Atomically update the order to assign the rider and change status
         // This ensures only the first rider to accept gets the order.
         const result = await db
           .update(orderTable)
           .set({
             riderId: userId,
             status: "RIDER_ASSIGNED", // New status
+            riderAssignedAt: new Date().toISOString(), // Set rider assignment timestamp
             // Optionally set pickedUpAt: null if you want to clear it on re-assignment
           })
           .where(
@@ -325,14 +324,17 @@ const riderRoute = factory
         return c.json({ error: "Internal server error" }, 500);
       }
     }
-  )
-  // Mark order as picked up
+  ) // Mark order as picked up
   .post("/orders/:id/pickup", async (c: Context) => {
     try {
       const { id } = c.req.param();
       const db = c.get("db");
       const userId = c.get("userId");
       const honoEnv = env;
+
+      console.log(
+        `[RIDER_PICKUP] Starting pickup process for order: ${id}, rider: ${userId}`
+      );
 
       // Verify this order is assigned to this rider
       const order = await db.query.orderTable.findFirst({
@@ -342,8 +344,18 @@ const riderRoute = factory
           eq(orderTable.status, "RIDER_ASSIGNED") // Rider can only pickup if RIDER_ASSIGNED
         ),
       });
+      console.log(`[RIDER_PICKUP] Order verification result:`, {
+        found: !!order,
+        orderId: order?.id,
+        currentStatus: order?.status,
+        assignedRider: order?.riderId,
+        requestingRider: userId,
+      });
 
       if (!order) {
+        console.log(
+          `[RIDER_PICKUP] Order verification failed for order: ${id}, rider: ${userId}`
+        );
         return c.json(
           {
             error:
@@ -352,6 +364,10 @@ const riderRoute = factory
           404
         );
       }
+
+      console.log(
+        `[RIDER_PICKUP] Order verification passed, updating status to IN_TRANSIT`
+      );
 
       // Update order status to IN_TRANSIT
       const updatedOrder = await db
@@ -366,7 +382,52 @@ const riderRoute = factory
           status: orderTable.status,
         })
         .get();
-      console.log(`Rider ${userId} picked up order ${id}`);
+      console.log(`[RIDER_PICKUP] Rider ${userId} picked up order ${id}`);
+
+      // PROCESS VENDOR PAYMENT: Update vendor wallet balance on pickup
+      try {
+        console.log(
+          `[RIDER_PICKUP] Starting vendor payment processing for order ${id}`
+        );
+
+        const { VendorPaymentService } = await import(
+          "../services/vendorPayment.service"
+        );
+        const vendorPaymentService = new VendorPaymentService();
+
+        console.log(
+          `[RIDER_PICKUP] VendorPaymentService imported successfully`
+        );
+
+        const paymentResult = await vendorPaymentService.processPickupPayment(
+          id,
+          db
+        );
+
+        console.log(
+          `[RIDER_PICKUP] Payment result for order ${id}:`,
+          paymentResult
+        );
+
+        if (paymentResult.success) {
+          console.log(
+            `[RIDER_PICKUP] ✅ Vendor payment processed successfully for order ${id}:`,
+            {
+              transactionId: paymentResult.transactionId,
+            }
+          );
+        } else {
+          console.error(
+            `[RIDER_PICKUP] ❌ Failed to process vendor payment for order ${id}:`,
+            paymentResult.error
+          );
+        }
+      } catch (vendorPaymentError) {
+        console.error(
+          "[RIDER_PICKUP] Error processing vendor payment:",
+          vendorPaymentError
+        );
+      }
 
       // WORKFLOW: Notify workflow about pickup
       if (updatedOrder) {
@@ -569,6 +630,66 @@ const riderRoute = factory
       }
     }
   )
+  .get("/orders/current", async (c) => {
+    try {
+      const db = c.get("db");
+      const rider = c.get("rider");
+
+      if (!rider) {
+        return c.json({ error: "Rider not found" }, 404);
+      }
+
+      const currentOrder = await db.query.orderTable.findFirst({
+        where: and(
+          eq(orderTable.riderId, rider.userId),
+          inArray(orderTable.status, ["RIDER_ASSIGNED", "IN_TRANSIT"])
+        ),
+        with: {
+          customer: true,
+          shop: true,
+          items: true,
+        },
+      });
+
+      if (!currentOrder) {
+        return c.json({ data: null });
+      }
+
+      const formattedOrder = {
+        id: currentOrder.id,
+        status: currentOrder.status,
+        totalAmount: currentOrder.totalAmount,
+        createdAt: currentOrder.createdAt,
+        shop: {
+          id: currentOrder.shop?.id || "",
+          name: currentOrder.shop?.name || "",
+          phone: currentOrder.shop?.phoneNumber || "",
+          address: currentOrder.shop?.address || "",
+          latitude: currentOrder.shop?.latitude || 0,
+          longitude: currentOrder.shop?.longitude || 0,
+        },
+        customer: {
+          name: currentOrder.customer?.name || "",
+          phone: currentOrder.customer?.phoneNumber || "",
+          address: currentOrder.addressName || "",
+        },
+        items:
+          currentOrder.items?.map((item) => ({
+            id: item.id,
+            name: item.menuItemName,
+            quantity: item.quantity,
+            price: item.unitPrice,
+          })) || [],
+        deliveryNotes: currentOrder.deliveryNotes,
+        riderConfirmationCode: currentOrder.riderConfirmationCode,
+      };
+
+      return c.json({ data: formattedOrder });
+    } catch (error) {
+      console.error("Error fetching current delivery:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
 
   // Get computed todos for the rider
   .get("/todos", async (c) => {
@@ -1208,9 +1329,10 @@ const riderRoute = factory
     const db = c.get("db");
     const rider = c.get("rider");
     const riderId = rider?.id;
+    const userId = rider?.userId;
     const orderId = c.req.param("orderId");
 
-    if (!riderId) {
+    if (!riderId || !userId) {
       return c.json({ error: "Rider not found" }, 404);
     }
 
@@ -1226,23 +1348,21 @@ const riderRoute = factory
       if (!order) {
         return c.json({ error: "Order not available for pickup" }, 404);
       }
+      await db
+        .update(orderTable)
+        .set({
+          riderId: userId,
+          status: "RIDER_ASSIGNED",
+          riderAssignedAt: new Date().toISOString(), // Set rider assignment timestamp
+        })
+        .where(eq(orderTable.id, orderId));
 
-      await db.transaction(async (tx) => {
-        await tx
-          .update(orderTable)
-          .set({
-            riderId,
-            status: "RIDER_ASSIGNED",
-          })
-          .where(eq(orderTable.id, orderId));
-
-        await tx
-          .update(riderTable)
-          .set({
-            currentOrderId: orderId,
-          })
-          .where(eq(riderTable.id, riderId));
-      });
+      await db
+        .update(riderTable)
+        .set({
+          currentOrderId: orderId,
+        })
+        .where(eq(riderTable.id, riderId));
 
       // Update dispatch service
       const riderDispatchService = new RiderDispatchService();

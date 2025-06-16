@@ -30,7 +30,6 @@
 		riderAccepted: false,
 		riderAtVendor: false
 	};
-
 	// Timeline steps data
 	const timelineSteps = [
 		{
@@ -58,6 +57,24 @@
 			description: 'Rider is waiting to pick up your order',
 			icon: Clock,
 			status: orderStatus.riderAtVendor
+		},
+		{
+			title: 'Order Picked Up',
+			description: 'Rider has collected your order and is on the way',
+			icon: Truck,
+			status: false
+		},
+		{
+			title: 'Out for Delivery',
+			description: 'Your order is on the way to you',
+			icon: Map,
+			status: false
+		},
+		{
+			title: 'Delivered',
+			description: 'Your order has been delivered. Enjoy your meal!',
+			icon: CheckCircle2,
+			status: false
 		}
 	];
 </script>
@@ -94,12 +111,11 @@
 		</a>
 		<h1 class="flex-1 text-center text-lg font-semibold">{data.order.customer.name}</h1>
 	</header>
-
 	<!-- Status message with phone illustration -->
 	<div class="flex items-center justify-between px-4 pb-5 pt-6">
 		<p class="text-sm text-gray-600">Your order will be confirmed shortly</p>
-		<div class="flex h-14 w-14 items-center justify-center rounded-full bg-green-50">
-			<Phone class="h-6 w-6 text-green-500" />
+		<div class="bg-primary/10 flex h-14 w-14 items-center justify-center rounded-full">
+			<Phone class="text-primary h-6 w-6" />
 		</div>
 	</div>
 	<!-- Confirmation code -->
@@ -130,32 +146,32 @@
 				<div class="relative mb-8 flex last:mb-0">
 					<div
 						class="z-10 flex h-10 w-10 items-center justify-center rounded-full {step.status
-							? 'bg-green-50'
+							? 'bg-primary/10'
 							: 'bg-gray-200'}"
 					>
 						<svelte:component
 							this={step.icon}
-							class="h-6 w-6 {step.status ? 'text-green-500' : 'text-gray-400'}"
+							class="h-6 w-6 {step.status ? 'text-primary' : 'text-gray-400'}"
 						/>
 					</div>
 					<div class="ml-4 flex-grow">
-						<h3 class="font-medium {step.status ? 'text-green-600' : 'text-gray-700'}">
+						<h3 class="font-medium {step.status ? 'text-primary' : 'text-gray-700'}">
 							{step.title}
 						</h3>
 						<p class="text-sm text-gray-600">{step.description}</p>
 						{#if step.time}
 							<div class="flex justify-between">
-								<p class="text-sm text-gray-500">{step.time}</p>
+								<p class="text-xs font-medium text-blue-600">{step.time}</p>
 							</div>
 						{/if}
-						{#if step.showCancelButton}
+						<!-- {#if step.showCancelButton}
 							<Button
 								variant="outline"
 								class="mt-3 h-10 w-full rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
 							>
 								Cancel Order
 							</Button>
-						{/if}
+						{/if} -->
 					</div>
 				</div>
 			{/each}
@@ -165,10 +181,10 @@
 	<div class="border-t border-gray-100 px-4 py-4">
 		<div class="mb-4 flex items-center justify-between">
 			<h2 class="font-medium">Delivery details</h2>
-			<Button variant="ghost" class="flex h-auto items-center gap-1 p-0 text-sm text-blue-500">
+			<!-- <Button variant="ghost" class="flex h-auto items-center gap-1 p-0 text-sm text-blue-500">
 				<Share2 class="h-4 w-4" />
 				Share trip
-			</Button>
+			</Button> -->
 		</div>
 
 		<div class="mb-4 flex gap-3">
@@ -178,11 +194,11 @@
 					{data.order.addressName}
 				</p>
 				<div class="flex justify-end">
-					<Button
+					<!-- <Button
 						variant="outline"
-						class="mt-1 h-8 border-green-50 bg-white text-sm text-green-600 hover:bg-white"
+						class="border-primary/20 text-primary hover:bg-primary/5 mt-1 h-8 bg-white text-sm"
 						>UPDATE</Button
-					>
+					> -->
 				</div>
 			</div>
 		</div>
@@ -194,11 +210,11 @@
 				<p class="mb-1 text-sm text-gray-800">Call when you arrive at the gate</p>
 				<p class="mb-1 text-sm text-gray-800">{data.order.deliveryNotes}</p>
 				<div class="flex justify-end">
-					<Button
+					<!-- <Button
 						variant="outline"
-						class="h-8 border-green-50 bg-white text-sm text-green-600 hover:bg-white"
+						class="border-primary/20 text-primary hover:bg-primary/5 h-8 bg-white text-sm"
 						>UPDATE</Button
-					>
+					> -->
 				</div>
 			</div>
 		</div>
@@ -281,13 +297,23 @@
 			{#if data.order.discount > 0}
 				<div class="flex justify-between">
 					<p class="text-sm text-gray-500">Discount</p>
-					<p class="text-sm text-green-600">-₦{data.order.discount.toLocaleString()}</p>
+					<p class="text-primary text-sm">-₦{data.order.discount.toLocaleString()}</p>
 				</div>
 			{/if}
 			<div class="flex justify-between border-t border-gray-100 pt-2">
 				<p class="font-medium">Total</p>
 				<p class="font-medium">₦{data.order.total.toLocaleString()}</p>
 			</div>
+		</div>
+
+		<!-- See Order Again Button -->
+		<div class="mt-6">
+			<Button
+				variant="outline"
+				class="border-primary/20 text-primary hover:bg-primary/5 h-12 w-full bg-white"
+			>
+				See Order Again
+			</Button>
 		</div>
 	</div>
 </div>

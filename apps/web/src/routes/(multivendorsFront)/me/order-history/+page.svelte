@@ -1,148 +1,127 @@
+<!-- filepath: c:\Users\HP\Documents\program\african-martket-monorepo\apps\web\src\routes\(multivendorsFront)\me\order-history\+page.svelte -->
 <script lang="ts">
-	import * as Table from '$lib/components/ui/table/index.js';
-	import * as Collapsible from '$lib/components/ui/collapsible';
-	import Button from '$lib/components/ui/button/button.svelte';
-	import { ChevronsUpDown, Star } from 'lucide-svelte';
-	import { page } from '$app/stores';
-	import { cn, formatCurrency } from '$lib/utils';
-	import { Badge } from '$lib/components/ui/badge';
+	import type { PageData } from './$types';
+	import { goto } from '$app/navigation';
 
-	const invoices = [
-		{
-			name: 'bugger and fries',
-			price: '400',
-			status: 'shipped'
-		},
-		{
-			name: 'bugger and fries',
-			price: '400',
-			status: 'shipped'
+	let { data }: { data: PageData } = $props();
+	let orderList = data.orderList;
+
+	function handleOrderClick(orderId: string) {
+		goto(`/me/order-history/${orderId}`);
+	}
+
+	function formatDate(dateString: string): string {
+		try {
+			const date = new Date(dateString);
+			if (isNaN(date.getTime())) {
+				return 'Date unavailable';
+			}
+			return new Intl.DateTimeFormat('en-US', {
+				day: 'numeric',
+				month: 'short',
+				year: 'numeric',
+				hour: '2-digit',
+				minute: '2-digit'
+			}).format(date);
+		} catch (error) {
+			return 'Date unavailable';
 		}
-	];
+	}
 
-	// You can toggle this to test both conditions
-	$: orderList = $page.data.user?.activeCustomer?.orders.items;
+	function getStatusText(status: string): string {
+		switch (status) {
+			case 'PENDING':
+				return 'Order Placed';
+			case 'PAYMENT_CONFIRMED':
+			case 'CONFIRMED':
+				return 'Confirmed';
+			case 'READY':
+				return 'Ready';
+			case 'RIDER_ASSIGNED':
+				return 'Rider Assigned';
+			case 'IN_TRANSIT':
+				return 'On the way';
+			case 'DELIVERED':
+			case 'COMPLETED':
+				return 'Delivered';
+			case 'CANCELLED':
+				return 'Cancelled';
+			default:
+				return status;
+		}
+	}
+
+	function getStatusColor(status: string): string {
+		switch (status) {
+			case 'PENDING':
+				return 'text-yellow-600';
+			case 'CONFIRMED':
+			case 'PAYMENT_CONFIRMED':
+				return 'text-blue-600';
+			case 'READY':
+				return 'text-purple-600';
+			case 'RIDER_ASSIGNED':
+			case 'IN_TRANSIT':
+				return 'text-orange-600';
+			case 'DELIVERED':
+			case 'COMPLETED':
+				return 'text-green-600';
+			case 'CANCELLED':
+				return 'text-red-600';
+			default:
+				return 'text-gray-600';
+		}
+	}
 </script>
 
-{#if orderList && orderList.length > 0}
-	{#each orderList as { code, orderPlacedAt, currencyCode, subTotalWithTax, state, lines }}
-		<Collapsible.Root class=" mb-2">
-			<div class="flex items-center bg-muted rounded-md p-5 justify-between">
-				<div class="flex flex-wrap items-center justify-between gap-3 md:gap-10">
-					<div class="">
-						<p class="font-medium text-sm capitalize">Date placed</p>
-						<p class="text-muted-foreground text-xs">
-							{new Intl.DateTimeFormat('en-US', {
-								year: 'numeric',
-								month: 'short',
-								day: '2-digit'
-							}).format(new Date(orderPlacedAt))}
-						</p>
+<div class="min-h-screen bg-gray-50">
+	<div class="mx-auto max-w-4xl px-4 py-6">
+		<h1 class="mb-6 text-2xl font-bold text-gray-900">Orders</h1>
+
+		{#if orderList && orderList.length > 0}
+			<div class="space-y-3">
+				{#each orderList as order}
+					<div
+						class="cursor-pointer border-b border-gray-200 bg-white p-4 transition-colors hover:bg-gray-50"
+						onclick={() => handleOrderClick(order.id)}
+						role="button"
+						tabindex="0"
+						onkeydown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								e.preventDefault();
+								handleOrderClick(order.id);
+							}
+						}}
+					>
+						<div class="flex items-center justify-between">
+							<div>
+								<h3 class="font-semibold text-gray-900">
+									{order.shop?.name || 'Restaurant'}
+								</h3>
+								<p class="mt-1 text-sm text-gray-500">
+									{formatDate(order.createdAt)}
+								</p>
+								<div class="mt-2">
+									<span class="text-sm {getStatusColor(order.status)}">
+										{getStatusText(order.status)}
+									</span>
+								</div>
+							</div>
+							<div class="text-right">
+								<p class="text-sm text-gray-500">Order {order.code}</p>
+								<button class="mt-1 text-sm text-blue-600 hover:text-blue-800">
+									View timeline
+								</button>
+							</div>
+						</div>
 					</div>
-					<div>
-						<p class="font-medium text-sm capitalize">Total sum</p>
-						<p class="text-muted-foreground text-xs">
-							{formatCurrency(Number(subTotalWithTax), currencyCode)}
-						</p>
-					</div>
-					<div>
-						<p class="font-medium text-sm capitalize">Order number</p>
-						<p class="text-muted-foreground text-xs">{code}</p>
-					</div>
-					<div class="">
-						<p class="font-medium text-sm capitalize">Status</p>
-						<span
-							class={cn(
-								'inline-flex  items-center justify-center px-2 py-1 text-xs font-medium  rounded-full border',
-								{
-									'bg-yellow-100 text-yellow-800 border-yellow-200': [
-										'Created',
-										'Draft',
-										'AddingItems',
-										'ArrangingPayment',
-										'Modifying'
-									].includes(state),
-									'bg-red-100 text-red-800 border-red-200': state === 'Cancelled',
-									'bg-green-100 text-green-800 border-green-200': [
-										'PaymentAuthorized',
-										'PaymentSettled',
-										'PartiallyShipped',
-										'Shipped',
-										'PartiallyDelivered',
-										'Delivered'
-									].includes(state),
-									'bg-gray-100 text-gray-800 border-gray-200': state === 'Unknown'
-								}
-							)}
-						>
-							{#if ['Created', 'Draft'].includes(state)}
-								{state}
-							{:else if ['AddingItems', 'ArrangingPayment', 'Modifying'].includes(state)}
-								{state.replace(/([A-Z])/g, ' $1').trim()}
-							{:else if state === 'Cancelled'}
-								Cancelled
-							{:else if ['PaymentAuthorized', 'PaymentSettled'].includes(state)}
-								{state.replace(/([A-Z])/g, ' $1').trim()}
-							{:else if ['PartiallyShipped', 'Shipped', 'PartiallyDelivered', 'Delivered'].includes(state)}
-								{state.replace(/([A-Z])/g, ' $1').trim()}
-							{:else}
-								Unknown
-							{/if}
-						</span>
-					</div>
-				</div>
-				<Collapsible.Trigger asChild let:builder>
-					<Button builders={[builder]} variant="ghost" size="sm" class="w-9 p-0">
-						<ChevronsUpDown class="h-4 w-4" />
-						<span class="sr-only">Toggle</span>
-					</Button>
-				</Collapsible.Trigger>
+				{/each}
 			</div>
-			<Collapsible.Content class="space-y-2 p-0 m-0">
-				<Table.Root class="border rounded-md">
-					<!-- <Table.Caption>A list of your recent invoices.</Table.Caption> -->
-					<Table.Header>
-						<Table.Row class="text-sm">
-							<Table.Head class="w-[100px]"></Table.Head>
-							<Table.Head>Name</Table.Head>
-							<Table.Head>sku</Table.Head>
-							<Table.Head>Unit Price</Table.Head>
-							<Table.Head>Quantity</Table.Head>
-							<Table.Head class="text-right">Total</Table.Head>
-						</Table.Row>
-					</Table.Header>
-					<Table.Body class="text-xs">
-						{#each lines as { featuredAsset, quantity, linePriceWithTax, productVariant, id }}
-							<Table.Row>
-								<Table.Cell class="font-medium">
-									<img src={featuredAsset?.preview} class="size-16 rounded-lg" alt="" />
-								</Table.Cell>
-								<Table.Cell class="capitalize">{productVariant.name}</Table.Cell>
-								<Table.Cell class="capitalize">{productVariant.sku}</Table.Cell>
-								<Table.Cell
-									>{formatCurrency(Number(productVariant.priceWithTax), currencyCode)}</Table.Cell
-								>
-								<Table.Cell>{quantity}</Table.Cell>
-								<Table.Cell class="text-right"
-									>{formatCurrency(Number(linePriceWithTax), currencyCode)}</Table.Cell
-								>
-								{#if state === 'Delivered'}
-									<Table.Cell class="">
-										<Badge href="/review/{productVariant.productId}">
-											Add a review <Star class="ml-2 size-4" />
-										</Badge>
-									</Table.Cell>
-								{/if}
-							</Table.Row>
-						{/each}
-					</Table.Body>
-				</Table.Root>
-			</Collapsible.Content>
-		</Collapsible.Root>
-	{/each}
-{:else}
-	<div class="h-[50vh] w-full flex flex-col text-center items-center justify-center">
-		<h1 class="text-3xl font-display font-semibold">You haven't made any orders yet</h1>
-		<p class="text-muted-foreground">You'll find all the details of your orders here</p>
+		{:else}
+			<div class="py-16 text-center">
+				<h2 class="mb-2 text-xl font-semibold text-gray-900">No orders yet</h2>
+				<p class="mb-6 text-gray-600">When you place your first order, it will appear here</p>
+			</div>
+		{/if}
 	</div>
-{/if}
+</div>

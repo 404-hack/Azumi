@@ -313,26 +313,34 @@ class RiderDispatchState {
 			}, 3000);
 		}
 	}
-	async acceptOrder(orderId: string) {
+	async acceptOrder(orderId: string): Promise<void> {
 		console.log(`✅ RiderDispatchState: Accepting order ${orderId}`);
 
-		// Clear pending state immediately
-		this.hasPendingOrder = false;
-		this.pendingOrderId = null;
+		return new Promise((resolve, reject) => {
+			// Clear pending state immediately
+			this.hasPendingOrder = false;
+			this.pendingOrderId = null;
 
-		// Remove from available orders
-		this.availableOrders = this.availableOrders.filter((order) => order.id !== orderId);
-		this.clearOrderTimer(orderId);
+			// Remove from available orders
+			this.availableOrders = this.availableOrders.filter((order) => order.id !== orderId);
+			this.clearOrderTimer(orderId);
 
-		// Send acceptance to server via WebSocket
-		if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-			this.ws.send(
-				JSON.stringify({
-					type: 'accept_order',
-					data: { orderId }
-				})
-			);
-		}
+			// Send acceptance to server via WebSocket
+			if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+				this.ws.send(
+					JSON.stringify({
+						type: 'accept_order',
+						data: { orderId }
+					})
+				);
+
+				// For now, resolve immediately since we don't have confirmation mechanism
+				// In a real app, you'd wait for a server confirmation message
+				setTimeout(() => resolve(), 500);
+			} else {
+				reject(new Error('WebSocket not connected'));
+			}
+		});
 	}
 
 	async rejectOrder(orderId: string) {

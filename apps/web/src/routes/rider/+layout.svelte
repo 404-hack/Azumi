@@ -3,7 +3,8 @@
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { riderState } from '$lib/states/riderState.svelte';
-	import { Bike, Clock, Wallet, Settings, LogOut, Menu, X, History } from 'lucide-svelte';	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
+	import { Bike, Clock, Wallet, Settings, LogOut, Menu, X, History } from 'lucide-svelte';
+	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 	import OrderAcceptanceModal from '$lib/components/OrderAcceptanceModal.svelte';
 	import DebugPanel from '$lib/components/DebugPanel.svelte';
 
@@ -15,31 +16,30 @@
 
 	let isSidebarOpen = $state(false);
 	let currentPath = $derived(page.url.pathname);
-
 	const navigation = [
 		{
-			name: 'Active Deliveries',
+			name: 'Available Orders',
 			href: '/rider/deliveries',
 			icon: Bike,
 			isActive: (path: string) => path === '/rider/deliveries'
 		},
 		{
-			name: 'Delivery History',
-			href: '/rider/history',
+			name: 'Active Delivery',
+			href: '/rider/deliveries/active',
+			icon: Clock,
+			isActive: (path: string) => path === '/rider/deliveries/active'
+		},
+		{
+			name: 'Order History',
+			href: '/rider/orders/history',
 			icon: History,
-			isActive: (path: string) => path.startsWith('/rider/history')
+			isActive: (path: string) => path.startsWith('/rider/orders/history')
 		},
 		{
 			name: 'Earnings',
 			href: '/rider/earnings',
 			icon: Wallet,
 			isActive: (path: string) => path.startsWith('/rider/earnings')
-		},
-		{
-			name: 'Schedule',
-			href: '/rider/schedule',
-			icon: Clock,
-			isActive: (path: string) => path.startsWith('/rider/schedule')
 		},
 		{
 			name: 'Settings',
@@ -57,9 +57,10 @@
 <NotificationPermissionBanner context="rider" />
 
 <div class="flex h-screen">
-	<!-- Mobile sidebar backdrop -->	{#if isSidebarOpen}
+	<!-- Mobile sidebar backdrop -->
+	{#if isSidebarOpen}
 		<div
-			class="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
+			class="bg-background/80 fixed inset-0 z-40 backdrop-blur-sm lg:hidden"
 			role="button"
 			tabindex="0"
 			onclick={() => (isSidebarOpen = false)}
@@ -69,7 +70,7 @@
 
 	<!-- Sidebar -->
 	<div
-		class="fixed inset-y-0 z-50 flex w-72 flex-col bg-muted/40 transition-transform duration-300 lg:static lg:translate-x-0 {isSidebarOpen
+		class="bg-muted/40 fixed inset-y-0 z-50 flex w-72 flex-col transition-transform duration-300 lg:static lg:translate-x-0 {isSidebarOpen
 			? 'translate-x-0'
 			: '-translate-x-full'}"
 	>
@@ -92,7 +93,7 @@
 				<a
 					href={item.href}
 					onclick={() => (isSidebarOpen = false)}
-					class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground {item.isActive(
+					class="hover:bg-accent hover:text-accent-foreground flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium {item.isActive(
 						page.url.pathname
 					)
 						? 'bg-accent text-accent-foreground'
@@ -120,22 +121,25 @@
 				<Menu class="h-5 w-5" />
 				<span class="sr-only">Open sidebar</span>
 			</Button>
-			<div class="ml-auto flex items-center gap-4">				<div class="flex items-center gap-2">
-					<div class="h-8 w-8 rounded-full bg-muted"></div>
+			<div class="ml-auto flex items-center gap-4">
+				<div class="flex items-center gap-2">
+					<div class="bg-muted h-8 w-8 rounded-full"></div>
 					<div>
 						<div class="text-sm font-medium">John Rider</div>
-						<div class="text-xs text-muted-foreground">rider@example.com</div>
+						<div class="text-muted-foreground text-xs">rider@example.com</div>
 					</div>
 				</div>
-			</div>		</div>
+			</div>
+		</div>
 		<div class="p-6">
 			{@render children()}
-		</div>	</div>
+		</div>
+	</div>
 </div>
 
 <!-- Order Acceptance Modal - Global overlay for all rider pages -->
 <OrderAcceptanceModal />
 
 <!-- Debug Panel - Remove in production -->
- 
+
 <DebugPanel />

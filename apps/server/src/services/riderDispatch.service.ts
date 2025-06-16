@@ -3,6 +3,7 @@ import { and, eq, isNotNull, not, gte, lte } from "drizzle-orm";
 import { orderTable, orderItemTable } from "../lib/db/schema/order.schema";
 import { riderTable } from "../lib/db/schema/rider.schema";
 import { shopTable } from "../lib/db/schema/shop.schema";
+import { addressesTable } from "../lib/db/schema/address.schema";
 import { calculateDistance } from "../lib/utils/geo";
 import { createClient } from "../lib/db";
 import { env } from "cloudflare:workers";
@@ -613,8 +614,7 @@ export class RiderDispatchService {
         message: "Internal server error during rider assignment",
       };
     }
-  }
-  /**
+  } /**
    * Sends notifications to selected riders
    * @param riders Array of riders to notify
    * @param orderId The order ID
@@ -622,78 +622,162 @@ export class RiderDispatchService {
    * @param offerType The type of offer (e.g., "Tier 1 Offer", "Tier 2 Offer")
    * @param orderInfo The order information containing location coordinates
    * @returns Promise<void>
-   */ private async sendNotificationsToRiders(
+   */
+  private async sendNotificationsToRiders(
     riders: RiderForNotification[],
     orderId: string,
     shopId: string | null | undefined,
     offerType: string,
     orderInfo: OrderInfo
   ): Promise<void> {
+    const pushNotificationService = new PushNotificationService();
     const db = createClient(env.DB);
+    const orderData = await db.query.orderTable.findFirst({
+      where: eq(orderTable.id, orderId),
+      columns: {
+        id: true,
+        total: true,
+        deliveryFee: true,
+        customerId: true,
+        createdAt: true,
+        addressName: true,
+      },
+    });
+
+    const orderItems = await db.query.orderItemTable.findMany({
+      where: eq(orderItemTable.orderId, orderId),
+      columns: {
+        id: true,
+        quantity: true,
+      },
+    });
+
+    if (!orderData) {
+      console.error(`❌ Order ${orderId} not found when sending notifications`);
+      return;
+    }
+    const itemCount = orderItems.reduce(
+      (sum: number, item: any) => sum + item.quantity,
+      0
+    );
+    const orderValue = (orderData.total || 0) - (orderData.deliveryFee || 0);
+    const shopData = await db.query.shopTable.findFirst({
+      where: eq(shopTable.id, orderInfo.shopId),
+      columns: {
+        name: true,
+        address: true,
+        addressName: true,
+        latitude: true,
+        longitude: true,
+      },
+    });
+
+    const shopAddress =
+      shopData?.addressName ||
+      shopData?.address ||
+      shopData?.name ||
+      "Shop Location";
+    const deliveryAddress = orderData.addressName || "Delivery Location";
 
     for (const rider of riders) {
-      console.log(
-        `RiderDispatchService: [${offerType}] Sending notification to rider ${rider.id} (${rider.firstName} ${rider.lastName}) for order ${orderId}. Shop: ${shopId || "N/A"}.`
-      );
-
       try {
-        // Send push notification
-        const pushNotificationService = new PushNotificationService();
-        if (!rider.userId) {
-          console.warn(`❌ Skipping rider ${rider.id} - no userId available`);
-          continue;
-        }
-        await pushNotificationService.sendNotificationToUser(rider.userId, {
-          title: "🚴‍♂️ New Delivery Opportunity!",
-          body: `New order available for pickup. Tap to accept and start earning!`,
-          data: {
-            type: "delivery_opportunity",
-            orderId: orderId,
-            shopId: shopId || "",
-            offerType: offerType.toLowerCase().replace(/\s+/g, "_"),
-            action: "accept_delivery",
-            link: `/rider/orders/${orderId}/accept`,
-          },
-        });
+        let estimatedDistance = 5;
+        let estimatedDuration = 25;
 
-        console.log(
-          `✅ Push notification sent to rider ${rider.id} for order ${orderId}`
-        ); // Also send real-time WebSocket message using the old system's "new_order" message type
-        try {
-          const id = env.RIDER_DISPATCH.idFromName("global-rider-dispatch");
-          const stub = env.RIDER_DISPATCH.get(id); // Create order object in the format expected by the old dispatch system
-          const orderForDispatch = {
-            id: orderId,
-            shopId: shopId || "",
-            pickupLocation: {
-              lat: orderInfo.shopLocation.latitude || 0,
-              lng: orderInfo.shopLocation.longitude || 0,
-            },
-            deliveryLocation: {
-              lat: orderInfo.deliveryLocation.latitude || 0,
-              lng: orderInfo.deliveryLocation.longitude || 0,
-            },
-            total: 0, // Placeholder - the DO will handle the display
-            deliveryFee: 0, // Placeholder - the DO will handle the display
-            offerType: offerType,
+        if (
+          rider.latitude &&
+          rider.longitude &&
+          orderInfo.shopLocation.latitude &&
+          orderInfo.shopLocation.longitude
+        ) {
+          const pickupDistance = calculateDistance(
+            rider.latitude,
+            rider.longitude,
+            orderInfo.shopLocation.latitude as number,
+            orderInfo.shopLocation.longitude as number
+          );
+
+          let deliveryDistance = 0;
+          if (
+            orderInfo.deliveryLocation.latitude &&
+            orderInfo.deliveryLocation.longitude
+          ) {
+            deliveryDistance = calculateDistance(
+              orderInfo.shopLocation.latitude as number,
+              orderInfo.shopLocation.longitude as number,
+              orderInfo.deliveryLocation.latitude as number,
+              orderInfo.deliveryLocation.longitude as number
+            );
+          }
+
+          estimatedDistance = Math.round(pickupDistance + deliveryDistance);
+          estimatedDuration = Math.round(
+            (estimatedDistance / this.AVG_SPEED_KM_H) * 60
+          );
+        }
+
+        if (rider.userId) {
+          await pushNotificationService.sendNotificationToUser(rider.userId, {
             title: "🚴‍♂️ New Delivery Opportunity!",
             body: "New order available for pickup. Tap to accept and start earning!",
-          };
+            data: {
+              type: "new_order",
+              orderId: orderId,
+              action: "accept_order",
+              link: `/rider/orders/${orderId}/accept`,
+            },
+          });
+
+          console.log(
+            `✅ Push notification sent to rider ${rider.id} for order ${orderId}`
+          );
+        }
+
+        const orderForDispatch = {
+          id: orderId,
+          shopId: shopId || "",
+          pickupLocation: {
+            lat: orderInfo.shopLocation.latitude || 0,
+            lng: orderInfo.shopLocation.longitude || 0,
+            address: shopAddress,
+          },
+          deliveryLocation: {
+            lat: orderInfo.deliveryLocation.latitude || 0,
+            lng: orderInfo.deliveryLocation.longitude || 0,
+            address: deliveryAddress,
+          },
+          orderValue: orderValue,
+          deliveryFee: Math.round(orderData.deliveryFee * 0.7),
+          estimatedDistance: estimatedDistance,
+          estimatedDuration: estimatedDuration,
+          itemCount: itemCount,
+          createdAt: orderData.createdAt,
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          offerType: offerType,
+          title: "🚴‍♂️ New Delivery Opportunity!",
+          body: "New order available for pickup. Tap to accept and start earning!",
+        };
+
+        try {
+          const id = env.RIDER_DISPATCH.idFromName("global-rider-dispatch");
+          const stub = env.RIDER_DISPATCH.get(id);
+
           const response = await stub.fetch(
             new Request(`http://rider-dispatch/dispatch-order`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 order: orderForDispatch,
-                targetRiders: [rider.id], // Send to this specific rider only
+                targetRiders: [rider.id],
               }),
             })
           );
+
           if (response.ok) {
             const result = (await response.json()) as any;
             if (result.success && result.notifiedRiders > 0) {
               console.log(
-                `✅ Real-time "new_order" message sent to rider ${rider.id} for order ${orderId}`
+                `✅ Real-time message sent to rider ${rider.id} for order ${orderId}`
               );
             } else {
               console.log(

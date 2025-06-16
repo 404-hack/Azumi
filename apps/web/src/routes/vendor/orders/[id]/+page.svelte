@@ -9,9 +9,9 @@
 		Clock,
 		Package,
 		User,
-		Receipt
+		Receipt,
+		Bike
 	} from 'lucide-svelte';
-
 	import { formatCurrency, formatDate, formatTime } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import { client } from '$lib/hc';
@@ -159,16 +159,18 @@
 			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h2 class="font-semibold text-gray-900">Order Status</h2>
-					<div class="mt-2 flex gap-2">
+					<div class="mt-2">
 						<Badge variant={statusColors[order.status as OrderStatus]} class="text-sm">
-							{order.status.replace('_', ' ')}
+							{order.status
+								.replace(/_/g, ' ')
+								.toLowerCase()
+								.replace(/\b\w/g, (l) => l.toUpperCase())}
 						</Badge>
-						<Badge
-							variant={paymentStatusColors[order.paymentStatus as PaymentStatus]}
-							class="text-sm"
-						>
-							{order.paymentStatus}
-						</Badge>
+						{#if order.paymentStatus === 'FAILED'}
+							<Badge variant="destructive" class="ml-2 text-sm">Payment Failed</Badge>
+						{:else if order.paymentStatus === 'PENDING' && order.status !== 'PENDING'}
+							<Badge variant="outline" class="ml-2 text-sm">Payment Pending</Badge>
+						{/if}
 					</div>
 				</div>
 
@@ -253,6 +255,56 @@
 				{/each}
 			</div>
 		</div>
+
+		<!-- Rider Information (shown when rider is assigned) -->
+		{#if order.rider && (order.status === 'RIDER_ASSIGNED' || order.status === 'IN_TRANSIT')}
+			<div class="rounded-lg bg-white p-4 shadow-sm">
+				<h2 class="mb-3 flex items-center gap-2 font-semibold text-gray-900">
+					<Bike class="text-primary h-4 w-4" />
+					Assigned Rider
+				</h2>
+				<div class="space-y-3">
+					<div class="flex items-center justify-between">
+						<div class="flex-1">
+							<div class="font-medium text-gray-900">{order.rider?.name || 'Rider'}</div>
+							<div class="text-sm text-gray-500">
+								{order.rider?.phoneNumber || 'No phone number'}
+							</div>
+							{#if order.riderAssignedAt}
+								<div class="text-sm text-blue-600">
+									Assigned at: {formatTime(order.riderAssignedAt)}
+								</div>
+							{/if}
+						</div>
+						{#if order.rider?.phoneNumber}
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() => window.open(`tel:${order.rider.phoneNumber}`)}
+								class="shrink-0"
+							>
+								<Phone class="mr-1 h-4 w-4" />
+								Call Rider
+							</Button>
+						{/if}
+					</div>
+					{#if order.status === 'IN_TRANSIT'}
+						<div class="border-primary/20 bg-primary/5 rounded-md border p-3">
+							<div class="flex items-start gap-2">
+								<Bike class="text-primary mt-0.5 h-4 w-4 shrink-0" />
+								<div class="flex-1">
+									<div class="text-primary text-sm font-medium">Order is on the way!</div>
+									<div class="mt-1 text-sm text-gray-700">
+										The rider has picked up the order and is heading to the customer.
+									</div>
+								</div>
+							</div>
+						</div>
+					{/if}
+				</div>
+			</div>
+		{/if}
+
 		<!-- Customer & Delivery Info -->
 		<div class="rounded-lg bg-white p-4 shadow-sm">
 			<h2 class="mb-3 flex items-center gap-2 font-semibold text-gray-900">
@@ -275,7 +327,7 @@
 							class="shrink-0"
 						>
 							<Phone class="mr-1 h-4 w-4" />
-							Call
+							Call Customer
 						</Button>
 					{/if}
 				</div>
@@ -298,50 +350,72 @@
 				{/if}
 			</div>
 		</div>
-		<!-- Order Summary -->
+		<!-- Vendor Earnings Summary -->
 		<div class="rounded-lg bg-white p-4 shadow-sm">
 			<h2 class="mb-3 flex items-center gap-2 font-semibold text-gray-900">
 				<Receipt class="h-4 w-4 text-gray-500" />
-				Payment Details
+				Your Earnings
 			</h2>
 			<div class="space-y-2">
 				<div class="flex justify-between text-sm">
-					<span class="text-gray-600">Subtotal</span>
+					<span class="text-gray-600">Order Value</span>
 					<span class="text-gray-900">{formatCurrency(order.subtotal || 0)}</span>
 				</div>
-				{#if order.deliveryFee && order.deliveryFee > 0}
-					<div class="flex justify-between text-sm">
-						<span class="text-gray-600">Delivery Fee</span>
-						<span class="text-gray-900">{formatCurrency(order.deliveryFee)}</span>
-					</div>
-				{/if}
-				{#if order.serviceFee && order.serviceFee > 0}
-					<div class="flex justify-between text-sm">
-						<span class="text-gray-600">Service Fee</span>
-						<span class="text-gray-900">{formatCurrency(order.serviceFee)}</span>
-					</div>
-				{/if}
-				<hr class="my-3" />
-				<div class="flex justify-between text-lg font-bold">
-					<span>Total</span>
-					<span>{formatCurrency(order.total)}</span>
+				<div class="flex justify-between text-sm">
+					<span class="text-gray-600">Platform Commission ({order.shop?.commission}%)</span>
+					<span class="text-red-600"
+						>-{formatCurrency(((order.subtotal || 0) * (order.shop?.commission || 10)) / 100)}</span
+					>
 				</div>
-				<div class="mt-2 text-center text-sm text-gray-500">
-					Payment Method: {order.paymentMethod || 'Not specified'}
+				<hr class="my-2" />
+				<div class="flex justify-between text-lg font-bold text-green-600">
+					<span>You Earn</span>
+					<span
+						>{formatCurrency(
+							((order.subtotal || 0) * (100 - (order.shop?.commission || 10))) / 100
+						)}</span
+					>
 				</div>
 			</div>
 		</div>
-
 		<!-- Timeline (Historical Info) -->
-		{#if order.acceptedAt}
+		{#if order.acceptedAt || order.riderAssignedAt || order.pickedUpAt || order.deliveredAt || order.completedAt}
 			<div class="rounded-lg bg-white p-4 shadow-sm">
 				<h2 class="mb-3 flex items-center gap-2 font-semibold text-gray-900">
 					<Clock class="h-4 w-4 text-gray-500" />
 					Timeline
 				</h2>
-				<div class="flex items-center gap-2 text-sm text-gray-600">
-					<div class="h-2 w-2 rounded-full bg-gray-400"></div>
-					<span>Order accepted at: {order.acceptedAt ? formatTime(order.acceptedAt) : 'N/A'}</span>
+				<div class="space-y-2">
+					{#if order.acceptedAt}
+						<div class="flex items-center gap-2 text-sm text-gray-600">
+							<div class="h-2 w-2 rounded-full bg-gray-400"></div>
+							<span>Order accepted at: {formatTime(order.acceptedAt)}</span>
+						</div>
+					{/if}
+					{#if order.riderAssignedAt}
+						<div class="flex items-center gap-2 text-sm text-gray-600">
+							<div class="h-2 w-2 rounded-full bg-blue-500"></div>
+							<span>Rider assigned at: {formatTime(order.riderAssignedAt)}</span>
+						</div>
+					{/if}
+					{#if order.pickedUpAt}
+						<div class="flex items-center gap-2 text-sm text-gray-600">
+							<div class="h-2 w-2 rounded-full bg-orange-500"></div>
+							<span>Order picked up at: {formatTime(order.pickedUpAt)}</span>
+						</div>
+					{/if}
+					{#if order.deliveredAt}
+						<div class="flex items-center gap-2 text-sm text-gray-600">
+							<div class="h-2 w-2 rounded-full bg-green-500"></div>
+							<span>Order delivered at: {formatTime(order.deliveredAt)}</span>
+						</div>
+					{/if}
+					{#if order.completedAt}
+						<div class="flex items-center gap-2 text-sm text-gray-600">
+							<div class="h-2 w-2 rounded-full bg-green-600"></div>
+							<span>Order completed at: {formatTime(order.completedAt)}</span>
+						</div>
+					{/if}
 				</div>
 			</div>
 		{/if}

@@ -120,12 +120,10 @@
 			<Form.Control>
 				{#snippet children({ props })}
 					<InputOTP.Root
-						
 						maxlength={6}
+						{...props}
 						bind:value={$formData.otp}
 						class="flex items-center justify-center gap-2"
-						type="number"
-						inputmode="numeric"
 						pattern="[0-9]*"
 						autocomplete="one-time-code"
 					>
@@ -134,7 +132,7 @@
 								{#each cells.slice(0, 3) as cell}
 									<InputOTP.Slot
 										{cell}
-										class="h-10 w-10 rounded-md border border-input bg-background text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:border-primary focus:ring-1 focus:ring-primary"
+										class="border-input bg-background focus:border-primary focus:ring-primary h-10 w-10 rounded-md border text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:ring-1"
 									/>
 								{/each}
 							</InputOTP.Group>
@@ -143,7 +141,7 @@
 								{#each cells.slice(3) as cell}
 									<InputOTP.Slot
 										{cell}
-										class="h-10 w-10 rounded-md border border-input bg-background text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:border-primary focus:ring-1 focus:ring-primary"
+										class="border-input bg-background focus:border-primary focus:ring-primary h-10 w-10 rounded-md border text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:ring-1"
 									/>
 								{/each}
 							</InputOTP.Group>
@@ -156,13 +154,13 @@
 
 		<div class="flex flex-col items-center gap-2">
 			{#if !canResend}
-				<p class="text-sm text-muted-foreground">
+				<p class="text-muted-foreground text-sm">
 					Didn't receive the code? Resend in {countdown}s
 				</p>
 			{:else}
 				<button
 					type="button"
-					class="text-sm text-primary hover:underline"
+					class="text-primary text-sm hover:underline"
 					onclick={() => {
 						authClient.phoneNumber.sendOtp({
 							phoneNumber: phoneNumber || ''

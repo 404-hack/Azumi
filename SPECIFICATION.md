@@ -27,6 +27,7 @@ african-martket-monorepo/
 ### 2.2 Technology Stack
 
 #### Backend (Server)
+
 - **Runtime**: Cloudflare Workers
 - **Framework**: Hono
 - **Database**: Cloudflare D1 (SQLite-compatible)
@@ -36,6 +37,7 @@ african-martket-monorepo/
 - **Validation**: Zod
 
 #### Frontend (Web)
+
 - **Framework**: SvelteKit 2.0 (Svelte 5) with Cloudflare Pages
 - **UI Components**: Custom shadcn-style components
 - **Styling**: TailwindCSS
@@ -44,6 +46,7 @@ african-martket-monorepo/
 - **Authentication**: better-auth client
 
 #### Build and Development Tools
+
 - **Package Manager**: PNPM
 - **Build System**: Turborepo
 - **TypeScript**: Project-wide
@@ -53,6 +56,7 @@ african-martket-monorepo/
 ### 2.3 Infrastructure
 
 The application is deployed on Cloudflare's infrastructure:
+
 - **Backend**: Cloudflare Workers
 - **Frontend**: Cloudflare Pages
 - **Database**: Cloudflare D1
@@ -64,6 +68,7 @@ The application is deployed on Cloudflare's infrastructure:
 ### 3.1 User & Authentication
 
 #### User
+
 ```typescript
 // userTable schema
 {
@@ -80,6 +85,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Session
+
 ```typescript
 // session schema
 {
@@ -96,6 +102,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Account
+
 ```typescript
 // account schema
 {
@@ -116,6 +123,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Verification
+
 ```typescript
 // verification schema
 {
@@ -131,6 +139,7 @@ The application is deployed on Cloudflare's infrastructure:
 ### 3.2 Shop & Vendor
 
 #### Shop Type
+
 ```typescript
 // shopTypeTable schema
 {
@@ -142,6 +151,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Shop
+
 ```typescript
 // shopTable schema
 {
@@ -172,6 +182,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Shop Operating Hours
+
 ```typescript
 // shopOperatingHoursTable schema
 {
@@ -186,6 +197,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Member & Organization Roles
+
 ```typescript
 // member schema
 {
@@ -198,6 +210,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Invitation
+
 ```typescript
 // invitation schema
 {
@@ -214,6 +227,7 @@ The application is deployed on Cloudflare's infrastructure:
 ### 3.3 Menu & Food Items
 
 #### Menu Category
+
 ```typescript
 // menuCategoryTable schema
 {
@@ -228,6 +242,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Menu Item
+
 ```typescript
 // menuTable schema
 {
@@ -249,6 +264,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Menu Pack
+
 ```typescript
 // packTable schema
 {
@@ -263,6 +279,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Menu Option Group
+
 ```typescript
 // optionGroupTable schema
 {
@@ -280,6 +297,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Menu Option
+
 ```typescript
 // optionTable schema
 {
@@ -295,6 +313,7 @@ The application is deployed on Cloudflare's infrastructure:
 ### 3.4 Cart & Order
 
 #### Cart
+
 ```typescript
 // carts schema
 {
@@ -308,6 +327,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Cart Item
+
 ```typescript
 // cartItems schema
 {
@@ -323,6 +343,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Cart Item Options
+
 ```typescript
 // cartItemOptions schema
 {
@@ -336,6 +357,7 @@ The application is deployed on Cloudflare's infrastructure:
 ```
 
 #### Order
+
 ```typescript
 // orderTable schema
 {
@@ -345,19 +367,19 @@ The application is deployed on Cloudflare's infrastructure:
   vendorId: string (references vendorTable.id),
   riderId: string (references userTable.id, optional),
   status: enum ("new", "ready", "completed", "cancelled"),
-  
+
   // Delivery information
   deliveryAddressId: string (optional),
   deliveryNotes: string (optional),
   contactPhone: string (optional),
   isScheduled: boolean (default: false),
   scheduledFor: string (optional),
-  
+
   // Payment information
   paymentMethod: enum ("card", "cash", "wallet", "bank_transfer", "mobile_money"),
   paymentStatus: enum ("pending", "paid", "failed", "refunded", "partially_refunded"),
   paymentTransactionId: string (optional),
-  
+
   // Pricing
   subtotal: number,
   deliveryFee: number (default: 0),
@@ -366,7 +388,7 @@ The application is deployed on Cloudflare's infrastructure:
   discount: number (default: 0),
   tax: number (default: 0),
   total: number,
-  
+
   // Timestamps for order progress
   acceptedAt: string (optional),
   preparedAt: string (optional),
@@ -374,17 +396,18 @@ The application is deployed on Cloudflare's infrastructure:
   deliveredAt: string (optional),
   canceledAt: string (optional),
   cancelReason: string (optional),
-  
+
   // Refund information
   refundAmount: number (default: 0),
   refundReason: string (optional),
-  
+
   createdAt: timestamp,
   updatedAt: timestamp
 }
 ```
 
 #### Order Item
+
 ```typescript
 // orderItemTable schema
 {
@@ -505,14 +528,16 @@ The application is deployed on Cloudflare's infrastructure:
 ### 5.2 Pages
 
 #### Authentication
+
 - Login
 - Register
 - Password Reset
 - Account Verification
 
 #### Vendor
+
 - Dashboard
-- Menu Management 
+- Menu Management
 - Orders Management
 - Settings
 - Analytics
@@ -521,6 +546,7 @@ The application is deployed on Cloudflare's infrastructure:
 - Order Details
 
 #### Customer
+
 - Home/Discovery
 - Shop/Restaurant Details
 - Menu Browsing
@@ -531,6 +557,7 @@ The application is deployed on Cloudflare's infrastructure:
 - Account Settings
 
 #### Rider
+
 - Dashboard
 - Available Deliveries
 - Current Delivery
@@ -562,7 +589,7 @@ Forms are built using SvelteKit Superforms with Zod validation. Key form schemas
 - Registration/Login forms
 - Shop creation form
 - Menu item creation form
-- Menu category creation form 
+- Menu category creation form
 - Menu option group creation form
 - Order status update form
 - Checkout form
@@ -572,6 +599,7 @@ Forms are built using SvelteKit Superforms with Zod validation. Key form schemas
 ### 6.1 Authentication
 
 Authentication is implemented using better-auth, providing:
+
 - Email/password authentication
 - Email verification
 - Password reset functionality
@@ -581,6 +609,7 @@ Authentication is implemented using better-auth, providing:
 ### 6.2 Authorization
 
 Role-based access control is implemented, with roles including:
+
 - Super Admin: Access to all system features
 - Shop Admin: Full access to a specific shop/vendor
 - Staff: Limited access to shop management
@@ -592,6 +621,7 @@ Role-based access control is implemented, with roles including:
 ### 7.1 Database
 
 Cloudflare D1 (SQLite-compatible) with Drizzle ORM for:
+
 - User data
 - Shop/vendor data
 - Menu and product data
@@ -600,6 +630,7 @@ Cloudflare D1 (SQLite-compatible) with Drizzle ORM for:
 ### 7.2 File Storage
 
 Cloudflare R2 for:
+
 - Product/menu images
 - Shop logos and cover images
 - User profile pictures
@@ -677,3 +708,11 @@ The application is deployed on Cloudflare infrastructure:
 - User analytics
 - Business metrics tracking
 - Health checks and alerts
+
+When working with SvelteKit routes, never create files that start with + unless they are one of the reserved routing files. If you need backup or temporary files, use different naming conventions like:
+
+page_backup.svelte
+page.svelte.backup
+\_page_draft.svelte
+page_old.svelte
+The + prefix is strictly reserved for SvelteKit's file-based routing system, and using it incorrectly will corrupt the route manifest and cause the development server to crash.

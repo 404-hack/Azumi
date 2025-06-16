@@ -41,6 +41,13 @@ messaging.onBackgroundMessage((payload) => {
 	setTimeout(() => {
 		recentNotifications.delete(shortId);
 	}, 2000);
+	const notificationType = payload.data?.type;
+	const isVendorOrder =
+		notificationType === 'new_order' ||
+		notificationType === 'order_created' ||
+		payload.data?.isVendorOrder === 'true' ||
+		payload.data?.category === 'vendor';
+
 	const notificationOptions = {
 		body: notificationBody,
 		icon: '/logo.png',
@@ -48,12 +55,16 @@ messaging.onBackgroundMessage((payload) => {
 		image: payload.data?.image,
 		data: payload.data || {},
 		tag: shortId,
-		requireInteraction: false,
+		requireInteraction: isVendorOrder,
 		silent: false,
-		vibrate: [200, 100, 200],
+		vibrate: isVendorOrder ? [500, 200, 500, 200, 500, 200, 500] : [200, 100, 200],
 		renotify: false,
 		actions: getNotificationActions(payload.data)
 	};
+	if (isVendorOrder) {
+		console.log('🚨 [SW] VENDOR ORDER notification - enhanced settings applied');
+		notifyClientsOfVendorOrder(payload);
+	}
 
 	console.log('🔥 [SW] Showing BACKGROUND notification:', notificationTitle, 'ID:', shortId);
 
@@ -147,5 +158,17 @@ self.addEventListener('message', function (event) {
 		self.skipWaiting();
 	}
 });
+
+// Send message to all clients when vendor order notification is received
+function notifyClientsOfVendorOrder(payload) {
+	self.clients.matchAll().then(function (clients) {
+		clients.forEach(function (client) {
+			client.postMessage({
+				type: 'VENDOR_ORDER_NOTIFICATION',
+				payload: payload
+			});
+		});
+	});
+}
 
 console.log('🔥 [SW] Service Worker ready - BACKGROUND ONLY');

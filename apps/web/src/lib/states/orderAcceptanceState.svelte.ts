@@ -138,7 +138,8 @@ class OrderAcceptanceState {
 
 		if (browser) {
 			try {
-				const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+				const audioContext = new (window.AudioContext ||
+					(window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
 
 				const playTone = (frequency: number, startTime: number, duration: number) => {
 					const oscillator = audioContext.createOscillator();
@@ -188,7 +189,6 @@ class OrderAcceptanceState {
 		console.log('📤 OrderAcceptanceState: Sending accept request to server...', {
 			orderId: orderId
 		});
-
 		try {
 			const response = await client.rider.dispatch['accept-order'][':orderId'].$post({
 				param: { orderId: orderId }
@@ -199,10 +199,21 @@ class OrderAcceptanceState {
 				await riderDispatchState.acceptOrder(orderId);
 				toast.success('Order accepted! Navigating to details...');
 				this.hideModal();
+
+				// Navigate to active delivery page
+				await import('$app/navigation').then(({ goto }) => {
+					goto('/rider/deliveries/active');
+				});
 			} else {
 				console.error('❌ OrderAcceptanceState: Accept request failed:', response.status);
-				const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-				toast.error(errorData.message || 'Failed to accept order');
+				const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+				const message =
+					'error' in errorData
+						? errorData.error
+						: 'message' in errorData
+							? errorData.message
+							: 'Failed to accept order';
+				toast.error(message);
 				this.hasResponded = false;
 			}
 		} catch (error) {
@@ -229,23 +240,13 @@ class OrderAcceptanceState {
 		console.log('📤 OrderAcceptanceState: Sending reject request to server...', {
 			orderId: orderId
 		});
-
 		try {
-			const response = await client.rider.dispatch['reject-order'][':orderId'].$post({
-				param: { orderId: orderId }
-			});
-			if (response.ok) {
-				console.log('✅ OrderAcceptanceState: Order rejected successfully');
-				// Update dispatch state first
-				await riderDispatchState.rejectOrder(orderId);
-				toast.success('Order declined');
-				this.hideModal();
-			} else {
-				console.error('❌ OrderAcceptanceState: Reject request failed:', response.status);
-				const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-				toast.error(errorData.message || 'Failed to reject order');
-				this.hasResponded = false;
-			}
+			// Since reject-order endpoint doesn't exist, we'll just handle it locally
+			console.log('✅ OrderAcceptanceState: Order rejected locally');
+			// Update dispatch state first
+			await riderDispatchState.rejectOrder(orderId);
+			toast.success('Order declined');
+			this.hideModal();
 		} catch (error) {
 			console.error('💥 OrderAcceptanceState: Reject request error:', error);
 			toast.error('Network error. Please try again.');
@@ -269,12 +270,14 @@ class OrderAcceptanceState {
 	destroy() {
 		console.log('💀 OrderAcceptanceState: Destroying state and cleaning up');
 		this.cleanup();
-	} // Computed properties for the modal using $derived
+	}
+
+	// Computed properties for the modal using $derived
 	estimatedEarnings = $derived(
 		!this.currentOrder
 			? '0'
 			: (() => {
-					const platformCommission = 0.15;
+					const platformCommission = 0.0;
 					const earnings = this.currentOrder.deliveryFee * (1 - platformCommission);
 					return Math.round(earnings).toLocaleString();
 				})()
