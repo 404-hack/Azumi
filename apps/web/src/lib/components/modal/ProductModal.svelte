@@ -39,7 +39,7 @@
 
 	// Auth session
 	const session = authClient.useSession();
-	console.log("🚀 ~ session:", $session)
+	console.log('🚀 ~ session:', $session);
 
 	// Props
 	let { cart = null } = $props();
@@ -475,7 +475,7 @@
 				optionGroupErrors = updatedErrors;
 			}
 		}
-	}	// Handle add/update cart - only validate on submission
+	} // Handle add/update cart - only validate on submission
 	async function handleAddToCart() {
 		// Check authentication first based on the actual session structure
 		if ($session.isPending) {
@@ -641,11 +641,11 @@
 			<div class="flex-shrink-0 p-4">
 				<Dialog.Title class="text-lg font-semibold capitalize">{productName}</Dialog.Title>
 				{#if productDescription}
-					<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+					<Dialog.Description class="text-muted-foreground mt-1 text-sm">
 						{truncatedDescription}
 						{#if isDescriptionTruncatable}
 							<button
-								class="ml-1 inline-flex items-center text-xs font-medium text-primary hover:underline focus:outline-none"
+								class="text-primary ml-1 inline-flex items-center text-xs font-medium hover:underline focus:outline-none"
 								onclick={toggleDescriptionExpansion}
 								type="button"
 							>
@@ -660,8 +660,8 @@
 					</Dialog.Description>
 				{/if}
 				<div class="mt-2 flex items-center gap-2">
-					<p class="font-semibold text-primary">{formatCurrency(basePrice)}</p>
-					{#if product.priceDescription}
+					<p class="text-primary font-semibold">{formatCurrency(basePrice)}</p>
+					{#if product.priceDescription !== undefined && product.priceDescription}
 						<Badge variant="outline">{product.priceDescription}</Badge>
 					{/if}
 				</div>
@@ -681,13 +681,13 @@
 									<Badge variant="secondary" class="text-xs">Optional</Badge>
 								{/if}
 							</div>
-							<p class="text-xs text-muted-foreground">
+							<p class="text-muted-foreground text-xs">
 								Select {#if group.minSelections > 0}at least {group.minSelections}{/if}
 								{#if group.maxSelections && group.maxSelections > 0}
 									up to {group.maxSelections}{/if}
 								option{#if group.maxSelections !== 1}s{/if}.
 								{#if getRemainingSelections(group) !== null}
-									<span class="font-medium text-primary">
+									<span class="text-primary font-medium">
 										({getRemainingSelections(group)} remaining)
 									</span>
 								{/if}
@@ -729,7 +729,7 @@
 												/>
 												<span class="text-sm">{option.name}</span>
 												{#if isOutOfStock}
-													<Badge variant="outline" class="text-xs text-destructive"
+													<Badge variant="outline" class="text-destructive text-xs"
 														>Out of Stock</Badge
 													>
 												{/if}
@@ -813,13 +813,13 @@
 												<div class="flex items-center gap-2">
 													<!-- Custom radio button with visual indicator -->
 													<div
-														class="flex h-4 w-4 items-center justify-center rounded-full border border-primary text-primary ring-offset-background
+														class="border-primary text-primary ring-offset-background flex h-4 w-4 items-center justify-center rounded-full border
 														{isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background'}"
 														role="radio"
 														aria-checked={isSelected}
 													>
 														{#if isSelected}
-															<div class="h-2 w-2 rounded-full bg-primary-foreground"></div>
+															<div class="bg-primary-foreground h-2 w-2 rounded-full"></div>
 														{/if}
 													</div>
 													<span class="text-sm">{option.name}</span>
@@ -851,7 +851,7 @@
 			</div>
 
 			<!-- Footer: Quantity and Add to Cart -->
-			<Dialog.Footer class="sticky bottom-0 mt-auto flex-shrink-0 border-t bg-background p-4">
+			<Dialog.Footer class="bg-background sticky bottom-0 mt-auto flex-shrink-0 border-t p-4">
 				<div class="flex w-full items-center justify-between gap-4">
 					<div class="flex items-center gap-2">
 						<Button

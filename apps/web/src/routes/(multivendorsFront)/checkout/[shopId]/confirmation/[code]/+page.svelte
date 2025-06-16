@@ -164,14 +164,14 @@
 								<p class="text-xs font-medium text-blue-600">{step.time}</p>
 							</div>
 						{/if}
-						{#if step.showCancelButton}
+						<!-- {#if step.showCancelButton}
 							<Button
 								variant="outline"
 								class="mt-3 h-10 w-full rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
 							>
 								Cancel Order
 							</Button>
-						{/if}
+						{/if} -->
 					</div>
 				</div>
 			{/each}
@@ -181,10 +181,10 @@
 	<div class="border-t border-gray-100 px-4 py-4">
 		<div class="mb-4 flex items-center justify-between">
 			<h2 class="font-medium">Delivery details</h2>
-			<Button variant="ghost" class="flex h-auto items-center gap-1 p-0 text-sm text-blue-500">
+			<!-- <Button variant="ghost" class="flex h-auto items-center gap-1 p-0 text-sm text-blue-500">
 				<Share2 class="h-4 w-4" />
 				Share trip
-			</Button>
+			</Button> -->
 		</div>
 
 		<div class="mb-4 flex gap-3">
@@ -194,11 +194,11 @@
 					{data.order.addressName}
 				</p>
 				<div class="flex justify-end">
-					<Button
+					<!-- <Button
 						variant="outline"
 						class="border-primary/20 text-primary hover:bg-primary/5 mt-1 h-8 bg-white text-sm"
 						>UPDATE</Button
-					>
+					> -->
 				</div>
 			</div>
 		</div>
@@ -210,11 +210,11 @@
 				<p class="mb-1 text-sm text-gray-800">Call when you arrive at the gate</p>
 				<p class="mb-1 text-sm text-gray-800">{data.order.deliveryNotes}</p>
 				<div class="flex justify-end">
-					<Button
+					<!-- <Button
 						variant="outline"
 						class="border-primary/20 text-primary hover:bg-primary/5 h-8 bg-white text-sm"
 						>UPDATE</Button
-					>
+					> -->
 				</div>
 			</div>
 		</div>

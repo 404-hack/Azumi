@@ -27,12 +27,12 @@
 	<div class="flex items-center justify-between">
 		<h1 class="text-3xl font-semibold">Orders</h1>
 		<div class="relative w-64">
-			<Search class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+			<Search class="text-muted-foreground absolute left-2 top-2.5 h-4 w-4" />
 			<Input placeholder="Search orders..." class="pl-8" bind:value={searchQuery} />
 		</div>
 	</div>
 	<Tabs.Root value={currentStatus} class="space-y-6" onValueChange={handleTabChange}>
-		<Tabs.List class="w-full">
+		<Tabs.List class="grid h-full grid-cols-2 gap-4 sm:grid-cols-5">
 			<Tabs.Trigger value="new">New Orders</Tabs.Trigger>
 			<Tabs.Trigger value="confirmed">Confirmed</Tabs.Trigger>
 			<Tabs.Trigger value="ready">Ready</Tabs.Trigger>

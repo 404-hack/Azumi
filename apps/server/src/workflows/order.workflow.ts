@@ -1,22 +1,22 @@
+import { eq, inArray } from "drizzle-orm";
+import { createClient } from "../lib/db";
 import {
   WorkflowEntrypoint,
-  WorkflowEvent,
   WorkflowStep,
+  WorkflowEvent,
   WorkflowStepEvent,
 } from "cloudflare:workers";
+import { drizzle } from "drizzle-orm/libsql";
+
+import { env } from "cloudflare:workers";
+import { orderTable } from "../lib/db/schema/order.schema";
+import { userTable } from "../lib/db/schema/auth.schema";
+import { cartTable } from "../lib/db/schema/cart.schema";
+import { orderItemTable, orderItemOptionTable } from "../lib/db/schema";
+
+import { PaystackService } from "../services/paystack.service";
 import { PushNotificationService } from "../services/push-notification.service";
 import { RiderDispatchService } from "../services/riderDispatch.service";
-import { PaystackService } from "../services/paystack.service";
-import { createClient } from "../lib/db";
-import { env } from "cloudflare:workers";
-import {
-  orderItemOptionTable,
-  orderItemTable,
-  orderTable,
-} from "../lib/db/schema/order.schema";
-import { eq, inArray } from "drizzle-orm";
-import { cartTable } from "../lib/db/schema";
-
 /**
  * Input parameters for the order workflow
  */
@@ -450,7 +450,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       const pushNotificationService = new PushNotificationService();
       await pushNotificationService.sendNotificationToShop(params.shopId, {
         title: "New Order Received!",
-        body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for $${params.total}`,
+        body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for ₦${params.total}`,
         data: {
           type: "new_order",
           orderId: params.orderId,
@@ -478,91 +478,411 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   ): Promise<OrderStatus> {
     console.log(
       `🔄 [VENDOR-ESCALATION] Starting vendor response waiting with escalation for order: ${params.orderId}`
-    );
+    ); // Promise for the vendor's direct response
+    const vendorResponseEventPromise = step
+      .waitForEvent("vendor_order_response", {
+        type: "vendor_order_response",
+        timeout: "2 hours", // Keep this timeout longer than full escalation
+      })
+      .then((event) => ({
+        type: "vendor_response" as const,
+        payload: event.payload as {
+          orderId: string;
+          status: string;
+          vendorId?: string;
+          timestamp?: string;
+        },
+      }));
 
-    const vendorResponse = await step.do(
-      "vendor_response_with_escalation",
-      async () => {
-        return await Promise.race([
-          step
-            .waitForEvent("vendor_order_response", {
-              type: "vendor_order_response",
-              timeout: "2 hours",
-            })
-            .then((event) => ({
-              type: "vendor_response",
-              payload: event.payload,
-            })),
-
-          this.handleVendorEscalation(params, step).then(() => ({
-            type: "auto_cancelled",
+    // Promise for the outcome of the escalation process
+    const escalationOutcomePromise = this.handleVendorEscalation(params, step)
+      .then(() => {
+        // This .then() is reached if handleVendorEscalation returns void (i.e., was preempted)
+        return {
+          type: "escalation_preempted" as const,
+          payload: { orderId: params.orderId },
+        };
+      })
+      .catch((error) => {
+        if (error.message === "ESCALATION_COMPLETED") {
+          // This .catch() is reached if handleVendorEscalation throws ESCALATION_COMPLETED
+          return {
+            type: "auto_cancelled" as const,
             payload: {
               orderId: params.orderId,
-              status: "CANCELLED",
-              reason: "vendor_no_response_timeout",
+              status: "CANCELLED" as const,
+              reason: "VENDOR_ESCALATION_COMPLETED",
               timestamp: new Date().toISOString(),
             },
-          })),
+          };
+        }
+        throw error; // Rethrow other unexpected errors
+      });
+
+    const raceResult = await step.do(
+      "vendor_response_or_escalation_outcome",
+      async () => {
+        return await Promise.race([
+          vendorResponseEventPromise,
+          escalationOutcomePromise,
         ]);
       }
     );
 
-    if (vendorResponse.type === "auto_cancelled") {
+    if (raceResult.type === "vendor_response") {
+      const responseData = raceResult.payload;
       console.log(
-        `❌ [VENDOR-ESCALATION] Order ${params.orderId} auto-cancelled due to vendor non-response`
+        `✅ [VENDOR-ESCALATION] Vendor responded with status: ${responseData.status} for order: ${params.orderId}`
       );
-      throw new Error(
-        "Order auto-cancelled due to vendor non-response after full escalation cycle"
+      await step.do("notify_customer_vendor_decision", async () => {
+        return await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: responseData.status,
+            updatedAt: responseData.timestamp || new Date().toISOString(),
+          },
+          params,
+          step
+        );
+      });
+      return {
+        id: params.orderId,
+        status: responseData.status,
+        updatedAt: responseData.timestamp || new Date().toISOString(),
+        vendorId: responseData.vendorId,
+      };
+    } else if (raceResult.type === "auto_cancelled") {
+      console.log(
+        `❌ [VENDOR-ESCALATION] Order ${params.orderId} auto-cancelled by full escalation.`
       );
+      // Customer notification for auto-cancellation is handled within handleVendorEscalation
+      return {
+        id: raceResult.payload.orderId,
+        status: raceResult.payload.status,
+        updatedAt: raceResult.payload.timestamp,
+      };
+    } else if (raceResult.type === "escalation_preempted") {
+      console.log(
+        `ℹ️ [VENDOR-ESCALATION] Escalation for ${params.orderId} was preempted. Fetching definitive order status.`
+      );
+      // Since escalation was preempted, the vendor must have acted.
+      // We need to fetch the latest order status to return accurately.
+      const currentOrder = await step.do(
+        "fetch_order_status_after_preemption",
+        async () => {
+          const db = createClient(env.DB);
+          return await db.query.orderTable.findFirst({
+            where: eq(orderTable.id, params.orderId),
+            columns: { id: true, status: true, updatedAt: true, shopId: true }, // Assuming shopId is vendorId
+          });
+        }
+      );
+
+      if (!currentOrder || !currentOrder.status) {
+        console.error(
+          `❌ [VENDOR-ESCALATION] Failed to fetch definitive status for ${params.orderId} after preemption.`
+        );
+        throw new Error(
+          `Failed to fetch definitive status for ${params.orderId} after preemption.`
+        );
+      }
+      console.log(
+        `ℹ️ [VENDOR-ESCALATION] Definitive status for ${params.orderId} after preemption: ${currentOrder.status}`
+      );
+
+      // The vendor's action should have already triggered appropriate notifications
+      // No need for redundant notification here
+
+      return {
+        id: currentOrder.id,
+        status: currentOrder.status as OrderStatus["status"],
+        updatedAt:
+          currentOrder.updatedAt?.toISOString() || new Date().toISOString(),
+        vendorId: currentOrder.shopId, // Or actual vendorId field if different
+      };
+    } else {
+      // Should not happen with exhaustive type checking
+      console.error(
+        `❌ [VENDOR-ESCALATION] Unhandled race result type for order ${params.orderId}:`,
+        (raceResult as any).type
+      );
+      throw new Error("Unhandled outcome in vendor response/escalation race.");
     }
+  }
 
-    const responseData = vendorResponse.payload as {
-      orderId: string;
-      status: string;
-      vendorId?: string;
-      timestamp?: string;
-    };
+  /**
+   * Handle vendor escalation with specific timeline
+   * Checks order status before each action to allow preemption.
+   * Returns void if preempted (vendor acted), throws ESCALATION_COMPLETED if runs full course.
+   */
+  private async handleVendorEscalation(
+    params: OrderParams,
+    step: WorkflowStep
+  ): Promise<void> {
+    console.log(
+      `🚨 [VENDOR-ESCALATION] Starting escalation process for order: ${params.orderId}`
+    );
+    const db = createClient(env.DB);
 
-    await step.do("notify_customer_vendor_decision", async () => {
-      return await this.notifyCustomer(
-        {
-          id: params.orderId,
-          status: responseData.status,
-          updatedAt: responseData.timestamp || new Date().toISOString(),
-        },
-        params,
-        step
+    // Helper to check status and execute a durable action if order is still pending
+    const checkStatusAndProceed = async (
+      level: string,
+      actionName: string, // Unique name for the action step.do
+      actionLogic: () => Promise<any>
+    ) => {
+      const stepCheckName = `check_order_status_L${level}_${params.orderId.slice(-6)}`;
+      const order = await step.do(stepCheckName, async () => {
+        console.log(
+          `[ESCALATION-L${level}] DB Check: Reading status for order ${params.orderId}`
+        );
+        return db.query.orderTable.findFirst({
+          where: eq(orderTable.id, params.orderId),
+          columns: { status: true },
+        });
+      });
+
+      console.log(
+        `[ESCALATION-L${level}] DB Check Result for ${params.orderId}: Status is ${order?.status}`
       );
+      if (order?.status !== "PAYMENT_CONFIRMED") {
+        console.log(
+          `[ESCALATION-L${level}] Preempting for ${params.orderId}. Current status: ${order?.status} (not PAYMENT_CONFIRMED).`
+        );
+        return false; // Stop escalation for this order
+      }
+
+      console.log(
+        `[ESCALATION-L${level}] Continuing for ${params.orderId}. Status is PAYMENT_CONFIRMED.`
+      );
+      // Execute the actual escalation action as a durable step
+      const stepActionName = `${actionName}_L${level}_${params.orderId.slice(-6)}`;
+      await step.do(stepActionName, actionLogic);
+      console.log(
+        `🔔 [ESCALATION-L${level}] Action '${actionName}' completed for ${params.orderId}`
+      );
+      return true; // Indicate escalation should continue to the next level
+    }; // Level 1: 5 minutes - First reminder
+    await step.sleep("escalation_L1_wait", "5 minutes");
+    if (
+      !(await checkStatusAndProceed("1", "vendor_reminder", async () => {
+        const pushNotificationService = new PushNotificationService();
+        return await pushNotificationService.sendNotificationToShop(
+          params.shopId,
+          {
+            title: "⏰ Order Reminder",
+            body: `Please respond to order #${params.orderId.slice(-6)} - Customer is waiting!`,
+            data: {
+              type: "order_reminder",
+              orderId: params.orderId,
+              urgency: "medium",
+              action: "respond_now",
+              link: `/vendor/orders/${params.orderId}`,
+              sound: "urgent_notification.mp3",
+            },
+          }
+        );
+      }))
+    )
+      return; // Preempted
+
+    // Level 2: 10 minutes - Urgent vendor notification + customer delay notification
+    await step.sleep("escalation_L2_wait", "5 minutes");
+    if (
+      !(await checkStatusAndProceed(
+        "2",
+        "vendor_urgent_and_customer_delay",
+        async () => {
+          const pushNotificationService = new PushNotificationService();
+          await pushNotificationService.sendNotificationToShop(params.shopId, {
+            title: "🚨 URGENT: Order Response Required",
+            body: `Order #${params.orderId.slice(-6)} requires immediate attention! Please confirm or reject now.`,
+            data: {
+              type: "order_urgent",
+              orderId: params.orderId,
+              urgency: "high",
+              action: "respond_immediately",
+              link: `/vendor/orders/${params.orderId}`,
+              sound: "urgent_notification.mp3",
+            },
+          });
+
+          // Notify customer about the delay with a friendly message
+          await this.notifyCustomer(
+            {
+              id: params.orderId,
+              status: "PENDING_VENDOR_RESPONSE",
+              updatedAt: new Date().toISOString(),
+            },
+            params,
+            step
+          );
+        }
+      ))
+    )
+      return; // Preempted    // Level 3: 15 minutes - Admin notification + vendor warning
+    await step.sleep("escalation_L3_wait", "5 minutes");
+    if (
+      !(await checkStatusAndProceed(
+        "3",
+        "vendor_warning_and_admin_alert",
+        async () => {
+          const pushNotificationService = new PushNotificationService();
+          await pushNotificationService.sendNotificationToShop(params.shopId, {
+            title: "⚠️ FINAL WARNING: Order Response",
+            body: `Order #${params.orderId.slice(-6)} - Admin has been notified. Respond now to avoid penalties!`,
+            data: {
+              type: "order_warning",
+              orderId: params.orderId,
+              urgency: "critical",
+              action: "respond_now_or_penalty",
+              link: `/vendor/orders/${params.orderId}`,
+              sound: "urgent_notification.mp3",
+            },
+          });
+          const adminUsers = await this.getAdminUsers(step); // getAdminUsers is already a step.do
+          for (const adminId of adminUsers) {
+            // This specific notification send is part of the L3 action, not a separate step.do here,
+            // but getAdminUsers itself is durable.
+            await pushNotificationService.sendNotificationToUser(adminId, {
+              title: "🚨 VENDOR DELAY ALERT",
+              body: `Vendor not responding to order #${params.orderId.slice(-6)} for 15+ minutes. Intervention may be required.`,
+              data: {
+                type: "vendor_delay_alert",
+                orderId: params.orderId,
+                shopId: params.shopId,
+                delayTime: "15_minutes",
+                urgency: "high",
+                action: "review_vendor_performance",
+                link: `/admin/orders/${params.orderId}`,
+                sound: "admin_alert.mp3",
+              },
+            });
+          }
+        }
+      ))
+    )
+      return; // Preempted    // Level 4: 25 minutes - Final warning
+    await step.sleep("escalation_L4_wait", "10 minutes");
+    if (
+      !(await checkStatusAndProceed("4", "vendor_final_warning", async () => {
+        const pushNotificationService = new PushNotificationService();
+        return await pushNotificationService.sendNotificationToShop(
+          params.shopId,
+          {
+            title: "🚨 FINAL NOTICE: 35 MINUTES LEFT",
+            body: `Order #${params.orderId.slice(-6)} will be AUTO-CANCELLED in 35 minutes if no response received!`,
+            data: {
+              type: "order_final_warning",
+              orderId: params.orderId,
+              urgency: "critical",
+              timeLeft: "35_minutes",
+              action: "respond_now_or_auto_cancel",
+              link: `/vendor/orders/${params.orderId}`,
+              sound: "urgent_notification.mp3",
+            },
+          }
+        );
+      }))
+    )
+      return; // Preempted
+
+    // Level 5: 1 hour - Final check before auto-cancellation
+    await step.sleep("escalation_L5_wait_final_check", "35 minutes");
+    const finalOrderCheckName = `check_order_status_L5_final_${params.orderId.slice(-6)}`;
+    const finalOrderCheck = await step.do(finalOrderCheckName, async () => {
+      console.log(
+        `[ESCALATION-L5] Final DB Check: Reading status for order ${params.orderId} before auto-cancel.`
+      );
+      return db.query.orderTable.findFirst({
+        where: eq(orderTable.id, params.orderId),
+        columns: { status: true },
+      });
     });
 
     console.log(
-      `✅ [VENDOR-ESCALATION] Vendor responded with status: ${responseData.status} for order: ${params.orderId}`
+      `[ESCALATION-L5] Final DB Check Result for ${params.orderId}: Status is ${finalOrderCheck?.status}`
     );
-    return {
-      id: params.orderId,
-      status: responseData.status,
-      updatedAt: responseData.timestamp || new Date().toISOString(),
-      vendorId: responseData.vendorId,
-    };
+    if (finalOrderCheck?.status !== "PAYMENT_CONFIRMED") {
+      console.log(
+        `[ESCALATION-L5] Preempted auto-cancel for ${params.orderId}, status is ${finalOrderCheck?.status}.`
+      );
+      return; // Preempted before auto-cancellation
+    }
+
+    console.log(
+      `❌ [ESCALATION-L5] Proceeding with auto-cancellation for order ${params.orderId} as status is still PAYMENT_CONFIRMED.`
+    );
+
+    // Auto-cancel actions (these are already wrapped in step.do in the original full code, ensure they are here)
+    await step.do(
+      `escalation_auto_cancel_order_${params.orderId.slice(-6)}`,
+      async () => {
+        await db
+          .update(orderTable)
+          .set({
+            status: "CANCELLED",
+            cancelReason: "Vendor failed to respond within timeout period",
+            canceledAt: new Date().toISOString(),
+          })
+          .where(eq(orderTable.id, params.orderId));
+      }
+    );
+    await step.do(
+      `escalation_process_refund_${params.orderId.slice(-6)}`,
+      async () => {
+        return await this.processRefund(params, step);
+      }
+    );
+    await step.do(
+      `escalation_notify_customer_cancellation_${params.orderId.slice(-6)}`,
+      async () => {
+        return await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: "CANCELLED",
+            updatedAt: new Date().toISOString(),
+          },
+          params,
+          step
+        );
+      }
+    );
+    console.log(
+      `❌ [ESCALATION-L5] Auto-cancelled order ${params.orderId} due to vendor non-response after full escalation cycle`
+    );
+    throw new Error("ESCALATION_COMPLETED"); // Signal completion of escalation if it runs its full course
   }
 
   /**
    * Handle order cancellation flow
-   */ private async handleOrderCancellation(
+   */
+  private async handleOrderCancellation(
     params: OrderParams,
     reason: string,
     step: WorkflowStep
   ): Promise<void> {
     console.log(
-      `Handling cancellation for order: ${params.orderId}, reason: ${reason}`
+      `🔄 [ORDER-CANCELLATION] Handling cancellation for order: ${params.orderId}, reason: ${reason}`
     );
 
     // Process refund if payment was completed
     if (params.paymentMethod !== "CASH") {
+      console.log(
+        `💰 [ORDER-CANCELLATION] Processing refund for order: ${params.orderId}`
+      );
       await step.do("process_cancellation_refund", async () => {
         return await this.processRefund(params, step);
       });
+    } else {
+      console.log(
+        `💵 [ORDER-CANCELLATION] Cash payment - no refund needed for order: ${params.orderId}`
+      );
     }
+
+    // Notify customer about cancellation
+    console.log(
+      `📢 [ORDER-CANCELLATION] Notifying customer about cancellation for order: ${params.orderId}`
+    );
     await step.do("notify_customer_cancellation", async () => {
       return await this.notifyCustomer(
         {
@@ -574,7 +894,12 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         step
       );
     });
+
+    console.log(
+      `✅ [ORDER-CANCELLATION] Cancellation handling completed for order: ${params.orderId}`
+    );
   }
+
   /**
    * Phase 3: Wait for vendor to prepare order and mark as ready
    */
@@ -821,6 +1146,50 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           .where(eq(orderTable.id, params.orderId));
         return { success: true };
       });
+      const MINIMUM_REFUND_AMOUNT_NGN = 50;
+
+      if (order.total < MINIMUM_REFUND_AMOUNT_NGN) {
+        console.log(
+          `⚠️ [REFUND] Order ${params.orderId} amount (NGN${order.total}) is below Paystack minimum refund amount of NGN50. Marking as completed without Paystack refund.`
+        );
+
+        await step.do("update_small_amount_refund_completed", async () => {
+          const db = createClient(env.DB);
+          await db
+            .update(orderTable)
+            .set({
+              refundStatus: "COMPLETED",
+              refundReference: `SMALL_AMOUNT_${Date.now()}`,
+              refundedAt: new Date().toISOString(),
+            })
+            .where(eq(orderTable.id, params.orderId));
+          return { success: true };
+        });
+
+        await step.do("send_small_amount_refund_notification", async () => {
+          const pushNotificationService = new PushNotificationService();
+          return await pushNotificationService.sendNotificationToUser(
+            params.customerId,
+            {
+              title: "🔄 Order Cancelled - Refund Processed",
+              body: `Your order #${params.orderId.slice(-6)} has been cancelled and refunded. The amount (NGN${order.total.toFixed(2)}) will reflect in your account balance.`,
+              data: {
+                type: "refund_processed",
+                orderId: params.orderId,
+                refundReference: `SMALL_AMOUNT_${Date.now()}`,
+                refundAmount: order.total.toString(),
+                action: "view_order_details",
+                link: `/orders/${params.orderId}`,
+              },
+            }
+          );
+        });
+
+        console.log(
+          `✅ [REFUND] Small amount refund processed for order ${params.orderId}`
+        );
+        return;
+      }
 
       const refundResponse = await step.do(
         "process_paystack_refund",
@@ -916,11 +1285,58 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           );
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `❌ [REFUND] Failed to process refund for order ${params.orderId}:`,
         error
       );
+
+      if (error?.message?.includes("Cannot refund less than NGN50")) {
+        console.log(
+          `⚠️ [REFUND] Handling small amount refund for order ${params.orderId} due to Paystack minimum amount constraint`
+        );
+
+        try {
+          await step.do("handle_small_amount_refund_fallback", async () => {
+            const db = createClient(env.DB);
+            await db
+              .update(orderTable)
+              .set({
+                refundStatus: "COMPLETED",
+                refundReference: `SMALL_AMOUNT_${Date.now()}`,
+                refundedAt: new Date().toISOString(),
+              })
+              .where(eq(orderTable.id, params.orderId));
+
+            const pushNotificationService = new PushNotificationService();
+            await pushNotificationService.sendNotificationToUser(
+              params.customerId,
+              {
+                title: "🔄 Order Cancelled - Refund Processed",
+                body: `Your order #${params.orderId.slice(-6)} has been cancelled and refunded. The small amount will reflect in your account balance.`,
+                data: {
+                  type: "refund_processed",
+                  orderId: params.orderId,
+                  refundReference: `SMALL_AMOUNT_${Date.now()}`,
+                  action: "view_order_details",
+                  link: `/orders/${params.orderId}`,
+                },
+              }
+            );
+            return { success: true };
+          });
+
+          console.log(
+            `✅ [REFUND] Small amount refund fallback completed for order ${params.orderId}`
+          );
+          return;
+        } catch (fallbackError) {
+          console.error(
+            `❌ [REFUND] Failed to handle small amount refund fallback for order ${params.orderId}:`,
+            fallbackError
+          );
+        }
+      }
 
       try {
         await step.do("handle_refund_error", async () => {
@@ -1160,8 +1576,19 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     data: Record<string, string>;
   } {
     const orderNumber = `#${order.id.slice(-6)}`;
-
     switch (order.status) {
+      case "PAYMENT_CONFIRMED":
+        return {
+          title: "Payment Confirmed! 💳",
+          body: `Your payment for order ${orderNumber} has been confirmed. We're waiting for the restaurant to accept your order.`,
+          data: {
+            type: "payment_confirmed",
+            orderId: order.id,
+            status: order.status,
+            action: "view_order",
+          },
+        };
+
       case "CONFIRMED":
         return {
           title: "Order Confirmed! 🎉",
@@ -1275,201 +1702,15 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   }
 
   /**
-   * Handle vendor escalation with specific timeline
-   * 10min: Reminder push notification with sound
-   * 20min: Urgent push notification + customer delay notification
-   * 30min: Admin notification + vendor warning
-   * 90min: Final warning (10 minutes to respond)
-   * 100min: Auto-cancel order
-   */
-  private async handleVendorEscalation(
-    params: OrderParams,
-    step: WorkflowStep
-  ): Promise<void> {
-    console.log(
-      `🚨 [VENDOR-ESCALATION] Starting escalation process for order: ${params.orderId}`
-    );
-
-    // Level 1: 10 minutes - Reminder notification with sound
-    await step.sleep("escalation_level_1_wait", "10 minutes");
-    await step.do("escalation_level_1_vendor_reminder", async () => {
-      const pushNotificationService = new PushNotificationService();
-      return await pushNotificationService.sendNotificationToShop(
-        params.shopId,
-        {
-          title: "⏰ Order Reminder",
-          body: `Please respond to order #${params.orderId.slice(-6)} - Customer is waiting!`,
-          data: {
-            type: "order_reminder",
-            orderId: params.orderId,
-            urgency: "medium",
-            action: "respond_now",
-            link: `/vendor/orders/${params.orderId}`,
-            sound: "urgent_notification.mp3",
-          },
-        }
-      );
-    });
-    console.log(
-      `🔔 [ESCALATION-L1] Sent reminder notification to vendor for order: ${params.orderId}`
-    );
-
-    // Level 2: 20 minutes - Urgent vendor notification + customer delay notification
-    await step.sleep("escalation_level_2_wait", "10 minutes");
-
-    await step.do("escalation_level_2_vendor_urgent", async () => {
-      const pushNotificationService = new PushNotificationService();
-      return await pushNotificationService.sendNotificationToShop(
-        params.shopId,
-        {
-          title: "🚨 URGENT: Order Response Required",
-          body: `Order #${params.orderId.slice(-6)} requires immediate attention! Please confirm or reject now.`,
-          data: {
-            type: "order_urgent",
-            orderId: params.orderId,
-            urgency: "high",
-            action: "respond_immediately",
-            link: `/vendor/orders/${params.orderId}`,
-            sound: "urgent_notification.mp3",
-          },
-        }
-      );
-    });
-
-    await step.do("escalation_level_2_customer_delay", async () => {
-      return await this.notifyCustomer(
-        {
-          id: params.orderId,
-          status: "PENDING_VENDOR_RESPONSE",
-          updatedAt: new Date().toISOString(),
-        },
-        params,
-        step
-      );
-    });
-    console.log(
-      `🔔 [ESCALATION-L2] Sent urgent notifications to vendor and delay notification to customer for order: ${params.orderId}`
-    );
-
-    // Level 3: 30 minutes - Admin notification + vendor warning
-    await step.sleep("escalation_level_3_wait", "10 minutes");
-
-    await step.do("escalation_level_3_vendor_warning", async () => {
-      const pushNotificationService = new PushNotificationService();
-      return await pushNotificationService.sendNotificationToShop(
-        params.shopId,
-        {
-          title: "⚠️ FINAL WARNING: Order Response",
-          body: `Order #${params.orderId.slice(-6)} - Admin has been notified. Respond now to avoid penalties!`,
-          data: {
-            type: "order_warning",
-            orderId: params.orderId,
-            urgency: "critical",
-            action: "respond_now_or_penalty",
-            link: `/vendor/orders/${params.orderId}`,
-            sound: "urgent_notification.mp3",
-          },
-        }
-      );
-    });
-
-    await step.do("escalation_level_3_admin_notification", async () => {
-      const pushNotificationService = new PushNotificationService();
-      const adminUsers = await this.getAdminUsers(step);
-
-      for (const adminId of adminUsers) {
-        await pushNotificationService.sendNotificationToUser(adminId, {
-          title: "🚨 VENDOR DELAY ALERT",
-          body: `Vendor not responding to order #${params.orderId.slice(-6)} for 30+ minutes. Intervention may be required.`,
-          data: {
-            type: "vendor_delay_alert",
-            orderId: params.orderId,
-            shopId: params.shopId,
-            delayTime: "30_minutes",
-            urgency: "high",
-            action: "review_vendor_performance",
-            link: `/admin/orders/${params.orderId}`,
-            sound: "admin_alert.mp3",
-          },
-        });
-      }
-      return { notifiedAdmins: adminUsers.length };
-    });
-    console.log(
-      `🔔 [ESCALATION-L3] Sent warning to vendor and alerted admins for order: ${params.orderId}`
-    );
-
-    // Level 4: 90 minutes (1 hour wait) - Final 10-minute warning
-    await step.sleep("escalation_level_4_wait", "1 hour");
-    await step.do("escalation_level_4_final_warning", async () => {
-      const pushNotificationService = new PushNotificationService();
-      return await pushNotificationService.sendNotificationToShop(
-        params.shopId,
-        {
-          title: "🚨 FINAL NOTICE: 10 MINUTES LEFT",
-          body: `Order #${params.orderId.slice(-6)} will be AUTO-CANCELLED in 10 minutes if no response received!`,
-          data: {
-            type: "order_final_warning",
-            orderId: params.orderId,
-            urgency: "critical",
-            timeLeft: "10_minutes",
-            action: "respond_now_or_auto_cancel",
-            link: `/vendor/orders/${params.orderId}`,
-            sound: "urgent_notification.mp3",
-          },
-        }
-      );
-    });
-    console.log(
-      `🔔 [ESCALATION-L4] Sent final 10-minute warning to vendor for order: ${params.orderId}`
-    );
-
-    // Level 5: 100 minutes - Auto-cancel
-    await step.sleep("escalation_level_5_wait", "10 minutes");
-
-    await step.do("escalation_auto_cancel_order", async () => {
-      const db = createClient(env.DB);
-      await db
-        .update(orderTable)
-        .set({
-          status: "CANCELLED",
-          cancelReason: "Vendor failed to respond within timeout period",
-          canceledAt: new Date().toISOString(),
-        })
-        .where(eq(orderTable.id, params.orderId));
-      return { success: true, reason: "vendor_no_response_timeout" };
-    });
-
-    await step.do("escalation_process_refund", async () => {
-      return await this.processRefund(params, step);
-    });
-
-    await step.do("escalation_notify_customer_cancellation", async () => {
-      return await this.notifyCustomer(
-        {
-          id: params.orderId,
-          status: "CANCELLED",
-          updatedAt: new Date().toISOString(),
-        },
-        params,
-        step
-      );
-    });
-
-    console.log(
-      `❌ [ESCALATION-L5] Auto-cancelled order ${params.orderId} due to vendor non-response after full escalation cycle`
-    );
-  }
-
-  /**
    * Get list of admin user IDs
-   */
-  private async getAdminUsers(step: WorkflowStep): Promise<string[]> {
+   */ private async getAdminUsers(step: WorkflowStep): Promise<string[]> {
     return await step.do("get_admin_users", async () => {
       const db = createClient(env.DB);
-      // You'll need to implement this based on your user schema
-      // For now, returning empty array - you can update this with your actual admin user query
-      return [];
+      const adminUsers = await db
+        .select({ id: userTable.id })
+        .from(userTable)
+        .where(eq(userTable.role, "admin"));
+      return adminUsers.map((user) => user.id);
     });
   }
 }

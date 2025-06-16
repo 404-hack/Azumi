@@ -150,7 +150,6 @@ export class PaystackService {
       throw error;
     }
   }
-
   async refundTransaction(
     transactionReference: string,
     amount?: number,
@@ -168,6 +167,14 @@ export class PaystackService {
           merchantNote,
         }
       );
+      const MINIMUM_REFUND_AMOUNT_NGN = 50;
+
+      if (amount && amount < MINIMUM_REFUND_AMOUNT_NGN) {
+        console.warn(
+          `[PAYSTACK_SERVICE] Amount NGN${amount} is below Paystack minimum refund amount of NGN50`
+        );
+        throw new Error(`Cannot refund less than NGN50. Amount: NGN${amount}`);
+      }
 
       const refundData: any = {
         transaction: transactionReference,
@@ -175,7 +182,7 @@ export class PaystackService {
       };
 
       if (amount) {
-        refundData.amount = amount;
+        refundData.amount = Math.round(amount * 100);
       }
 
       if (customerNote) {

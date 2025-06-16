@@ -867,29 +867,26 @@ const orderRoute = factory
         const isRider = user.id === existingOrder.riderId;
         const isCustomer = user.id === existingOrder.customerId;
 
-        if (
-          status === "CANCELLED" &&
-          isCustomer &&
-          existingOrder.status !== "PENDING"
-        ) {
-          return c.json(
-            { error: "Customers can only cancel pending orders" },
-            403
-          );
-        } else if (
-          status === "CANCELLED" &&
-          !isCustomer &&
-          !isVendor &&
-          !isRider
-        ) {
-          // Added !isRider
-          return c.json(
-            {
-              error:
-                "Only the customer (for pending orders), vendor, or rider can cancel",
-            },
-            403
-          );
+        if (status === "CANCELLED") {
+          // Prioritize vendor/rider permissions - they can cancel at any status
+          if (isVendor || isRider) {
+            // Vendors and riders can cancel orders at any status
+          } else if (isCustomer && existingOrder.status !== "PENDING") {
+            // Customers can only cancel pending orders
+            return c.json(
+              { error: "Customers can only cancel pending orders" },
+              403
+            );
+          } else if (!isCustomer && !isVendor && !isRider) {
+            // No permission to cancel
+            return c.json(
+              {
+                error:
+                  "Only the customer (for pending orders), vendor, or rider can cancel",
+              },
+              403
+            );
+          }
         }
 
         if (status !== "CANCELLED") {
