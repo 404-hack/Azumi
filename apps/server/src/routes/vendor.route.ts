@@ -1096,7 +1096,8 @@ const vendorRoute = factory
         //   status: response.status,
         //   headers: response.headers,
         //   webSocket: response.webSocket,
-        // });        let query = db.query.orderTable.findMany({
+        // });
+        let query = db.query.orderTable.findMany({
           where: (orders, { eq, and }) => {
             const conditions = [eq(orders.shopId, orgId)];
             if (status) {

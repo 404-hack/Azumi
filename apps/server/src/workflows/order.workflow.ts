@@ -159,29 +159,33 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       `🔄 [WORKFLOW-PAYMENT] Waiting for payment confirmation or failure with 1 hour timeout...`
     );
     try {
-      // Wait for either payment confirmation or failure event using Promise.race
-      const paymentResult = await Promise.race([
-        step
-          .waitForEvent("payment_confirmed", {
-            type: "payment_confirmed",
-            timeout: "1 hour",
-          })
-          .then((event) => ({
-            type: "payment_confirmed",
-            payload: event.payload,
-          })),
+      // Wait for either payment confirmation or failure event using Promise.race wrapped in step.do
+      const paymentResult = await step.do(
+        "wait_for_payment_result",
+        async () => {
+          return await Promise.race([
+            step
+              .waitForEvent("payment_confirmed", {
+                type: "payment_confirmed",
+                timeout: "1 hour",
+              })
+              .then((event) => ({
+                type: "payment_confirmed",
+                payload: event.payload,
+              })),
 
-        step
-          .waitForEvent("payment_failed", {
-            type: "payment_failed",
-            timeout: "1 hour",
-          })
-          .then((event) => ({
-            type: "payment_failed",
-            payload: event.payload,
-          })),
-      ]);
-
+            step
+              .waitForEvent("payment_failed", {
+                type: "payment_failed",
+                timeout: "1 hour",
+              })
+              .then((event) => ({
+                type: "payment_failed",
+                payload: event.payload,
+              })),
+          ]);
+        }
+      );
       if (paymentResult.type === "payment_confirmed") {
         console.log(
           `✅ [WORKFLOW-PAYMENT] Payment confirmed for order: ${params.orderId}`
@@ -195,7 +199,9 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         console.log(
           `📢 [WORKFLOW-VENDOR] Initiating vendor notification for order: ${params.orderId}`
         );
-        await this.notifyVendor(params);
+        await step.do("notify_vendor_new_order", async () => {
+          return await this.notifyVendor(params);
+        });
 
         console.log(
           `✅ [WORKFLOW-VENDOR] Vendor notified successfully for order: ${params.orderId}`
@@ -208,15 +214,17 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           `❌ [WORKFLOW-PAYMENT] Failure reason:`,
           paymentResult.payload || "No reason provided"
         );
-
-        await this.notifyCustomer(
-          {
-            id: params.orderId,
-            status: "CANCELLED",
-            updatedAt: new Date().toISOString(),
-          },
-          params
-        );
+        await step.do("notify_customer_payment_failed", async () => {
+          return await this.notifyCustomer(
+            {
+              id: params.orderId,
+              status: "CANCELLED",
+              updatedAt: new Date().toISOString(),
+            },
+            params,
+            step
+          );
+        });
 
         console.log(
           `✅ [WORKFLOW-CUSTOMER] Customer notified about payment failure for order: ${params.orderId}`
@@ -230,29 +238,34 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       console.log(
         `⚠️ [WORKFLOW-PAYMENT] Payment verification failed/timeout for order: ${params.orderId}`
       );
-      console.log(`⚠️ [WORKFLOW-PAYMENT] Error details:`, error);
-
-      // Check current order status in database
+      console.log(`⚠️ [WORKFLOW-PAYMENT] Error details:`, error); // Check current order status in database
       console.log(
         `🔍 [WORKFLOW-PAYMENT] Checking order status in database for order: ${params.orderId}`
       );
-      const db = createClient(env.DB);
-      const order = await db.query.orderTable.findFirst({
-        where: eq(orderTable.id, params.orderId),
-        columns: { paymentStatus: true, status: true, cancelReason: true },
-        with: { cart: { columns: { id: true, status: true } } },
-      });
-
+      const orderStatus = await step.do(
+        "check_order_status_in_db",
+        async () => {
+          const db = createClient(env.DB);
+          return await db.query.orderTable.findFirst({
+            where: eq(orderTable.id, params.orderId),
+            columns: { paymentStatus: true, status: true, cancelReason: true },
+            with: { cart: { columns: { id: true, status: true } } },
+          });
+        }
+      );
       console.log(`🔍 [WORKFLOW-PAYMENT] Current order status:`, {
         orderId: params.orderId,
-        paymentStatus: order?.paymentStatus,
-        orderStatus: order?.status,
-        cancelReason: order?.cancelReason,
-        cartId: order?.cart?.id,
-        cartStatus: order?.cart?.status,
+        paymentStatus: orderStatus?.paymentStatus,
+        orderStatus: orderStatus?.status,
+        cancelReason: orderStatus?.cancelReason,
+        cartId: orderStatus?.cart?.id,
+        cartStatus: orderStatus?.cart?.status,
       });
 
-      if (order?.paymentStatus === "FAILED" || order?.status === "CANCELLED") {
+      if (
+        orderStatus?.paymentStatus === "FAILED" ||
+        orderStatus?.status === "CANCELLED"
+      ) {
         console.log(
           `❌ [WORKFLOW-PAYMENT] Order ${params.orderId} was cancelled due to payment failure via webhook`
         );
@@ -261,14 +274,17 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         console.log(
           `📢 [WORKFLOW-CUSTOMER] Notifying customer about payment failure for order: ${params.orderId}`
         );
-        await this.notifyCustomer(
-          {
-            id: params.orderId,
-            status: "CANCELLED",
-            updatedAt: new Date().toISOString(),
-          },
-          params
-        );
+        await step.do("notify_customer_webhook_payment_failed", async () => {
+          return await this.notifyCustomer(
+            {
+              id: params.orderId,
+              status: "CANCELLED",
+              updatedAt: new Date().toISOString(),
+            },
+            params,
+            step
+          );
+        });
 
         console.log(
           `✅ [WORKFLOW-CUSTOMER] Customer notified about payment failure for order: ${params.orderId}`
@@ -276,7 +292,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
         // End workflow execution for failed payment
         throw new Error(
-          `Payment failed for order ${params.orderId}: ${order.cancelReason || "Payment failure via webhook"}`
+          `Payment failed for order ${params.orderId}: ${orderStatus.cancelReason || "Payment failure via webhook"}`
         );
       }
 
@@ -284,7 +300,9 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       console.log(
         `⏰ [WORKFLOW-TIMEOUT] Payment timeout detected for order: ${params.orderId} - initiating silent cleanup`
       );
-      await this.handlePaymentTimeout(params, order);
+      await step.do("handle_payment_timeout", async () => {
+        return await this.handlePaymentTimeout(params, orderStatus);
+      });
 
       throw new Error(
         `Payment timeout for order ${params.orderId} - order cleaned up successfully`
@@ -451,48 +469,86 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       );
     }
   }
-
   /**
-   * Phase 2: Wait for vendor to accept or reject order
+   * Phase 2: Wait for vendor to accept or reject order with escalation system
    * This is event-based, pausing workflow until vendor takes action
-   */
-  private async waitForVendorResponse(
+   */ private async waitForVendorResponse(
     params: OrderParams,
     step: WorkflowStep
   ): Promise<OrderStatus> {
-    console.log(`Waiting for vendor response for order: ${params.orderId}`);
-    // Wait for vendor to update order status (through /:id/status endpoint)
-    const vendorResponse = await step.waitForEvent("vendor_order_response", {
-      type: "vendor_order_response",
-      timeout: "2 hours",
-    }); // Extract data from event
+    console.log(
+      `🔄 [VENDOR-ESCALATION] Starting vendor response waiting with escalation for order: ${params.orderId}`
+    );
+
+    const vendorResponse = await step.do(
+      "vendor_response_with_escalation",
+      async () => {
+        return await Promise.race([
+          step
+            .waitForEvent("vendor_order_response", {
+              type: "vendor_order_response",
+              timeout: "2 hours",
+            })
+            .then((event) => ({
+              type: "vendor_response",
+              payload: event.payload,
+            })),
+
+          this.handleVendorEscalation(params, step).then(() => ({
+            type: "auto_cancelled",
+            payload: {
+              orderId: params.orderId,
+              status: "CANCELLED",
+              reason: "vendor_no_response_timeout",
+              timestamp: new Date().toISOString(),
+            },
+          })),
+        ]);
+      }
+    );
+
+    if (vendorResponse.type === "auto_cancelled") {
+      console.log(
+        `❌ [VENDOR-ESCALATION] Order ${params.orderId} auto-cancelled due to vendor non-response`
+      );
+      throw new Error(
+        "Order auto-cancelled due to vendor non-response after full escalation cycle"
+      );
+    }
+
     const responseData = vendorResponse.payload as {
       orderId: string;
       status: string;
       vendorId?: string;
-    }; // Notify customer about vendor's decision
-    await this.notifyCustomer(
-      {
-        id: params.orderId,
-        status: responseData.status,
-        updatedAt: new Date().toISOString(),
-      },
-      params
-    );
+      timestamp?: string;
+    };
 
-    console.log(`Vendor responded with status: ${responseData.status}`);
+    await step.do("notify_customer_vendor_decision", async () => {
+      return await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: responseData.status,
+          updatedAt: responseData.timestamp || new Date().toISOString(),
+        },
+        params,
+        step
+      );
+    });
+
+    console.log(
+      `✅ [VENDOR-ESCALATION] Vendor responded with status: ${responseData.status} for order: ${params.orderId}`
+    );
     return {
       id: params.orderId,
       status: responseData.status,
-      updatedAt: new Date().toISOString(),
+      updatedAt: responseData.timestamp || new Date().toISOString(),
       vendorId: responseData.vendorId,
     };
   }
 
   /**
    * Handle order cancellation flow
-   */
-  private async handleOrderCancellation(
+   */ private async handleOrderCancellation(
     params: OrderParams,
     reason: string,
     step: WorkflowStep
@@ -503,16 +559,21 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
     // Process refund if payment was completed
     if (params.paymentMethod !== "CASH") {
-      await this.processRefund(params);
-    } // Notify customer about cancellation
-    await this.notifyCustomer(
-      {
-        id: params.orderId,
-        status: "CANCELLED",
-        updatedAt: new Date().toISOString(),
-      },
-      params
-    );
+      await step.do("process_cancellation_refund", async () => {
+        return await this.processRefund(params, step);
+      });
+    }
+    await step.do("notify_customer_cancellation", async () => {
+      return await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: "CANCELLED",
+          updatedAt: new Date().toISOString(),
+        },
+        params,
+        step
+      );
+    });
   }
   /**
    * Phase 3: Wait for vendor to prepare order and mark as ready
@@ -528,18 +589,20 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       type: "order_ready",
       timeout: "3 hours",
     })) as WorkflowStepEvent<{ orderId: string; timestamp: string }>;
-
     console.log(
       `Order ${params.orderId} is ready for pickup at ${readyEvent.payload.timestamp}`
-    ); // Notify customer that order is ready
-    await this.notifyCustomer(
-      {
-        id: params.orderId,
-        status: "READY",
-        updatedAt: new Date().toISOString(),
-      },
-      params
     );
+    await step.do("notify_customer_order_ready", async () => {
+      return await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: "READY",
+          updatedAt: new Date().toISOString(),
+        },
+        params,
+        step
+      );
+    });
   } /**
    * Phase 4: Assign rider for delivery
    */
@@ -550,10 +613,9 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     console.log(
       `🚀 [RIDER-ASSIGNMENT] Finding suitable rider for order: ${params.orderId}`
     );
-
     try {
-      const riderAssignment = (await step.waitForEvent("rider_assigned", {
-        type: "rider_assigned",
+      const riderAssignment = (await step.waitForEvent("accept_order", {
+        type: "accept_order",
         timeout: "30 minutes",
       })) as WorkflowStepEvent<{
         orderId: string;
@@ -566,18 +628,22 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       console.log(
         `✅ [RIDER-ASSIGNMENT] Rider ${riderData.riderId} assigned to order: ${params.orderId}`
       );
+      await step.do("notify_customer_rider_assigned", async () => {
+        return await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: "RIDER_ASSIGNED",
+            updatedAt: new Date().toISOString(),
+            riderId: riderData.riderId,
+          },
+          params,
+          step
+        );
+      });
 
-      await this.notifyCustomer(
-        {
-          id: params.orderId,
-          status: "RIDER_ASSIGNED",
-          updatedAt: new Date().toISOString(),
-          riderId: riderData.riderId,
-        },
-        params
-      );
-
-      await this.notifyAssignedRider(params, riderData.riderId);
+      await step.do("notify_assigned_rider", async () => {
+        return await this.notifyAssignedRider(params, riderData.riderId);
+      });
 
       return riderAssignment;
     } catch (error) {
@@ -604,32 +670,42 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       `🔄 [TIMEOUT-HANDLER] Starting timeout handling for order ${params.orderId}`
     );
     try {
-      const db = createClient(env.DB);
       const riderDispatchService = new RiderDispatchService();
 
       console.log(
         `📊 [TIMEOUT-HANDLER] Scenario 1: Attempting auto-assignment for order ${params.orderId}`
       );
-      const autoAssignResult = await riderDispatchService.autoAssignRider(
-        params.orderId
+      const autoAssignResult = await step.do(
+        "auto_assign_rider_timeout",
+        async () => {
+          return await riderDispatchService.autoAssignRider(params.orderId);
+        }
       );
 
       if (autoAssignResult.success && autoAssignResult.riderId) {
         console.log(
           `✅ [TIMEOUT-HANDLER] Auto-assignment successful - rider ${autoAssignResult.riderId} assigned to order ${params.orderId}`
         );
-
-        await this.notifyCustomer(
-          {
-            id: params.orderId,
-            status: "RIDER_ASSIGNED",
-            updatedAt: new Date().toISOString(),
-            riderId: autoAssignResult.riderId,
-          },
-          params
-        );
-
-        await this.notifyAssignedRider(params, autoAssignResult.riderId);
+        await step.do("notify_customer_auto_assigned_rider", async () => {
+          return await this.notifyCustomer(
+            {
+              id: params.orderId,
+              status: "RIDER_ASSIGNED",
+              updatedAt: new Date().toISOString(),
+              riderId: autoAssignResult.riderId,
+            },
+            params,
+            step
+          );
+        });
+        await step.do("notify_auto_assigned_rider", async () => {
+          if (autoAssignResult.riderId) {
+            return await this.notifyAssignedRider(
+              params,
+              autoAssignResult.riderId
+            );
+          }
+        });
 
         return {
           type: "rider_assigned",
@@ -642,30 +718,36 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           },
         };
       }
-
       console.log(
         `⚠️ [TIMEOUT-HANDLER] Scenario 2: Auto-assignment failed, cancelling order ${params.orderId}`
       );
       console.log(`📝 [TIMEOUT-HANDLER] Reason: ${autoAssignResult.message}`);
-      await db
-        .update(orderTable)
-        .set({
-          status: "CANCELLED",
-          cancelReason: "No riders available within 30-minute timeout",
-          canceledAt: new Date().toISOString(),
-        })
-        .where(eq(orderTable.id, params.orderId));
-
-      await this.notifyCustomer(
-        {
-          id: params.orderId,
-          status: "CANCELLED",
-          updatedAt: new Date().toISOString(),
-        },
-        params
-      );
-
-      await this.processRefund(params);
+      await step.do("cancel_order_no_riders", async () => {
+        const db = createClient(env.DB);
+        await db
+          .update(orderTable)
+          .set({
+            status: "CANCELLED",
+            cancelReason: "No riders available within 30-minute timeout",
+            canceledAt: new Date().toISOString(),
+          })
+          .where(eq(orderTable.id, params.orderId));
+        return { success: true };
+      });
+      await step.do("notify_customer_no_riders", async () => {
+        return await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: "CANCELLED",
+            updatedAt: new Date().toISOString(),
+          },
+          params,
+          step
+        );
+      });
+      await step.do("process_refund_no_riders", async () => {
+        return await this.processRefund(params, step);
+      });
 
       console.log(
         `❌ [TIMEOUT-HANDLER] Order ${params.orderId} cancelled due to rider assignment timeout`
@@ -685,7 +767,10 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   /**
    * Process refund for cancelled order
    */
-  private async processRefund(params: OrderParams): Promise<void> {
+  private async processRefund(
+    params: OrderParams,
+    step: WorkflowStep
+  ): Promise<void> {
     try {
       console.log(`💰 [REFUND] Processing refund for order ${params.orderId}`);
 
@@ -696,17 +781,19 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         return;
       }
 
-      const db = createClient(env.DB);
-      const order = await db.query.orderTable.findFirst({
-        where: eq(orderTable.id, params.orderId),
-        columns: {
-          id: true,
-          total: true,
-          status: true,
-          paymentStatus: true,
-          refundStatus: true,
-          refundReference: true,
-        },
+      const order = await step.do("check_refund_eligibility", async () => {
+        const db = createClient(env.DB);
+        return await db.query.orderTable.findFirst({
+          where: eq(orderTable.id, params.orderId),
+          columns: {
+            id: true,
+            total: true,
+            status: true,
+            paymentStatus: true,
+            refundStatus: true,
+            refundReference: true,
+          },
+        });
       });
 
       if (!order) {
@@ -724,33 +811,44 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         );
         return;
       }
-
-      const paystackService = new PaystackService();
-
-      await db
-        .update(orderTable)
-        .set({
-          refundStatus: "PROCESSING",
-        })
-        .where(eq(orderTable.id, params.orderId));
-
-      const refundResponse = await paystackService.refundTransaction(
-        params.paymentTransactionId,
-        order.total,
-        "NGN",
-        "Order cancelled - no riders available",
-        "Automatic refund due to order cancellation"
-      );
-
-      if (refundResponse.status && refundResponse.data) {
+      await step.do("update_refund_status_processing", async () => {
+        const db = createClient(env.DB);
         await db
           .update(orderTable)
           .set({
-            refundStatus: "COMPLETED",
-            refundReference: refundResponse.data.transaction.reference,
-            refundedAt: new Date().toISOString(),
+            refundStatus: "PROCESSING",
           })
           .where(eq(orderTable.id, params.orderId));
+        return { success: true };
+      });
+
+      const refundResponse = await step.do(
+        "process_paystack_refund",
+        async () => {
+          const paystackService = new PaystackService();
+          return await paystackService.refundTransaction(
+            params.paymentTransactionId,
+            order.total,
+            "NGN",
+            "Order cancelled - no riders available",
+            "Automatic refund due to order cancellation"
+          );
+        }
+      );
+
+      if (refundResponse.status && refundResponse.data) {
+        await step.do("update_refund_status_completed", async () => {
+          const db = createClient(env.DB);
+          await db
+            .update(orderTable)
+            .set({
+              refundStatus: "COMPLETED",
+              refundReference: refundResponse.data?.transaction.reference,
+              refundedAt: new Date().toISOString(),
+            })
+            .where(eq(orderTable.id, params.orderId));
+          return { success: true };
+        });
 
         console.log(
           `✅ [REFUND] Paystack refund successful for order ${params.orderId}:`,
@@ -761,53 +859,62 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           }
         );
 
-        const pushNotificationService = new PushNotificationService();
-        await pushNotificationService.sendNotificationToUser(
-          params.customerId,
-          {
-            title: "🔄 Refund Processed",
-            body: `Your payment for order #${params.orderId.slice(-6)} has been refunded. Please allow 3-5 business days for the refund to reflect in your account.`,
-            data: {
-              type: "refund_processed",
-              orderId: params.orderId,
-              refundReference: refundResponse.data.transaction.reference,
-              refundAmount: refundResponse.data.amount.toString(),
-              action: "view_order_details",
-              link: `/orders/${params.orderId}`,
-            },
-          }
-        );
+        await step.do("send_refund_success_notification", async () => {
+          const pushNotificationService = new PushNotificationService();
+          return await pushNotificationService.sendNotificationToUser(
+            params.customerId,
+            {
+              title: "🔄 Refund Processed",
+              body: `Your payment for order #${params.orderId.slice(-6)} has been refunded. Please allow 3-5 business days for the refund to reflect in your account.`,
+              data: {
+                type: "refund_processed",
+                orderId: params.orderId,
+                refundReference:
+                  refundResponse.data?.transaction.reference || "",
+                refundAmount: refundResponse.data?.amount?.toString() || "0",
+                action: "view_order_details",
+                link: `/orders/${params.orderId}`,
+              },
+            }
+          );
+        });
 
         console.log(
           `✅ [REFUND] Refund notification sent for order ${params.orderId}`
         );
       } else {
-        await db
-          .update(orderTable)
-          .set({
-            refundStatus: "FAILED",
-          })
-          .where(eq(orderTable.id, params.orderId));
+        await step.do("update_refund_status_failed", async () => {
+          const db = createClient(env.DB);
+          await db
+            .update(orderTable)
+            .set({
+              refundStatus: "FAILED",
+            })
+            .where(eq(orderTable.id, params.orderId));
+          return { success: true };
+        });
 
         console.error(
           `❌ [REFUND] Paystack refund failed for order ${params.orderId}:`,
           refundResponse.message
         );
 
-        const pushNotificationService = new PushNotificationService();
-        await pushNotificationService.sendNotificationToUser(
-          params.customerId,
-          {
-            title: "⚠️ Refund Processing Issue",
-            body: `There was an issue processing your refund for order #${params.orderId.slice(-6)}. Our support team will contact you shortly.`,
-            data: {
-              type: "refund_failed",
-              orderId: params.orderId,
-              action: "contact_support",
-              link: `/support/orders/${params.orderId}`,
-            },
-          }
-        );
+        await step.do("send_refund_failure_notification", async () => {
+          const pushNotificationService = new PushNotificationService();
+          return await pushNotificationService.sendNotificationToUser(
+            params.customerId,
+            {
+              title: "⚠️ Refund Processing Issue",
+              body: `There was an issue processing your refund for order #${params.orderId.slice(-6)}. Our support team will contact you shortly.`,
+              data: {
+                type: "refund_failed",
+                orderId: params.orderId,
+                action: "contact_support",
+                link: `/support/orders/${params.orderId}`,
+              },
+            }
+          );
+        });
       }
     } catch (error) {
       console.error(
@@ -816,28 +923,31 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       );
 
       try {
-        const db = createClient(env.DB);
-        await db
-          .update(orderTable)
-          .set({
-            refundStatus: "FAILED",
-          })
-          .where(eq(orderTable.id, params.orderId));
+        await step.do("handle_refund_error", async () => {
+          const db = createClient(env.DB);
+          await db
+            .update(orderTable)
+            .set({
+              refundStatus: "FAILED",
+            })
+            .where(eq(orderTable.id, params.orderId));
 
-        const pushNotificationService = new PushNotificationService();
-        await pushNotificationService.sendNotificationToUser(
-          params.customerId,
-          {
-            title: "⚠️ Refund Processing Issue",
-            body: `There was an issue processing your refund for order #${params.orderId.slice(-6)}. Our support team will contact you shortly.`,
-            data: {
-              type: "refund_failed",
-              orderId: params.orderId,
-              action: "contact_support",
-              link: `/support/orders/${params.orderId}`,
-            },
-          }
-        );
+          const pushNotificationService = new PushNotificationService();
+          await pushNotificationService.sendNotificationToUser(
+            params.customerId,
+            {
+              title: "⚠️ Refund Processing Issue",
+              body: `There was an issue processing your refund for order #${params.orderId.slice(-6)}. Our support team will contact you shortly.`,
+              data: {
+                type: "refund_failed",
+                orderId: params.orderId,
+                action: "contact_support",
+                link: `/support/orders/${params.orderId}`,
+              },
+            }
+          );
+          return { success: true };
+        });
       } catch (notificationError) {
         console.error(
           `❌ [REFUND] Failed to send error notification for order ${params.orderId}:`,
@@ -845,7 +955,8 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         );
       }
     }
-  } /**
+  }
+  /**
    * Notify assigned rider about their new delivery
    */
   private async notifyAssignedRider(
@@ -854,17 +965,14 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   ): Promise<void> {
     try {
       const pushNotificationService = new PushNotificationService();
-      const riderEarnings = Math.round(params.deliveryFee * 0.7);
 
       await pushNotificationService.sendNotificationToUser(riderId, {
         title: "🎉 New Delivery Assigned!",
-        body: `Order #${params.orderId.slice(-6)} - Delivery: ₦${params.deliveryFee.toLocaleString()}, Your earnings: ₦${riderEarnings.toLocaleString()}`,
+        body: `You've been assigned order #${params.orderId.slice(-6)}. Please head to the pickup location.`,
         data: {
           type: "delivery_assigned",
           orderId: params.orderId,
           shopId: params.shopId,
-          deliveryFee: params.deliveryFee.toString(),
-          riderEarnings: riderEarnings.toString(),
           action: "start_pickup",
           link: `/rider/orders/${params.orderId}/pickup`,
         },
@@ -893,19 +1001,21 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       type: "order_picked_up",
       timeout: "1 hour",
     });
-
     console.log(
       `Order ${params.orderId} picked up by rider ${riderAssignment.riderId}`
-    ); // Notify customer that order is in transit
-    await this.notifyCustomer(
-      {
-        id: params.orderId,
-        status: "IN_TRANSIT",
-        updatedAt: new Date().toISOString(),
-        riderId: riderAssignment.riderId,
-      },
-      params
     );
+    await step.do("notify_customer_order_in_transit", async () => {
+      return await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: "IN_TRANSIT",
+          updatedAt: new Date().toISOString(),
+          riderId: riderAssignment.riderId,
+        },
+        params,
+        step
+      );
+    });
   }
   /**
    * Wait for delivery confirmation with rider code
@@ -921,17 +1031,20 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       type: "order_delivered",
       timeout: "3 hours",
     });
-
-    console.log(`Order ${params.orderId} delivered successfully`); // Notify customer about successful delivery
-    await this.notifyCustomer(
-      {
-        id: params.orderId,
-        status: "DELIVERED",
-        updatedAt: new Date().toISOString(),
-      },
-      params
-    );
+    console.log(`Order ${params.orderId} delivered successfully`);
+    await step.do("notify_customer_order_delivered", async () => {
+      return await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: "DELIVERED",
+          updatedAt: new Date().toISOString(),
+        },
+        params,
+        step
+      );
+    });
   }
+
   /**
    * Process payment settlements to vendor and rider
    */
@@ -941,36 +1054,9 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   ): Promise<void> {
     console.log(`Processing payment settlements for order: ${params.orderId}`);
 
-    await step.do("process-rider-earnings", async () => {
-      try {
-        const { RiderPaymentService } = await import(
-          "../services/riderPayment.service"
-        );
-        const riderPaymentService = new RiderPaymentService();
-        const db = createClient(env.DB);
-
-        const paymentResult = await riderPaymentService.processDeliveryPayment(
-          params.orderId,
-          db
-        );
-
-        if (paymentResult.success) {
-          console.log(
-            `✅ Rider payment processed for order ${params.orderId}:`,
-            {
-              transactionId: paymentResult.transactionId,
-            }
-          );
-        } else {
-          console.error(
-            `❌ Failed to process rider payment for order ${params.orderId}:`,
-            paymentResult.error
-          );
-        }
-      } catch (error) {
-        console.error("Error processing rider payment:", error);
-      }
-    });
+    // Calculate vendor payout (total minus platform fee and rider fee)
+    // Process vendor payout
+    // Process rider payout
   }
   /**
    * Request customer feedback after delivery
@@ -979,21 +1065,25 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     params: OrderParams,
     step: WorkflowStep
   ): Promise<void> {
-    console.log(`Requesting feedback for order: ${params.orderId}`); // Send feedback request notification to customer
-    await this.notifyCustomer(
-      {
-        id: params.orderId,
-        status: "COMPLETED",
-        updatedAt: new Date().toISOString(),
-      },
-      params
-    );
-  } /**
+    console.log(`Requesting feedback for order: ${params.orderId}`);
+    await step.do("send_customer_feedback_request", async () => {
+      return await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: "COMPLETED",
+          updatedAt: new Date().toISOString(),
+        },
+        params,
+        step
+      );
+    });
+  }
+  /**
    * Send notification to customer with FCM integration
-   */
-  private async notifyCustomer(
+   */ private async notifyCustomer(
     order: OrderStatus,
-    params?: OrderParams
+    params?: OrderParams,
+    step?: WorkflowStep
   ): Promise<void> {
     console.log(
       `Sending notification for order: ${order.id}, status: ${order.status}`
@@ -1003,14 +1093,25 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       const { title, body, data } = this.getCustomerNotificationContent(order);
       // Get customer ID from order in database if not provided in params
       let customerId = params?.customerId;
-      if (!customerId) {
-        const db = createClient(env.DB);
+      if (!customerId && step) {
+        const orderRecord = await step.do(
+          "get_customer_id_from_db",
+          async () => {
+            const db = createClient(env.DB);
+            return await db.query.orderTable.findFirst({
+              where: eq(orderTable.id, order.id),
+              columns: { customerId: true },
+            });
+          }
+        );
 
+        customerId = orderRecord?.customerId || undefined;
+      } else if (!customerId) {
+        const db = createClient(env.DB);
         const orderRecord = await db.query.orderTable.findFirst({
           where: eq(orderTable.id, order.id),
           columns: { customerId: true },
         });
-
         customerId = orderRecord?.customerId || undefined;
       }
 
@@ -1067,6 +1168,18 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           body: `Your order ${orderNumber} has been confirmed and is being prepared`,
           data: {
             type: "order_confirmed",
+            orderId: order.id,
+            status: order.status,
+            action: "view_order",
+          },
+        };
+
+      case "PENDING_VENDOR_RESPONSE":
+        return {
+          title: "Order Delay Notice ⏰",
+          body: `We're still waiting for the restaurant to confirm your order ${orderNumber}. We'll keep you updated!`,
+          data: {
+            type: "order_delay",
             orderId: order.id,
             status: order.status,
             action: "view_order",
@@ -1159,5 +1272,204 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           },
         };
     }
+  }
+
+  /**
+   * Handle vendor escalation with specific timeline
+   * 10min: Reminder push notification with sound
+   * 20min: Urgent push notification + customer delay notification
+   * 30min: Admin notification + vendor warning
+   * 90min: Final warning (10 minutes to respond)
+   * 100min: Auto-cancel order
+   */
+  private async handleVendorEscalation(
+    params: OrderParams,
+    step: WorkflowStep
+  ): Promise<void> {
+    console.log(
+      `🚨 [VENDOR-ESCALATION] Starting escalation process for order: ${params.orderId}`
+    );
+
+    // Level 1: 10 minutes - Reminder notification with sound
+    await step.sleep("escalation_level_1_wait", "10 minutes");
+    await step.do("escalation_level_1_vendor_reminder", async () => {
+      const pushNotificationService = new PushNotificationService();
+      return await pushNotificationService.sendNotificationToShop(
+        params.shopId,
+        {
+          title: "⏰ Order Reminder",
+          body: `Please respond to order #${params.orderId.slice(-6)} - Customer is waiting!`,
+          data: {
+            type: "order_reminder",
+            orderId: params.orderId,
+            urgency: "medium",
+            action: "respond_now",
+            link: `/vendor/orders/${params.orderId}`,
+            sound: "urgent_notification.mp3",
+          },
+        }
+      );
+    });
+    console.log(
+      `🔔 [ESCALATION-L1] Sent reminder notification to vendor for order: ${params.orderId}`
+    );
+
+    // Level 2: 20 minutes - Urgent vendor notification + customer delay notification
+    await step.sleep("escalation_level_2_wait", "10 minutes");
+
+    await step.do("escalation_level_2_vendor_urgent", async () => {
+      const pushNotificationService = new PushNotificationService();
+      return await pushNotificationService.sendNotificationToShop(
+        params.shopId,
+        {
+          title: "🚨 URGENT: Order Response Required",
+          body: `Order #${params.orderId.slice(-6)} requires immediate attention! Please confirm or reject now.`,
+          data: {
+            type: "order_urgent",
+            orderId: params.orderId,
+            urgency: "high",
+            action: "respond_immediately",
+            link: `/vendor/orders/${params.orderId}`,
+            sound: "urgent_notification.mp3",
+          },
+        }
+      );
+    });
+
+    await step.do("escalation_level_2_customer_delay", async () => {
+      return await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: "PENDING_VENDOR_RESPONSE",
+          updatedAt: new Date().toISOString(),
+        },
+        params,
+        step
+      );
+    });
+    console.log(
+      `🔔 [ESCALATION-L2] Sent urgent notifications to vendor and delay notification to customer for order: ${params.orderId}`
+    );
+
+    // Level 3: 30 minutes - Admin notification + vendor warning
+    await step.sleep("escalation_level_3_wait", "10 minutes");
+
+    await step.do("escalation_level_3_vendor_warning", async () => {
+      const pushNotificationService = new PushNotificationService();
+      return await pushNotificationService.sendNotificationToShop(
+        params.shopId,
+        {
+          title: "⚠️ FINAL WARNING: Order Response",
+          body: `Order #${params.orderId.slice(-6)} - Admin has been notified. Respond now to avoid penalties!`,
+          data: {
+            type: "order_warning",
+            orderId: params.orderId,
+            urgency: "critical",
+            action: "respond_now_or_penalty",
+            link: `/vendor/orders/${params.orderId}`,
+            sound: "urgent_notification.mp3",
+          },
+        }
+      );
+    });
+
+    await step.do("escalation_level_3_admin_notification", async () => {
+      const pushNotificationService = new PushNotificationService();
+      const adminUsers = await this.getAdminUsers(step);
+
+      for (const adminId of adminUsers) {
+        await pushNotificationService.sendNotificationToUser(adminId, {
+          title: "🚨 VENDOR DELAY ALERT",
+          body: `Vendor not responding to order #${params.orderId.slice(-6)} for 30+ minutes. Intervention may be required.`,
+          data: {
+            type: "vendor_delay_alert",
+            orderId: params.orderId,
+            shopId: params.shopId,
+            delayTime: "30_minutes",
+            urgency: "high",
+            action: "review_vendor_performance",
+            link: `/admin/orders/${params.orderId}`,
+            sound: "admin_alert.mp3",
+          },
+        });
+      }
+      return { notifiedAdmins: adminUsers.length };
+    });
+    console.log(
+      `🔔 [ESCALATION-L3] Sent warning to vendor and alerted admins for order: ${params.orderId}`
+    );
+
+    // Level 4: 90 minutes (1 hour wait) - Final 10-minute warning
+    await step.sleep("escalation_level_4_wait", "1 hour");
+    await step.do("escalation_level_4_final_warning", async () => {
+      const pushNotificationService = new PushNotificationService();
+      return await pushNotificationService.sendNotificationToShop(
+        params.shopId,
+        {
+          title: "🚨 FINAL NOTICE: 10 MINUTES LEFT",
+          body: `Order #${params.orderId.slice(-6)} will be AUTO-CANCELLED in 10 minutes if no response received!`,
+          data: {
+            type: "order_final_warning",
+            orderId: params.orderId,
+            urgency: "critical",
+            timeLeft: "10_minutes",
+            action: "respond_now_or_auto_cancel",
+            link: `/vendor/orders/${params.orderId}`,
+            sound: "urgent_notification.mp3",
+          },
+        }
+      );
+    });
+    console.log(
+      `🔔 [ESCALATION-L4] Sent final 10-minute warning to vendor for order: ${params.orderId}`
+    );
+
+    // Level 5: 100 minutes - Auto-cancel
+    await step.sleep("escalation_level_5_wait", "10 minutes");
+
+    await step.do("escalation_auto_cancel_order", async () => {
+      const db = createClient(env.DB);
+      await db
+        .update(orderTable)
+        .set({
+          status: "CANCELLED",
+          cancelReason: "Vendor failed to respond within timeout period",
+          canceledAt: new Date().toISOString(),
+        })
+        .where(eq(orderTable.id, params.orderId));
+      return { success: true, reason: "vendor_no_response_timeout" };
+    });
+
+    await step.do("escalation_process_refund", async () => {
+      return await this.processRefund(params, step);
+    });
+
+    await step.do("escalation_notify_customer_cancellation", async () => {
+      return await this.notifyCustomer(
+        {
+          id: params.orderId,
+          status: "CANCELLED",
+          updatedAt: new Date().toISOString(),
+        },
+        params,
+        step
+      );
+    });
+
+    console.log(
+      `❌ [ESCALATION-L5] Auto-cancelled order ${params.orderId} due to vendor non-response after full escalation cycle`
+    );
+  }
+
+  /**
+   * Get list of admin user IDs
+   */
+  private async getAdminUsers(step: WorkflowStep): Promise<string[]> {
+    return await step.do("get_admin_users", async () => {
+      const db = createClient(env.DB);
+      // You'll need to implement this based on your user schema
+      // For now, returning empty array - you can update this with your actual admin user query
+      return [];
+    });
   }
 }

@@ -10,6 +10,7 @@ import {
 } from "../../constant";
 import { nanoid } from "nanoid";
 import { relations } from "drizzle-orm";
+import { orderTable } from "./order.schema";
 
 export const riderTable = sqliteTable("riders", {
   id: text("id")
@@ -34,7 +35,8 @@ export const riderTable = sqliteTable("riders", {
   vehicleLicense: text("vehicle_license"),
   identificationDocument: text("identification_document"),
   applicationStatus: text("application_status", {
-    enum: RIDER_APPLICATION_STATUS,  }).default("DRAFT"),
+    enum: RIDER_APPLICATION_STATUS,
+  }).default("DRAFT"),
   active: integer("active", { mode: "boolean" }).default(false),
   availabilityStatus: text("availability_status", {
     enum: RIDER_AVAILABILITY_STATUS,
@@ -44,7 +46,9 @@ export const riderTable = sqliteTable("riders", {
   maxDeliveryDistance: integer("max_delivery_distance").default(10),
   currentLat: real("current_lat"),
   currentLng: real("current_lng"),
-  currentOrderId: text("current_order_id"),
+  currentOrderId: text("current_order_id").references(() => orderTable.id, {
+    onDelete: "cascade",
+  }),
   ...timestamps,
 });
 

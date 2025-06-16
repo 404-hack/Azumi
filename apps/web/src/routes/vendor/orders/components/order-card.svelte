@@ -1,148 +1,278 @@
 <script lang="ts">
-	import * as Card from '$lib/components/ui/card';
-	import { Badge } from '$lib/components/ui/badge';
-	import { Button } from '$lib/components/ui/button';
-	import { Clock, Phone, MapPin, AlertCircle } from 'lucide-svelte';
-	import type { Order } from '../types';
 	import { formatCurrency, formatDate, formatTime } from '$lib/utils';
+	import * as Card from '$lib/components/ui/card';
+	import { Button } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
+	import { Clock, Phone, MapPin, ChevronDown, Receipt } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
 
-	let { order, onStatusChange, showActions = true } = $props();
+	interface Order {
+		id: string;
+		code: string | null;
+		createdAt: string;
+		customer: {
+			id: string;
+			name: string;
+			phoneNumber: string;
+			email: string;
+		};
+		subtotal: number;
+		total: number;
+		status: string;
+		paymentStatus: string;
+		shop?: {
+			id: string;
+			name: string;
+			commission: number;
+		};
+		items: Array<{
+			id: string;
+			menuItemName: string;
+			quantity: number;
+			unitPrice: number;
+			totalPrice: number;
+		}>;
+	}
+	let {
+		order,
+		onStatusChange,
+		showBreakdown = false,
+		showActions = true,
+		compact = false,
+		isUpdating = false
+	}: {
+		order: Order;
+		onStatusChange?: (orderId: string, newStatus: string) => Promise<void>;
+		showBreakdown?: boolean;
+		showActions?: boolean;
+		compact?: boolean;
+		isUpdating?: boolean;
+	} = $props();
 
-	let statusColor = $derived(
-		{
-			new: 'default',
-			preparing: 'warning',
-			ready: 'success',
-			completed: 'secondary',
-			cancelled: 'destructive'
-		}[order.status]
-	);
-
-	let paymentStatusColor = $derived(
-		{
-			pending: 'warning',
-			paid: 'success',
-			failed: 'destructive'
-		}[order.paymentStatus]
-	);
-
-	// Simplified status change actions
-	const statusActions = {
-		new: [
-			{
-				label: 'Start Preparing',
-				action: 'preparing',
-				variant: 'default',
-				primary: true
-			},
-			{
-				label: 'Reject',
-				action: 'cancelled',
-				variant: 'outline',
-				class: 'text-destructive hover:bg-destructive hover:text-destructive-foreground'
-			}
-		],
-		preparing: [
-			{
-				label: 'Mark Ready',
-				action: 'ready',
-				variant: 'default',
-				primary: true
-			}
-		],
-		ready: [
-			{
-				label: 'Complete Order',
-				action: 'completed',
-				variant: 'default',
-				primary: true
-			}
-		]
+	const statusFormatting: Record<
+		string,
+		{ text: string; color: 'default' | 'destructive' | 'outline' | 'secondary' }
+	> = {
+		PAYMENT_CONFIRMED: { text: 'New Order', color: 'default' },
+		CONFIRMED: { text: 'Confirmed', color: 'secondary' },
+		PREPARING: { text: 'Preparing', color: 'outline' },
+		READY: { text: 'Ready', color: 'outline' },
+		CANCELLED: { text: 'Cancelled', color: 'destructive' },
+		COMPLETED: { text: 'Completed', color: 'secondary' },
+		DELIVERED: { text: 'Delivered', color: 'secondary' }
 	};
+	const statusActions = {
+		PAYMENT_CONFIRMED: [
+			{ label: 'Accept Order', action: 'CONFIRMED', variant: 'default' as const, primary: true },
+			{ label: 'Reject', action: 'CANCELLED', variant: 'destructive' as const }
+		],
+		CONFIRMED: [
+			{ label: 'Start Preparing', action: 'PREPARING', variant: 'default' as const, primary: true },
+			{ label: 'Cancel Order', action: 'CANCELLED', variant: 'destructive' as const }
+		],
+		PREPARING: [
+			{ label: 'Mark Ready', action: 'READY', variant: 'default' as const, primary: true },
+			{ label: 'Cancel Order', action: 'CANCELLED', variant: 'destructive' as const }
+		],
+		READY: [{ label: 'Complete', action: 'COMPLETED', variant: 'default' as const, primary: true }],
+		COMPLETED: [],
+		DELIVERED: [],
+		CANCELLED: []
+	} as const;
+
+	let expanded = $state(false);
+
+	function toggleExpansion() {
+		expanded = !expanded;
+	}
+
+	function callCustomer() {
+		if (order.customer?.phoneNumber) {
+			window.location.href = `tel:${order.customer.phoneNumber}`;
+		}
+	}
+
+	function viewDetails() {
+		goto(`/vendor/orders/${order.id}`);
+	}
+
+	function getTimeAgo(createdAt: string): string {
+		const now = new Date();
+		const orderTime = new Date(createdAt);
+		const diffMs = now.getTime() - orderTime.getTime();
+		const diffMins = Math.floor(diffMs / (1000 * 60));
+
+		if (diffMins < 1) return 'Just now';
+		if (diffMins < 60) return `${diffMins}m ago`;
+
+		const diffHours = Math.floor(diffMins / 60);
+		if (diffHours < 24) return `${diffHours}h ago`;
+
+		return formatDate(createdAt);
+	}
 </script>
 
-<Card.Root class="relative overflow-hidden">
-	<!-- Status Badge - Always visible at the top right -->
-	<div class="absolute right-4 top-4 flex gap-2">
-		<Badge variant={statusColor}>{order.status}</Badge>
-		<Badge variant={paymentStatusColor}>{order.paymentStatus}</Badge>
-	</div>
-
-	<Card.Header>
-		<div class="space-y-1">
-			<Card.Title class="flex items-center gap-2">
-				Order #{order.orderNumber}
-				{#if order.estimatedReadyTime}
-					<div class="flex items-center gap-1 text-sm font-normal text-muted-foreground">
-						<Clock class="h-4 w-4" />
-						<span>Ready by {formatTime(order.estimatedReadyTime)}</span>
+<Card.Root class="w-full transition-all duration-200 hover:shadow-md">
+	<Card.Header class="px-3 pb-2 pt-3">
+		<div class="flex items-start justify-between gap-3">
+			<div class="min-w-0 flex-1">
+				<Card.Title class="truncate text-sm font-semibold sm:text-base">
+					#{order.code || order.id.slice(-6)}
+				</Card.Title>
+				<Card.Description class="text-muted-foreground text-xs">
+					{getTimeAgo(order.createdAt)} • {formatTime(order.createdAt)}
+				</Card.Description>
+			</div>
+			<div class="flex flex-col items-end gap-1">
+				<Badge
+					variant={statusFormatting[order.status]?.color || 'default'}
+					class="whitespace-nowrap text-xs"
+				>
+					{statusFormatting[order.status]?.text || order.status}
+				</Badge>
+				<div class="text-right">
+					<div class="text-base font-bold text-green-600 sm:text-lg">
+						{formatCurrency(((order.subtotal || 0) * (100 - (order.shop?.commission || 10))) / 100)}
 					</div>
-				{/if}
-			</Card.Title>
-			<Card.Description
-				>{formatDate(order.createdAt)} at {formatTime(order.createdAt)}</Card.Description
-			>
+					<div class="text-muted-foreground text-xs">Your earnings</div>
+					{#if showBreakdown}
+						<Button
+							variant="ghost"
+							size="sm"
+							onclick={toggleExpansion}
+							class="text-muted-foreground hover:text-foreground -mr-1 h-5 p-1 text-xs"
+						>
+							<Receipt class="mr-1 h-3 w-3" />
+							Breakdown
+							<ChevronDown
+								class="ml-1 h-3 w-3 transition-transform {expanded ? 'rotate-180' : ''}"
+							/>
+						</Button>
+					{/if}
+				</div>
+			</div>
 		</div>
 	</Card.Header>
-
-	<Card.Content class="space-y-4">
-		<!-- Customer Info - Simplified -->
+	<Card.Content class="space-y-3 px-3 pb-2 pt-0">
 		<div class="flex items-center justify-between">
-			<div>
-				<span class="font-medium">{order.customerName}</span>
-				<div class="text-sm text-muted-foreground">{order.customerPhone}</div>
+			<div class="min-w-0 flex-1">
+				<div class="truncate text-sm font-medium">
+					{order.customer?.name || 'Unknown Customer'}
+				</div>
+				<div class="text-muted-foreground text-xs">
+					{order.customer?.phoneNumber || 'No phone'}
+				</div>
 			</div>
-			<Button variant="ghost" size="icon" class="h-8 w-8">
-				<Phone class="h-4 w-4" />
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={callCustomer}
+				class="h-7 w-7 shrink-0 p-0 sm:h-8 sm:w-auto sm:px-2"
+				disabled={!order.customer?.phoneNumber}
+			>
+				<Phone class="h-3 w-3 sm:h-4 sm:w-4" />
+				<span class="ml-1 hidden text-xs sm:inline">Call</span>
 			</Button>
 		</div>
-
-		<!-- Order Items - Simplified -->
-		<div class="space-y-2">
-			{#each order.items as item}
-				<div class="flex justify-between text-sm">
-					<div>
-						<span class="font-medium">{item.quantity}x</span>
-						{item.name}
-					</div>
-					<span class="font-medium">{formatCurrency(item.price * item.quantity)}</span>
-				</div>
-			{/each}
-			<div class="flex justify-between border-t pt-2 font-medium">
-				<span>Total</span>
-				<span>{formatCurrency(order.total)}</span>
+		<div class="space-y-1">
+			<div class="text-muted-foreground text-xs font-medium">
+				Items ({order.items?.length || 0})
 			</div>
+			{#if !compact}
+				<div class="space-y-1">
+					{#each (order.items || []).slice(0, 2) as item}
+						<div class="flex justify-between text-xs">
+							<span class="flex-1 truncate">
+								{item.quantity}x {item.menuItemName}
+							</span>
+							<span class="ml-2 shrink-0 font-medium">
+								{formatCurrency(item.totalPrice)}
+							</span>
+						</div>
+					{/each}
+					{#if (order.items?.length || 0) > 2}
+						<div class="text-muted-foreground text-xs">
+							+{(order.items?.length || 0) - 2} more items
+						</div>
+					{/if}
+				</div>
+			{:else}
+				<div class="text-muted-foreground text-xs">
+					{#if order.items && order.items.length > 0}
+						{order.items[0].menuItemName}
+						{#if order.items.length > 1}
+							+{order.items.length - 1} more
+						{/if}
+					{:else}
+						No items
+					{/if}
+				</div>
+			{/if}
 		</div>
 
-		<!-- Delivery Info - If exists -->
-		{#if order.deliveryAddress}
-			<div class="rounded-md bg-muted/50 p-2 text-sm">
-				<div class="flex gap-2">
-					<MapPin class="h-4 w-4 shrink-0" />
-					<span>{order.deliveryAddress}</span>
-				</div>
-				{#if order.deliveryInstructions}
-					<div class="mt-1 flex gap-2 text-muted-foreground">
-						<AlertCircle class="h-4 w-4 shrink-0" />
-						<span>{order.deliveryInstructions}</span>
+		{#if expanded && showBreakdown}
+			<div class="bg-muted/30 space-y-2 rounded-lg p-3">
+				<div class="text-sm font-medium">Price Breakdown</div>
+				<div class="space-y-1">
+					<div class="flex justify-between text-sm">
+						<span class="text-muted-foreground">Order Value</span>
+						<span>{formatCurrency(order.subtotal || 0)}</span>
 					</div>
-				{/if}
+					<div class="flex justify-between text-sm">
+						<span class="text-muted-foreground">
+							Platform Commission ({order.shop?.commission || 10}%)
+						</span>
+						<span class="text-red-600">
+							-{formatCurrency(((order.subtotal || 0) * (order.shop?.commission || 10)) / 100)}
+						</span>
+					</div>
+					<hr class="my-2" />
+					<div class="flex justify-between text-sm font-medium text-green-600">
+						<span>Your Earnings</span>
+						<span>
+							{formatCurrency(
+								((order.subtotal || 0) * (100 - (order.shop?.commission || 10))) / 100
+							)}
+						</span>
+					</div>
+				</div>
 			</div>
 		{/if}
 	</Card.Content>
-
-	<!-- Status Change Actions - Simplified -->
-	{#if showActions && statusActions[order.status]}
-		<Card.Footer class="flex justify-end gap-2">
-			{#each statusActions[order.status] as action}
-				<Button
-					variant={action.variant}
-					class={action.class}
-					onclick={() => onStatusChange(order.id, action.action)}
-				>
-					{action.label}
+	{#if showActions && statusActions[order.status as keyof typeof statusActions]?.length > 0}
+		<Card.Footer class="px-3 pb-3 pt-2">
+			<div class="flex w-full flex-col gap-2">
+				<!-- View Details -->
+				<Button variant="outline" onclick={viewDetails} class="min-h-[36px] w-full" size="sm">
+					View Details
 				</Button>
-			{/each}
+
+				<!-- Accept/Reject Actions -->
+				<div class="flex gap-2">
+					{#each statusActions[order.status as keyof typeof statusActions] || [] as action}
+						<Button
+							variant={action.variant}
+							onclick={() => onStatusChange?.(order.id, action.action)}
+							class="min-h-[40px] flex-1 font-medium"
+							size="sm"
+							disabled={isUpdating}
+						>
+							{action.label}
+						</Button>
+					{/each}
+				</div>
+			</div>
+		</Card.Footer>
+	{:else if showActions}
+		<Card.Footer class="px-3 pb-3 pt-2">
+			<Button
+				variant="outline"
+				onclick={viewDetails}
+				class="min-h-[40px] w-full sm:min-h-[36px]"
+				size="sm"
+			>
+				View Details
+			</Button>
 		</Card.Footer>
 	{/if}
 </Card.Root>

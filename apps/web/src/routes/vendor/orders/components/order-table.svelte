@@ -34,17 +34,18 @@
 			totalPrice: number;
 		}>;
 	}
-
 	let {
 		searchQuery = '',
 		orders = [],
 		showActions = true,
-		onStatusChange
+		onStatusChange,
+		isUpdating = false
 	}: {
 		searchQuery: string;
 		orders: Order[];
 		showActions?: boolean;
 		onStatusChange?: (orderId: string, newStatus: string) => Promise<void>;
+		isUpdating?: boolean;
 	} = $props();
 	const statusFormatting: Record<
 		string,
@@ -201,6 +202,7 @@
 													<DropdownMenu.Item
 														onclick={() => handleStatusChange(order.id, action.action)}
 														class={action.customClass}
+														disabled={isUpdating}
 													>
 														{action.label}
 													</DropdownMenu.Item>
