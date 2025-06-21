@@ -1,46 +1,115 @@
 <script lang="ts">
 	import { riderState } from '$lib/states/riderState.svelte';
 	import { riderDispatchState } from '$lib/states/riderDispatchState.svelte';
-	import { Card } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
-	import {
-		MapPin,
-		Phone,
-		Clock,
-		DollarSign,
-		Package,
-		Star,
-		Navigation,
-		Power,
-		Bell,
-		Wifi,
-		WifiOff,
-		AlertCircle,
-		CheckCircle
-	} from 'lucide-svelte';
+	import { MapPin, Phone, DollarSign, Power, Navigation, CheckCircle, Clock } from 'lucide-svelte';
 	import { formatCurrency } from '$lib/utils';
 	import { onMount } from 'svelte';
-
-	import LocationTracker from '$lib/components/rider/LocationTracker.svelte';
-	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
-
 	const { data } = $props();
+	// Static data using your existing ORDER_STATUS - only show active orders
+	const allOrders = [
+		{
+			id: 'order-001',
+			code: 'ORD-001',
+			status: 'RIDER_ASSIGNED',
+			totalAmount: 2500,
+			pickupLocation: {
+				name: 'KFC Victoria Island',
+				address: '12 Ahmadu Bello Way, Victoria Island, Lagos',
+				phone: '+234 813 456 7890'
+			},
+			deliveryLocation: {
+				name: 'Sarah Johnson',
+				address: '15 Banana Island Road, Ikoyi, Lagos',
+				phone: '+234 901 234 5678'
+			},
+			estimatedTime: '15 mins',
+			distance: '2.5 km'
+		},
+		{
+			id: 'order-002',
+			code: 'ORD-002',
+			status: 'IN_TRANSIT',
+			totalAmount: 1800,
+			pickupLocation: {
+				name: 'Chicken Republic',
+				address: '25 Falomo Roundabout, Ikoyi, Lagos',
+				phone: '+234 802 345 6789'
+			},
+			deliveryLocation: {
+				name: 'David Chen',
+				address: '8 Osborne Road, Ikoyi, Lagos',
+				phone: '+234 708 901 2345'
+			},
+			estimatedTime: '8 mins',
+			distance: '1.2 km'
+		}
+	];
 
-	const stats = {
-		rating: 4.8,
-		totalDeliveries: 128,
-		completionRate: '98%'
-	};
+	// Filter out completed/delivered orders for active orders display
+	const activeOrders = $derived(
+		allOrders.filter(
+			(order) =>
+				order.status !== 'DELIVERED' && order.status !== 'COMPLETED' && order.status !== 'CANCELLED'
+		)
+	);
+
+	let selectedOrderId = $state(activeOrders[0]?.id || null);
+
+	function startPickup(orderId: string) {
+		// Opens navigation to pickup location
+		const order = activeOrders.find((o) => o.id === orderId);
+		if (order) {
+			const mapsUrl = `https://maps.google.com?daddr=${encodeURIComponent(order.pickupLocation.address)}`;
+			window.open(mapsUrl, '_blank');
+		}
+	}
+	function markAsPickedUp(orderId: string) {
+		// Update order status to IN_TRANSIT in the original array
+		const orderIndex = allOrders.findIndex((o) => o.id === orderId);
+		if (orderIndex !== -1) {
+			allOrders[orderIndex].status = 'IN_TRANSIT';
+		}
+	}
+
+	function markAsDelivered(orderId: string) {
+		// Update order status to DELIVERED in the original array
+		const orderIndex = allOrders.findIndex((o) => o.id === orderId);
+		if (orderIndex !== -1) {
+			allOrders[orderIndex].status = 'DELIVERED';
+		}
+	}
+
+	function getStatusColor(status: string) {
+		switch (status) {
+			case 'RIDER_ASSIGNED':
+				return 'bg-blue-500';
+			case 'IN_TRANSIT':
+				return 'bg-orange-500';
+			case 'DELIVERED':
+				return 'bg-green-500';
+			default:
+				return 'bg-gray-500';
+		}
+	}
+
+	function getStatusText(status: string) {
+		switch (status) {
+			case 'RIDER_ASSIGNED':
+				return 'Assigned';
+			case 'IN_TRANSIT':
+				return 'In Transit';
+			case 'DELIVERED':
+				return 'Delivered';
+			default:
+				return status;
+		}
+	}
+
 	onMount(() => {
-		console.log('Rider page data:', data);
-		console.log('Profile:', data?.profile);
-
 		if (data?.profile?.id) {
-			console.log('Initializing with rider ID:', data.profile.id);
 			riderDispatchState.initialize(data.profile.id);
 		} else {
-			console.log('No rider ID found, initializing without ID');
 			riderDispatchState.initialize();
 		}
 		return () => riderDispatchState.cleanup();
@@ -48,170 +117,255 @@
 
 	$effect(() => {
 		if (data?.profile?.id) {
-			console.log('Setting rider ID via effect:', data.profile.id);
 			riderDispatchState.setRiderId(data.profile.id);
 		}
 	});
 </script>
 
-<div class="space-y-8">
-	<!-- Connection Status & Location Tracker -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<div class="flex items-center gap-4">
-			<div class="flex items-center gap-2">
-				{#if riderDispatchState.isConnected}
-					<div class="flex items-center gap-2 text-green-600">
-						<Wifi class="h-4 w-4" />
-						<span class="text-sm font-medium">Connected</span>
+<div class="min-h-screen bg-gray-50 p-4">
+	<div class="mx-auto max-w-md space-y-4">
+		<!-- Header with Online/Offline Toggle -->
+		<div class="rounded-2xl bg-white p-6 shadow-sm">
+			<div class="text-center">
+				<div class="mb-4">
+					<div
+						class="mx-auto h-16 w-16 rounded-full {riderState.isActive
+							? 'bg-green-500'
+							: 'bg-gray-400'} flex items-center justify-center"
+					>
+						<Power class="h-8 w-8 text-white" />
 					</div>
-				{:else}					<div class="flex items-center gap-2 text-red-600">
-						<WifiOff class="h-4 w-4" />
-						<span class="text-sm font-medium">Disconnected</span>
-					</div>
-				{/if}
+				</div>
+				<h1 class="mb-2 text-xl font-bold">
+					{riderState.isActive ? "You're Online" : "You're Offline"}
+				</h1>
+				<p class="mb-6 text-sm text-gray-600">
+					{riderState.isActive ? 'Ready to receive orders' : 'Tap to go online and start earning'}
+				</p>
+				<Button
+					onclick={() => {
+						riderState.toggleActive();
+						if (riderState.isActive) {
+							riderDispatchState.goOnline();
+						} else {
+							riderDispatchState.goOffline();
+						}
+					}}
+					class="h-12 w-full rounded-xl text-lg {riderState.isActive
+						? 'bg-red-500 hover:bg-red-600'
+						: 'bg-green-500 hover:bg-green-600'}"
+				>
+					{riderState.isActive ? 'Go Offline' : 'Go Online'}
+				</Button>
 			</div>
 		</div>
 
-		<div class="flex items-center gap-2">
-			<Button
-				variant={riderState.isActive ? 'default' : 'outline'}
-				onclick={() => {
-					riderState.toggleActive();
-					if (riderState.isActive) {
-						riderDispatchState.goOnline();
-					} else {
-						riderDispatchState.goOffline();
-					}
-				}}
-				class="gap-2"
-			>
-				<Power class="h-4 w-4" />
-				{riderState.isActive ? 'Go Offline' : 'Go Online'}
-			</Button>
-		</div>
-	</div>
-
-	<LocationTracker />
-
-	<!-- Stats Overview -->
-	<div class="grid gap-4 md:grid-cols-4">
-		<Card class="p-4">
-			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Today's Earnings</span>
-				<div class="flex items-center gap-2">
-					<DollarSign class="h-4 w-4 text-green-500" />
-					<span class="text-2xl font-bold">{formatCurrency(riderState.earnings.today)}</span>
-				</div>
-			</div>
-		</Card>
-		<Card class="p-4">
-			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Total Deliveries</span>
-				<div class="flex items-center gap-2">
-					<Package class="h-4 w-4 text-blue-500" />
-					<span class="text-2xl font-bold">{stats.totalDeliveries}</span>
-				</div>
-			</div>
-		</Card>
-		<Card class="p-4">
-			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Rating</span>
-				<div class="flex items-center gap-2">
-					<Star class="h-4 w-4 text-yellow-500" />
-					<span class="text-2xl font-bold">{stats.rating}</span>
-				</div>
-			</div>
-		</Card>
-		<Card class="p-4">
-			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Completion Rate</span>
-				<div class="flex items-center gap-2">
-					<Navigation class="h-4 w-4 text-purple-500" />
-					<span class="text-2xl font-bold">{stats.completionRate}</span>
-				</div>
-			</div>
-		</Card>
-	</div>
-
-	<!-- Current Delivery -->
-	{#if riderState.currentDelivery}
-		<Card class="p-6">
+		<!-- Today's Earnings -->
+		<div class="rounded-2xl bg-white p-6 shadow-sm">
 			<div class="flex items-center justify-between">
-				<h2 class="text-lg font-semibold">Current Delivery</h2>
-				<Badge variant="outline">{riderState.currentDelivery.status}</Badge>
+				<div>
+					<p class="text-sm text-gray-600">Today's Earnings</p>
+					<p class="text-2xl font-bold text-green-600">
+						{formatCurrency(riderState.earnings.today)}
+					</p>
+				</div>
+				<DollarSign class="h-8 w-8 text-green-500" />
 			</div>
+		</div>
+		<!-- Active Orders or Waiting State -->
+		{#if activeOrders.length > 0 && riderState.isActive}
+			<!-- Multiple Orders -->
+			<div class="space-y-4">
+				<!-- Orders Summary -->
+				<div class="rounded-2xl bg-white p-4 shadow-sm">
+					<div class="mb-3 flex items-center justify-between">
+						<h2 class="text-lg font-bold">Active Orders</h2>
+						<span class="rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
+							{activeOrders.length} orders
+						</span>
+					</div>
+					<!-- Order Tabs -->
+					<div class="flex gap-2 overflow-x-auto pb-2">
+						{#each activeOrders as order}
+							<div class="flex-shrink-0">
+								<button
+									onclick={() => (selectedOrderId = order.id)}
+									class="rounded-lg px-3 py-2 text-sm font-medium transition-colors
+										{selectedOrderId === order.id
+										? 'bg-blue-500 text-white'
+										: 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
+								>
+									{order.code}
+								</button>
+								{#if selectedOrderId === order.id}
+									<button
+										onclick={() => (window.location.href = `/rider/orders/${order.id}`)}
+										class="mt-1 block w-full rounded-md bg-blue-100 px-2 py-1 text-xs text-blue-700 hover:bg-blue-200"
+									>
+										View Details
+									</button>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</div>
+				<!-- Selected Order Details -->
+				{#each activeOrders as order}
+					{#if selectedOrderId === order.id}
+						<div
+							class="cursor-pointer rounded-2xl border-2 border-blue-200 bg-blue-50 p-6 shadow-sm transition-all hover:border-blue-300 hover:shadow-md"
+							onclick={() => (window.location.href = `/rider/orders/${order.id}`)}
+							role="button"
+							tabindex="0"
+							onkeydown={(e) =>
+								e.key === 'Enter' && (window.location.href = `/rider/orders/${order.id}`)}
+						>
+							<div class="mb-4 text-center">
+								<div class="mb-2 flex items-center justify-center gap-2">
+									<h3 class="text-lg font-bold text-blue-900">{order.code}</h3>
+									<span
+										class="rounded-full px-2 py-1 text-xs font-medium text-white {getStatusColor(
+											order.status
+										)}"
+									>
+										{getStatusText(order.status)}
+									</span>
+								</div>
+								<p class="text-sm text-blue-700">{formatCurrency(order.totalAmount)}</p>
+								<p class="mt-1 text-xs text-blue-600">Tap for more details</p>
+							</div>
 
-			<div class="mt-6 grid gap-6 md:grid-cols-2">
-				<!-- Pickup Details -->
-				<div class="space-y-4">
-					<h3 class="font-medium">Pickup Location</h3>
-					<div class="rounded-lg border p-4">
-						<div class="flex items-start gap-3">
-							<MapPin class="mt-1 h-4 w-4 text-muted-foreground" />
-							<div>
-								<div class="font-medium">{riderState.currentDelivery.pickupLocation.address}</div>
-								<div class="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-									<Phone class="h-3 w-3" />
-									{riderState.currentDelivery.vendorContact.phone}
+							<!-- Pickup Location -->
+							<div class="mb-4 rounded-xl bg-white p-4">
+								<div class="flex items-start gap-3">
+									<div
+										class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-orange-100"
+									>
+										<MapPin class="h-4 w-4 text-orange-600" />
+									</div>
+									<div class="flex-1">
+										<p class="text-sm font-medium">Pickup from {order.pickupLocation.name}</p>
+										<p class="text-sm text-gray-600">{order.pickupLocation.address}</p>
+										<p class="mt-1 text-xs text-gray-500">
+											{order.distance} • {order.estimatedTime}
+										</p>
+										<div class="mt-2 flex items-center gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-8"
+												onclick={() => window.open(`tel:${order.pickupLocation.phone}`)}
+											>
+												<Phone class="mr-1 h-3 w-3" />
+												Call Store
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-8"
+												onclick={() =>
+													window.open(
+														`https://maps.google.com?daddr=${encodeURIComponent(order.pickupLocation.address)}`
+													)}
+											>
+												<Navigation class="mr-1 h-3 w-3" />
+												Navigate
+											</Button>
+										</div>
+									</div>
 								</div>
 							</div>
-						</div>
-					</div>
-				</div>
 
-				<!-- Dropoff Details -->
-				<div class="space-y-4">
-					<h3 class="font-medium">Dropoff Location</h3>
-					<div class="rounded-lg border p-4">
-						<div class="flex items-start gap-3">
-							<MapPin class="mt-1 h-4 w-4 text-muted-foreground" />
-							<div>
-								<div class="font-medium">{riderState.currentDelivery.dropoffLocation.address}</div>
-								<div class="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-									<Phone class="h-3 w-3" />
-									{riderState.currentDelivery.customerContact.phone}
+							<!-- Delivery Location -->
+							<div class="mb-4 rounded-xl bg-white p-4">
+								<div class="flex items-start gap-3">
+									<div
+										class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-100"
+									>
+										<MapPin class="h-4 w-4 text-green-600" />
+									</div>
+									<div class="flex-1">
+										<p class="text-sm font-medium">Deliver to {order.deliveryLocation.name}</p>
+										<p class="text-sm text-gray-600">{order.deliveryLocation.address}</p>
+										<div class="mt-2 flex items-center gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-8"
+												onclick={() => window.open(`tel:${order.deliveryLocation.phone}`)}
+											>
+												<Phone class="mr-1 h-3 w-3" />
+												Call Customer
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-8"
+												onclick={() =>
+													window.open(
+														`https://maps.google.com?daddr=${encodeURIComponent(order.deliveryLocation.address)}`
+													)}
+											>
+												<Navigation class="mr-1 h-3 w-3" />
+												Navigate
+											</Button>
+										</div>
+									</div>
 								</div>
 							</div>
+							<!-- Action Buttons -->
+							<div class="space-y-2">
+								{#if order.status === 'RIDER_ASSIGNED'}
+									<Button
+										onclick={() => startPickup(order.id)}
+										class="h-12 w-full rounded-xl bg-blue-500 text-white hover:bg-blue-600"
+									>
+										<Navigation class="mr-2 h-5 w-5" />
+										Start Pickup
+									</Button>
+								{:else if order.status === 'IN_TRANSIT'}
+									<Button
+										onclick={() => markAsDelivered(order.id)}
+										class="h-12 w-full rounded-xl bg-green-500 text-white hover:bg-green-600"
+									>
+										<CheckCircle class="mr-2 h-5 w-5" />
+										Mark as Delivered
+									</Button>
+								{:else if order.status === 'DELIVERED'}
+									<div class="flex h-12 w-full items-center justify-center rounded-xl bg-gray-100">
+										<CheckCircle class="mr-2 h-5 w-5 text-green-600" />
+										<span class="font-medium text-gray-600">Order Completed</span>
+									</div>
+								{/if}
+							</div>
 						</div>
+					{/if}
+				{/each}
+			</div>
+		{:else if riderState.isActive}
+			<!-- Waiting for Orders -->
+			<div class="rounded-2xl border-2 border-green-200 bg-green-50 p-8 text-center shadow-sm">
+				<div class="animate-pulse">
+					<div
+						class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-200"
+					>
+						<Clock class="h-6 w-6 text-green-600" />
 					</div>
 				</div>
+				<h2 class="mb-2 text-lg font-bold text-green-900">Waiting for Orders</h2>
+				<p class="text-sm text-green-700">Stay nearby, new orders will appear here</p>
 			</div>
-
-			<div class="mt-6 flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<div class="flex items-center gap-2">
-						<Clock class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm">Est. {riderState.currentDelivery.estimatedDuration} mins</span>
-					</div>
-					<div class="flex items-center gap-2">
-						<Navigation class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm">{riderState.currentDelivery.distance} km</span>
-					</div>
+		{:else}
+			<!-- Offline State -->
+			<div class="rounded-2xl bg-gray-100 p-8 text-center shadow-sm">
+				<div
+					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-300"
+				>
+					<Power class="h-6 w-6 text-gray-600" />
 				</div>
-				<div class="flex gap-2">
-					<Button variant="outline">Navigate</Button>
-					<Button onclick={() => riderState.completeDelivery()}>Complete Delivery</Button>
-				</div>
+				<h2 class="mb-2 text-lg font-bold text-gray-900">You're Offline</h2>
+				<p class="text-sm text-gray-600">Go online to start receiving orders</p>
 			</div>
-		</Card>
-	{:else if riderState.isActive}
-		<Card class="flex min-h-[200px] items-center justify-center p-6">
-			<div class="text-center">
-				<Package class="mx-auto h-12 w-12 text-muted-foreground" />
-				<h3 class="mt-4 text-lg font-medium">No Active Delivery</h3>
-				<p class="text-sm text-muted-foreground">New delivery requests will appear here</p>
-			</div>
-		</Card>
-	{:else}
-		<Card class="flex min-h-[200px] items-center justify-center p-6">
-			<div class="text-center">
-				<Power class="mx-auto h-12 w-12 text-muted-foreground" />
-				<h3 class="mt-4 text-lg font-medium">You're Offline</h3>
-				<p class="text-sm text-muted-foreground">Go to Settings to toggle your Online status</p>
-			</div>
-		</Card>
-	{/if}
+		{/if}
+	</div>
 </div>
-
-<!-- Notification Permission Banner for Push Notifications -->
-<NotificationPermissionBanner context="rider" />

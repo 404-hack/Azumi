@@ -19,16 +19,16 @@
 	const navigation = [
 		{
 			name: 'Available Orders',
-			href: '/rider/deliveries',
+			href: '/rider',
 			icon: Bike,
-			isActive: (path: string) => path === '/rider/deliveries'
+			isActive: (path: string) => path === '/rider'
 		},
-		{
-			name: 'Active Delivery',
-			href: '/rider/deliveries/active',
-			icon: Clock,
-			isActive: (path: string) => path === '/rider/deliveries/active'
-		},
+		// {
+		// 	name: 'Active Delivery',
+		// 	href: '/rider/deliveries/active',
+		// 	icon: Clock,
+		// 	isActive: (path: string) => path === '/rider/deliveries/active'
+		// },
 		{
 			name: 'Order History',
 			href: '/rider/orders/history',
