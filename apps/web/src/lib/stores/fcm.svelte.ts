@@ -79,6 +79,42 @@ function generateVendorSirenSound() {
 	}
 }
 
+function generateAdminAlertSound() {
+	try {
+		console.log('🔊 Generating admin alert sound...');
+
+		if (typeof window !== 'undefined' && 'AudioContext' in window) {
+			const audioContext = new AudioContext();
+
+			// Create 3 overlapping alert tones for admin attention
+			for (let cycle = 0; cycle < 3; cycle++) {
+				setTimeout(() => {
+					const oscillator = audioContext.createOscillator();
+					const gainNode = audioContext.createGain();
+
+					oscillator.connect(gainNode);
+					gainNode.connect(audioContext.destination);
+
+					// Two-tone alert pattern: 1000Hz to 600Hz (professional alert sound)
+					oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
+					oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.3);
+					oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.6);
+					oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.9);
+
+					// Loud but not as intense as vendor siren
+					gainNode.gain.setValueAtTime(0.6, audioContext.currentTime);
+					gainNode.gain.exponentialRampToValueAtTime(0.1, audioContext.currentTime + 1.2);
+
+					oscillator.start(audioContext.currentTime);
+					oscillator.stop(audioContext.currentTime + 1.2);
+				}, cycle * 400);
+			}
+		}
+	} catch (error) {
+		console.warn('🔊 Error generating admin alert sound:', error);
+	}
+}
+
 export function createFCMStore() {
 	let token = $state<string | null>(null);
 	let notificationPermissionStatus = $state<NotificationPermission | null>(null);
@@ -167,9 +203,7 @@ export function createFCMStore() {
 			const notificationUrl = payload.data?.url || payload.data?.link;
 			const notificationType = payload.data?.type;
 			const action = payload.data?.action;
-			const orderId = payload.data?.orderId;
-
-			// Play loud siren sound for vendor order notifications
+			const orderId = payload.data?.orderId; // Play loud siren sound for vendor order notifications
 			if (notificationType === 'new_order' || notificationType === 'order_created') {
 				const isVendorOrder =
 					payload.data?.isVendorOrder === 'true' ||
@@ -179,6 +213,20 @@ export function createFCMStore() {
 				if (isVendorOrder) {
 					generateVendorSirenSound();
 				}
+			}
+
+			// Play alert sound for admin notifications
+			const isAdminNotification =
+				notificationType === 'no_riders_alert' ||
+				notificationType === 'no_response_alert' ||
+				notificationType === 'vendor_delay_alert' ||
+				payload.data?.urgency === 'high' ||
+				payload.data?.urgency === 'critical' ||
+				payload.data?.category === 'admin' ||
+				payload.data?.sound === 'admin_alert.mp3';
+
+			if (isAdminNotification) {
+				generateAdminAlertSound();
 			}
 
 			// Create action button based on notification type
@@ -239,14 +287,15 @@ export function createFCMStore() {
 				'🔥 [FCM Store] isSupported:',
 				typeof window !== 'undefined' && 'Notification' in window
 			);
-			console.log('🔥 [FCM Store] isBlocked:', notificationPermissionStatus === 'denied');
-
-			// Listen for messages from service worker about vendor orders
+			console.log('🔥 [FCM Store] isBlocked:', notificationPermissionStatus === 'denied'); // Listen for messages from service worker about vendor orders and admin alerts
 			if ('serviceWorker' in navigator) {
 				navigator.serviceWorker.addEventListener('message', (event) => {
 					if (event.data && event.data.type === 'VENDOR_ORDER_NOTIFICATION') {
 						console.log('🚨 [FCM Store] Received vendor order notification from service worker');
 						generateVendorSirenSound();
+					} else if (event.data && event.data.type === 'ADMIN_ALERT_NOTIFICATION') {
+						console.log('🔊 [FCM Store] Received admin alert notification from service worker');
+						generateAdminAlertSound();
 					}
 				});
 			}
@@ -341,7 +390,6 @@ export function createFCMStore() {
 			return false;
 		}
 	}
-
 	async function sendVendorOrderDemo() {
 		return await sendDemoNotification({
 			title: 'New Vendor Order! 🚨',
@@ -353,6 +401,22 @@ export function createFCMStore() {
 				orderId: '12345',
 				url: '/vendor/orders/12345',
 				action: 'view_order'
+			}
+		});
+	}
+
+	async function sendAdminAlertDemo() {
+		return await sendDemoNotification({
+			title: 'Admin Alert! 🔊',
+			body: 'Order #12345 - No riders available, manual assignment needed',
+			data: {
+				type: 'no_riders_alert',
+				category: 'admin',
+				urgency: 'high',
+				orderId: '12345',
+				link: '/superadmin/orders/12345',
+				action: 'view_order',
+				sound: 'admin_alert.mp3'
 			}
 		});
 	}
@@ -483,6 +547,7 @@ export function createFCMStore() {
 		requestNotificationAndGetToken,
 		sendDemoNotification,
 		sendVendorOrderDemo,
+		sendAdminAlertDemo,
 		subscribeToTopic,
 		unsubscribeFromTopic
 	};

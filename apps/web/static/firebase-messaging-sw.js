@@ -48,22 +48,39 @@ messaging.onBackgroundMessage((payload) => {
 		payload.data?.isVendorOrder === 'true' ||
 		payload.data?.category === 'vendor';
 
+	const isAdminAlert =
+		notificationType === 'no_riders_alert' ||
+		notificationType === 'no_response_alert' ||
+		notificationType === 'vendor_delay_alert' ||
+		payload.data?.urgency === 'high' ||
+		payload.data?.urgency === 'critical' ||
+		payload.data?.category === 'admin' ||
+		payload.data?.sound === 'admin_alert.mp3';
+
 	const notificationOptions = {
 		body: notificationBody,
-		icon: '/logo.png',
-		badge: '/logo.png',
+		icon: '/logo.webp',
+		badge: '/logo.webp',
 		image: payload.data?.image,
 		data: payload.data || {},
 		tag: shortId,
-		requireInteraction: isVendorOrder,
+		requireInteraction: isVendorOrder || isAdminAlert,
 		silent: false,
-		vibrate: isVendorOrder ? [500, 200, 500, 200, 500, 200, 500] : [200, 100, 200],
+		vibrate: isVendorOrder
+			? [500, 200, 500, 200, 500, 200, 500]
+			: isAdminAlert
+				? [300, 100, 300, 100, 300]
+				: [200, 100, 200],
 		renotify: false,
 		actions: getNotificationActions(payload.data)
 	};
+
 	if (isVendorOrder) {
 		console.log('🚨 [SW] VENDOR ORDER notification - enhanced settings applied');
 		notifyClientsOfVendorOrder(payload);
+	} else if (isAdminAlert) {
+		console.log('🔊 [SW] ADMIN ALERT notification - enhanced settings applied');
+		notifyClientsOfAdminAlert(payload);
 	}
 
 	console.log('🔥 [SW] Showing BACKGROUND notification:', notificationTitle, 'ID:', shortId);
@@ -82,7 +99,7 @@ function getNotificationActions(data) {
 			{
 				action: 'view_order',
 				title: 'View Order',
-				icon: '/logo.png'
+				icon: '/logo.webp'
 			}
 		];
 	} else if (action === 'accept_delivery') {
@@ -90,7 +107,7 @@ function getNotificationActions(data) {
 			{
 				action: 'accept_delivery',
 				title: 'Accept Delivery',
-				icon: '/logo.png'
+				icon: '/logo.webp'
 			}
 		];
 	} else if (action === 'view_available_orders') {
@@ -98,7 +115,7 @@ function getNotificationActions(data) {
 			{
 				action: 'view_available_orders',
 				title: 'View Orders',
-				icon: '/logo.png'
+				icon: '/logo.webp'
 			}
 		];
 	}
@@ -165,6 +182,18 @@ function notifyClientsOfVendorOrder(payload) {
 		clients.forEach(function (client) {
 			client.postMessage({
 				type: 'VENDOR_ORDER_NOTIFICATION',
+				payload: payload
+			});
+		});
+	});
+}
+
+// Send message to all clients when admin alert notification is received
+function notifyClientsOfAdminAlert(payload) {
+	self.clients.matchAll().then(function (clients) {
+		clients.forEach(function (client) {
+			client.postMessage({
+				type: 'ADMIN_ALERT_NOTIFICATION',
 				payload: payload
 			});
 		});

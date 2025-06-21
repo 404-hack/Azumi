@@ -266,9 +266,9 @@
 				<div class="space-y-3">
 					<div class="flex items-center justify-between">
 						<div class="flex-1">
-							<div class="font-medium text-gray-900">{order.rider?.name || 'Rider'}</div>
+							<div class="font-medium text-gray-900">{order.rider?.firstName || 'Rider'}</div>
 							<div class="text-sm text-gray-500">
-								{order.rider?.phoneNumber || 'No phone number'}
+								{order.rider?.user.phoneNumber || 'No phone number'}
 							</div>
 							{#if order.riderAssignedAt}
 								<div class="text-sm text-blue-600">
@@ -276,11 +276,11 @@
 								</div>
 							{/if}
 						</div>
-						{#if order.rider?.phoneNumber}
+						{#if order.rider?.user.phoneNumber}
 							<Button
 								variant="outline"
 								size="sm"
-								onclick={() => window.open(`tel:${order.rider.phoneNumber}`)}
+								onclick={() => window.open(`tel:${order.rider.user.phoneNumber}`)}
 								class="shrink-0"
 							>
 								<Phone class="mr-1 h-4 w-4" />
@@ -364,7 +364,7 @@
 				<div class="flex justify-between text-sm">
 					<span class="text-gray-600">Platform Commission ({order.shop?.commission}%)</span>
 					<span class="text-red-600"
-						>-{formatCurrency(((order.subtotal || 0) * (order.shop?.commission || 10)) / 100)}</span
+						>-{formatCurrency(((order.subtotal || 0) * (order.shop?.commission || 0)) / 100)}</span
 					>
 				</div>
 				<hr class="my-2" />
@@ -372,7 +372,7 @@
 					<span>You Earn</span>
 					<span
 						>{formatCurrency(
-							((order.subtotal || 0) * (100 - (order.shop?.commission || 10))) / 100
+							((order.subtotal || 0) * (100 - (order.shop?.commission || 0))) / 100
 						)}</span
 					>
 				</div>

@@ -30,6 +30,7 @@ const sendNotificationSchema = z.object({
   token: z.string().optional(),
   userId: z.string().optional(),
   topic: z.string().optional(),
+  ttlSeconds: z.number().min(0).max(2419200).optional(), // 0 to 4 weeks
 });
 
 const topicSubscriptionSchema = z.object({
@@ -163,6 +164,7 @@ pushNotificationRoute.post(
       token,
       userId,
       topic,
+      ttlSeconds,
     } = c.req.valid("json");
 
     try {
@@ -193,6 +195,7 @@ pushNotificationRoute.post(
           image,
           data,
           clickAction,
+          ttlSeconds,
         });
 
         await db.insert(notificationLogTable).values({
@@ -222,6 +225,7 @@ pushNotificationRoute.post(
           image,
           data,
           clickAction,
+          ttlSeconds,
         });
 
         await db.insert(notificationLogTable).values({
@@ -244,6 +248,7 @@ pushNotificationRoute.post(
           image,
           data,
           clickAction,
+          ttlSeconds,
         });
 
         for (let i = 0; i < targetTokens.length; i++) {
@@ -281,6 +286,7 @@ pushNotificationRoute.post(
       icon: z.string().optional(),
       data: z.record(z.string()).optional(),
       token: z.string().min(1),
+      ttlSeconds: z.number().min(0).max(2419200).optional(),
     })
   ),
   async (c) => {
@@ -289,7 +295,7 @@ pushNotificationRoute.post(
       return c.json({ error: "Unauthorized" }, 401);
     }
 
-    const { title, body, icon, data, token } = c.req.valid("json");
+    const { title, body, icon, data, token, ttlSeconds } = c.req.valid("json");
     const db = c.get("db");
 
     try {
@@ -327,6 +333,7 @@ pushNotificationRoute.post(
           timestamp: new Date().toISOString(),
         },
         clickAction: "/",
+        ttlSeconds,
       });
 
       if (result.success) {

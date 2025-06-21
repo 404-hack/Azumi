@@ -46,7 +46,7 @@
 		<!-- Logo and Locatio`n -->
 		<div class="flex items-center gap-4">
 			<a href="/" class="flex items-center space-x-2">
-				<img src="/logo.png" alt="Azumi" class="size-10" />
+				<img src="/logo.webp" alt="Azumi" class="size-10" />
 				<span class="text-primary hidden text-xl font-bold md:inline">Azumi</span>
 			</a>
 			{#if activeLocation.current.lat != 0 && activeLocation.current.lng != 0}

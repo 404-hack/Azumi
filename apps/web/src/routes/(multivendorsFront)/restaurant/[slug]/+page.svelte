@@ -222,7 +222,7 @@
 	].join(', ')}
 	ogType="restaurant"
 	path={`/restaurant/${data.restaurant.slug}`}
-	ogImage={data.restaurant.coverImage || data.restaurant.logo || 'https://azumi.com.ng/logo.png'}
+	ogImage={data.restaurant.coverImage || data.restaurant.logo || 'https://azumi.com.ng/logo.webp'}
 	jsonLd={structuredData}
 />
 

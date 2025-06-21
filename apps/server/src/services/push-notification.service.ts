@@ -14,6 +14,7 @@ export interface NotificationPayload {
   title: string;
   body: string;
   data?: Record<string, string>;
+  ttlSeconds?: number;
 }
 
 export interface NotificationData {
@@ -23,6 +24,7 @@ export interface NotificationData {
   image?: string;
   data?: Record<string, string>;
   clickAction?: string;
+  ttlSeconds?: number;
 }
 
 export interface RetryConfig {
@@ -58,6 +60,8 @@ export class PushNotificationService {
     backoffMultiplier: 2,
     maxDelayMs: 10000,
   };
+
+  private readonly DEFAULT_TTL_SECONDS = 600; // 10 minutes
 
   private getFirebaseConfig() {
     return {
@@ -125,6 +129,13 @@ export class PushNotificationService {
     payload: NotificationPayload
   ): Promise<boolean> {
     try {
+      const ttlSeconds = payload.ttlSeconds ?? this.DEFAULT_TTL_SECONDS;
+      const ttlString = ttlSeconds.toString();
+
+      console.log(
+        `📱 [FCM] Sending notification with ${ttlSeconds}s TTL (${ttlSeconds / 60} minutes)`
+      );
+
       const message: FirebaseMessage = {
         token,
         data: {
@@ -135,6 +146,19 @@ export class PushNotificationService {
         webpush: {
           fcm_options: {
             link: payload.data?.clickAction || "/",
+          },
+          headers: {
+            TTL: ttlString,
+          },
+        },
+        android: {
+          ttl: `${ttlSeconds}s`,
+        },
+        apns: {
+          headers: {
+            "apns-expiration": Math.floor(
+              Date.now() / 1000 + ttlSeconds
+            ).toString(),
           },
         },
       };
@@ -154,8 +178,12 @@ export class PushNotificationService {
     image,
     data,
     clickAction,
+    ttlSeconds,
   }: SendToTokenOptions): Promise<SendToTokenResult> {
     try {
+      const finalTtlSeconds = ttlSeconds ?? this.DEFAULT_TTL_SECONDS;
+      const ttlString = finalTtlSeconds.toString();
+
       const message: FirebaseMessage = {
         token,
         data: {
@@ -168,6 +196,19 @@ export class PushNotificationService {
         webpush: {
           fcm_options: {
             link: clickAction || "/",
+          },
+          headers: {
+            TTL: ttlString,
+          },
+        },
+        android: {
+          ttl: `${finalTtlSeconds}s`,
+        },
+        apns: {
+          headers: {
+            "apns-expiration": Math.floor(
+              Date.now() / 1000 + finalTtlSeconds
+            ).toString(),
           },
         },
       };
@@ -195,7 +236,6 @@ export class PushNotificationService {
       };
     }
   }
-
   async sendToTokenWithRetry({
     token,
     title,
@@ -204,6 +244,7 @@ export class PushNotificationService {
     image,
     data,
     clickAction,
+    ttlSeconds,
     retryConfig,
   }: SendToTokenOptions & {
     retryConfig?: RetryConfig;
@@ -218,6 +259,7 @@ export class PushNotificationService {
           image,
           data,
           clickAction,
+          ttlSeconds,
         }),
       retryConfig
     );
@@ -230,11 +272,15 @@ export class PushNotificationService {
     image,
     data,
     clickAction,
+    ttlSeconds,
   }: SendToMultipleTokensOptions): Promise<{
     successCount: number;
     failureCount: number;
     responses: SendToTokenResult[];
   }> {
+    const finalTtlSeconds = ttlSeconds ?? this.DEFAULT_TTL_SECONDS;
+    const ttlString = finalTtlSeconds.toString();
+
     const message = {
       data: {
         title,
@@ -246,6 +292,19 @@ export class PushNotificationService {
       webpush: {
         fcm_options: {
           link: clickAction || "/",
+        },
+        headers: {
+          TTL: ttlString,
+        },
+      },
+      android: {
+        ttl: `${finalTtlSeconds}s`,
+      },
+      apns: {
+        headers: {
+          "apns-expiration": Math.floor(
+            Date.now() / 1000 + finalTtlSeconds
+          ).toString(),
         },
       },
       tokens,
@@ -289,8 +348,12 @@ export class PushNotificationService {
     image,
     data,
     clickAction,
+    ttlSeconds,
   }: SendToTopicOptions): Promise<SendToTokenResult> {
     try {
+      const finalTtlSeconds = ttlSeconds ?? this.DEFAULT_TTL_SECONDS;
+      const ttlString = finalTtlSeconds.toString();
+
       const message: FirebaseMessage = {
         topic,
         data: {
@@ -303,6 +366,19 @@ export class PushNotificationService {
         webpush: {
           fcm_options: {
             link: clickAction || "/",
+          },
+          headers: {
+            TTL: ttlString,
+          },
+        },
+        android: {
+          ttl: `${finalTtlSeconds}s`,
+        },
+        apns: {
+          headers: {
+            "apns-expiration": Math.floor(
+              Date.now() / 1000 + finalTtlSeconds
+            ).toString(),
           },
         },
       };

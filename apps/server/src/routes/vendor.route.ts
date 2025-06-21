@@ -1183,7 +1183,11 @@ const vendorRoute = factory
               },
             },
           },
-          rider: true,
+          rider: {
+            with: {
+              user: true,
+            },
+          },
         },
       });
 

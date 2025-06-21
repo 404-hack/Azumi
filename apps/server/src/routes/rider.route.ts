@@ -1356,19 +1356,16 @@ const riderRoute = factory
           riderAssignedAt: new Date().toISOString(), // Set rider assignment timestamp
         })
         .where(eq(orderTable.id, orderId));
-
       await db
         .update(riderTable)
         .set({
           currentOrderId: orderId,
+          availabilityStatus: "BUSY",
         })
-        .where(eq(riderTable.id, riderId));
-
-      // Update dispatch service
+        .where(eq(riderTable.id, riderId)); // Update dispatch service
       const riderDispatchService = new RiderDispatchService();
       await riderDispatchService.updateRiderRealTimeStatus(c.env, riderId, {
         isAvailable: false,
-        isOnline: true,
       });
 
       return c.json({

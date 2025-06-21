@@ -3,22 +3,29 @@ import { orderTable } from "../lib/db/schema/order.schema";
 import { riderTable } from "../lib/db/schema/rider.schema";
 import { riderTransactionTable } from "../lib/db/schema/payment.schema";
 import { nanoid } from "nanoid";
+import { calculateDistance } from "../lib/utils/geo";
 import type { Variables } from "../lib/types";
 
 export class RiderPaymentService {
-  private getRiderCommissionRate(): number {
-    // Default to 0.7 (70%) if environment variable is not set
-    return parseFloat(process.env.RIDER_COMMISSION_RATE || "0.7");
-  }
+  private calculateRiderEarnings(
+    shopLat: number,
+    shopLng: number,
+    customerLat: number,
+    customerLng: number
+  ): number {
+    const distance = calculateDistance(
+      shopLat,
+      shopLng,
+      customerLat,
+      customerLng
+    );
 
-  private calculateRiderEarnings(deliveryFee: number): number {
-    const commissionRate = this.getRiderCommissionRate();
-    return deliveryFee * commissionRate;
-  }
-
-  private calculatePlatformFee(deliveryFee: number): number {
-    const commissionRate = this.getRiderCommissionRate();
-    return deliveryFee * (1 - commissionRate);
+    if (distance <= 1) {
+      return 350;
+    } else {
+      const additionalKm = Math.ceil(distance - 1);
+      return 350 + additionalKm * 150;
+    }
   }
   async processDeliveryPayment(
     orderId: string,
@@ -29,6 +36,12 @@ export class RiderPaymentService {
         where: eq(orderTable.id, orderId),
         with: {
           rider: true,
+          shop: {
+            columns: {
+              latitude: true,
+              longitude: true,
+            },
+          },
         },
       });
 
@@ -43,33 +56,40 @@ export class RiderPaymentService {
       if (!order.rider) {
         return { success: false, error: "Rider details not found" };
       }
-      const riderEarnings = this.calculateRiderEarnings(order.deliveryFee);
-      const platformFee = this.calculatePlatformFee(order.deliveryFee);
+
+      if (!order.shop || !order.shop.latitude || !order.shop.longitude) {
+        return { success: false, error: "Shop coordinates not found" };
+      }
+
+      const riderEarnings = this.calculateRiderEarnings(
+        order.shop.latitude,
+        order.shop.longitude,
+        order.latitude,
+        order.longitude
+      );
 
       const transactionId = nanoid();
       await db.insert(riderTransactionTable).values({
         riderId: order.riderId,
         orderId: orderId,
-        deliveryFee: Math.round(order.deliveryFee * 100), // Store in cents
+        deliveryFee: Math.round((order.deliveryFee || 0) * 100),
         distanceBonus: 0,
         peakTimeBonus: 0,
         tipAmount: 0,
-        platformFee: Math.round(platformFee * 100), // Platform fee in cents
+        platformFee: 0,
         netAmount: Math.round(riderEarnings * 100),
-        amount: Math.round(riderEarnings * 100), // Legacy field
+        amount: Math.round(riderEarnings * 100),
         currency: "NGN",
         status: "COMPLETED",
         type: "CREDIT",
         reference: `delivery-payout-${orderId}`,
-        description: `Delivery earnings for order ${orderId} (${Math.round(this.getRiderCommissionRate() * 100)}% of delivery fee)`,
+        description: `Distance-based delivery earnings for order ${orderId} (₦${riderEarnings})`,
         metadata: JSON.stringify({
-          deliveryFee: order.deliveryFee,
-          platformFeeRate: Math.round(
-            (1 - this.getRiderCommissionRate()) * 100
-          ),
-          netAmount: riderEarnings,
+          deliveryFee: order.deliveryFee || 0,
+          riderEarnings: riderEarnings,
           processedAt: new Date().toISOString(),
           trigger: "delivery",
+          paymentMethod: "distance-based",
         }),
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -168,16 +188,14 @@ export class RiderPaymentService {
         orderBy: (transactions, { desc }) => [desc(transactions.createdAt)],
         limit: limit,
       });
-
       return transactions.map((transaction) => ({
         id: transaction.id,
-        amount: transaction.amount / 100, // Convert from cents (legacy field)
-        // Amount breakdown
+        amount: transaction.amount / 100,
         deliveryFee: transaction.deliveryFee / 100,
-        distanceBonus: transaction.distanceBonus / 100,
-        peakTimeBonus: transaction.peakTimeBonus / 100,
-        tipAmount: transaction.tipAmount / 100,
-        platformFee: transaction.platformFee / 100,
+        distanceBonus: (transaction.distanceBonus || 0) / 100,
+        peakTimeBonus: (transaction.peakTimeBonus || 0) / 100,
+        tipAmount: (transaction.tipAmount || 0) / 100,
+        platformFee: (transaction.platformFee || 0) / 100,
         netAmount: transaction.netAmount / 100,
         currency: transaction.currency,
         type: transaction.type,

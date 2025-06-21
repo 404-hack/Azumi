@@ -126,7 +126,11 @@ const orderRoute = factory
           },
           shop: true,
           customer: true,
-          rider: true,
+          rider: {
+            with: {
+              user: true,
+            },
+          },
         },
       });
 

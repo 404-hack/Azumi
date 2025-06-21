@@ -51,4 +51,12 @@ database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18"
 
     d1_databases = [ { binding = "DB", database_name = "azumi-db", database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18" } ]
     r2_buckets = [{ bucket_name = "azumi-bucket", binding = "BUCKET" }]
-
+ workflows = [{ name = "order-processing", binding = "ORDER_WORKFLOW", class_name = "OrderWorkflow" }]
+    durable_objects.bindings = [
+        { name = "ORDER_NOTIFICATION", class_name = "OrderNotification" },
+        { name = "RIDER_DISPATCH", class_name = "RiderDispatch" }
+    ]
+    migrations = [
+        { tag = "v1", new_sqlite_classes = ["OrderNotification"] },
+        { tag = "v2", new_sqlite_classes = ["RiderDispatch"] }
+    ]

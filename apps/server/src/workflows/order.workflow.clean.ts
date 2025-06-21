@@ -7,6 +7,7 @@ import {
 import { PushNotificationService } from "../services/push-notification.service";
 import { RiderDispatchService } from "../services/riderDispatch.service";
 import { PaystackService } from "../services/paystack.service";
+import { calculateDistance } from "../lib/utils/geo";
 import { createClient } from "../lib/db";
 import { env } from "cloudflare:workers";
 import {
@@ -14,6 +15,7 @@ import {
   orderItemTable,
   orderTable,
 } from "../lib/db/schema/order.schema";
+import { shopTable } from "../lib/db/schema/shop.schema";
 import { eq, inArray } from "drizzle-orm";
 import { cartTable } from "../lib/db/schema";
 
@@ -64,6 +66,27 @@ interface OrderStatus {
  * This orchestrates the entire order lifecycle from payment to delivery
  */
 export class OrderWorkflow extends WorkflowEntrypoint {
+  private calculateRiderEarnings(
+    shopLat: number,
+    shopLng: number,
+    customerLat: number,
+    customerLng: number
+  ): number {
+    const distance = calculateDistance(
+      shopLat,
+      shopLng,
+      customerLat,
+      customerLng
+    );
+
+    if (distance <= 1) {
+      return 350;
+    } else {
+      const additionalKm = Math.ceil(distance - 1);
+      return 350 + additionalKm * 150;
+    }
+  }
+
   async run(
     event: WorkflowEvent<OrderParams>,
     step: WorkflowStep
@@ -432,7 +455,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       const pushNotificationService = new PushNotificationService();
       await pushNotificationService.sendNotificationToShop(params.shopId, {
         title: "New Order Received!",
-        body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for $${params.total}`,
+        body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for $${params.subtotal}`,
         data: {
           type: "new_order",
           orderId: params.orderId,
@@ -845,16 +868,39 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         );
       }
     }
-  } /**
+  }
+  /**
    * Notify assigned rider about their new delivery
-   */
-  private async notifyAssignedRider(
+   */ private async notifyAssignedRider(
     params: OrderParams,
     riderId: string
   ): Promise<void> {
     try {
       const pushNotificationService = new PushNotificationService();
-      const riderEarnings = Math.round(params.deliveryFee * 0.7);
+
+      const db = createClient(env.DB);
+      const shop = await db.query.shopTable.findFirst({
+        where: eq(shopTable.id, params.shopId),
+        columns: {
+          latitude: true,
+          longitude: true,
+        },
+      });
+
+      let riderEarnings: number;
+      if (shop && shop.latitude && shop.longitude) {
+        riderEarnings = this.calculateRiderEarnings(
+          shop.latitude,
+          shop.longitude,
+          params.deliveryAddress.latitude,
+          params.deliveryAddress.longitude
+        );
+      } else {
+        console.warn(
+          `Shop coordinates not found for shop ${params.shopId}, using fallback calculation`
+        );
+        riderEarnings = 350; // Default fallback
+      }
 
       await pushNotificationService.sendNotificationToUser(riderId, {
         title: "🎉 New Delivery Assigned!",

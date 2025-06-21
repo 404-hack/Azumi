@@ -16,7 +16,6 @@ import { orderItemTable, orderItemOptionTable } from "../lib/db/schema";
 
 import { PaystackService } from "../services/paystack.service";
 import { PushNotificationService } from "../services/push-notification.service";
-import { RiderDispatchService } from "../services/riderDispatch.service";
 /**
  * Input parameters for the order workflow
  */
@@ -100,12 +99,13 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       // PHASE 3: VENDOR PREPARATION
       // Wait for vendor to mark the order as ready
       // This corresponds to the vendor using the /:id/status endpoint to update status to READY
-      await this.waitForOrderPreparation(event.payload, step);
-
-      // PHASE 4: RIDER ASSIGNMENT
-      // Find and assign a suitable rider
-      // This initiates rider selection and assignment when order is READY
-      const riderAssignment = await this.assignRider(event.payload, step);
+      await this.waitForOrderPreparation(event.payload, step); // PHASE 4: ADMIN RIDER ASSIGNMENT
+      // Wait for admin to manually assign a rider
+      // Admin assigns riders through admin routes, no automatic dispatch
+      const riderAssignment = await this.waitForAdminRiderAssignment(
+        event.payload,
+        step
+      );
 
       // PHASE 5: RIDER PICKUP AND DELIVERY
       // Wait for rider to confirm pickup
@@ -205,6 +205,18 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
         console.log(
           `✅ [WORKFLOW-VENDOR] Vendor notified successfully for order: ${params.orderId}`
+        );
+
+        // Notify admins about new order
+        console.log(
+          `📢 [WORKFLOW-ADMIN] Initiating admin notification for order: ${params.orderId}`
+        );
+        await step.do("notify_admins_new_order", async () => {
+          return await this.notifyAdmins(params, step);
+        });
+
+        console.log(
+          `✅ [WORKFLOW-ADMIN] Admins notified successfully for order: ${params.orderId}`
         );
       } else if (paymentResult.type === "payment_failed") {
         console.log(
@@ -437,7 +449,6 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       );
     }
   }
-
   /**
    * Notify vendor about new order
    * This integrates with FCM push notification services
@@ -450,21 +461,64 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       const pushNotificationService = new PushNotificationService();
       await pushNotificationService.sendNotificationToShop(params.shopId, {
         title: "New Order Received!",
-        body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for ₦${params.total}`,
+        body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for ₦${params.subtotal}`,
         data: {
           type: "new_order",
+          category: "vendor",
           orderId: params.orderId,
           action: "view_order",
           link: `/vendor/orders/${params.orderId}`,
+          sound: "vendor_siren.mp3",
+          isVendorOrder: "true",
         },
       });
-
       console.log(
         `✅ Push notification sent to vendor for order: ${params.orderId}`
       );
     } catch (error) {
       console.error(
         `❌ Failed to send vendor notification for order ${params.orderId}:`,
+        error
+      );
+    }
+  }
+  /**
+   * Notify admins about new order
+   * This integrates with FCM push notification services
+   */
+  private async notifyAdmins(
+    params: OrderParams,
+    step: WorkflowStep
+  ): Promise<void> {
+    console.log(
+      `Sending notification to admins for new order: ${params.orderId}`
+    );
+    try {
+      const pushNotificationService = new PushNotificationService();
+      const adminUsers = await this.getAdminUsers(step);
+      for (const adminId of adminUsers) {
+        await pushNotificationService.sendNotificationToUser(adminId, {
+          title: "New Order Alert! 🔔",
+          body: `Order #${params.orderId.slice(-6)} - ${params.items.length} item(s) for ₦${params.subtotal}`,
+          data: {
+            type: "new_order_admin",
+            category: "admin",
+            urgency: "medium",
+            orderId: params.orderId,
+            shopId: params.shopId,
+            action: "view_order",
+            link: `/superadmin/orders/${params.orderId}`,
+            sound: "admin_alert.mp3",
+          },
+        });
+      }
+
+      console.log(
+        `✅ Push notifications sent to ${adminUsers.length} admins for order: ${params.orderId}`
+      );
+    } catch (error) {
+      console.error(
+        `❌ Failed to send admin notifications for order ${params.orderId}:`,
         error
       );
     }
@@ -673,19 +727,19 @@ export class OrderWorkflow extends WorkflowEntrypoint {
             body: `Please respond to order #${params.orderId.slice(-6)} - Customer is waiting!`,
             data: {
               type: "order_reminder",
+              category: "vendor",
               orderId: params.orderId,
               urgency: "medium",
               action: "respond_now",
               link: `/vendor/orders/${params.orderId}`,
-              sound: "urgent_notification.mp3",
+              sound: "vendor_siren.mp3",
+              isVendorOrder: "true",
             },
           }
         );
       }))
     )
-      return; // Preempted
-
-    // Level 2: 10 minutes - Urgent vendor notification + customer delay notification
+      return; // Preempted    // Level 2: 10 minutes - Urgent vendor notification + customer delay notification
     await step.sleep("escalation_L2_wait", "5 minutes");
     if (
       !(await checkStatusAndProceed(
@@ -698,11 +752,13 @@ export class OrderWorkflow extends WorkflowEntrypoint {
             body: `Order #${params.orderId.slice(-6)} requires immediate attention! Please confirm or reject now.`,
             data: {
               type: "order_urgent",
+              category: "vendor",
               orderId: params.orderId,
               urgency: "high",
               action: "respond_immediately",
               link: `/vendor/orders/${params.orderId}`,
-              sound: "urgent_notification.mp3",
+              sound: "vendor_siren.mp3",
+              isVendorOrder: "true",
             },
           });
 
@@ -732,11 +788,13 @@ export class OrderWorkflow extends WorkflowEntrypoint {
             body: `Order #${params.orderId.slice(-6)} - Admin has been notified. Respond now to avoid penalties!`,
             data: {
               type: "order_warning",
+              category: "vendor",
               orderId: params.orderId,
               urgency: "critical",
               action: "respond_now_or_penalty",
               link: `/vendor/orders/${params.orderId}`,
-              sound: "urgent_notification.mp3",
+              sound: "vendor_siren.mp3",
+              isVendorOrder: "true",
             },
           });
           const adminUsers = await this.getAdminUsers(step); // getAdminUsers is already a step.do
@@ -748,12 +806,13 @@ export class OrderWorkflow extends WorkflowEntrypoint {
               body: `Vendor not responding to order #${params.orderId.slice(-6)} for 15+ minutes. Intervention may be required.`,
               data: {
                 type: "vendor_delay_alert",
+                category: "admin",
                 orderId: params.orderId,
                 shopId: params.shopId,
                 delayTime: "15_minutes",
                 urgency: "high",
                 action: "review_vendor_performance",
-                link: `/admin/orders/${params.orderId}`,
+                link: `/superadmin/orders/${params.orderId}`,
                 sound: "admin_alert.mp3",
               },
             });
@@ -773,12 +832,14 @@ export class OrderWorkflow extends WorkflowEntrypoint {
             body: `Order #${params.orderId.slice(-6)} will be AUTO-CANCELLED in 35 minutes if no response received!`,
             data: {
               type: "order_final_warning",
+              category: "vendor",
               orderId: params.orderId,
               urgency: "critical",
               timeLeft: "35_minutes",
               action: "respond_now_or_auto_cancel",
               link: `/vendor/orders/${params.orderId}`,
-              sound: "urgent_notification.mp3",
+              sound: "vendor_siren.mp3",
+              isVendorOrder: "true",
             },
           }
         );
@@ -899,7 +960,6 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       `✅ [ORDER-CANCELLATION] Cancellation handling completed for order: ${params.orderId}`
     );
   }
-
   /**
    * Phase 3: Wait for vendor to prepare order and mark as ready
    */
@@ -909,187 +969,203 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   ): Promise<void> {
     console.log(`Waiting for order preparation: ${params.orderId}`);
 
-    // Wait for vendor to mark order as READY (through /:id/status endpoint)
-    const readyEvent = (await step.waitForEvent("order_ready", {
-      type: "order_ready",
-      timeout: "3 hours",
-    })) as WorkflowStepEvent<{ orderId: string; timestamp: string }>;
-    console.log(
-      `Order ${params.orderId} is ready for pickup at ${readyEvent.payload.timestamp}`
-    );
-    await step.do("notify_customer_order_ready", async () => {
-      return await this.notifyCustomer(
-        {
-          id: params.orderId,
-          status: "READY",
-          updatedAt: new Date().toISOString(),
-        },
-        params,
-        step
+    try {
+      // Wait for vendor to mark order as READY (through /:id/status endpoint)
+      const readyEvent = (await step.waitForEvent("order_ready", {
+        type: "order_ready",
+        timeout: "3 hours",
+      })) as WorkflowStepEvent<{ orderId: string; timestamp: string }>;
+
+      console.log(
+        `Order ${params.orderId} is ready for pickup at ${readyEvent.payload.timestamp}`
       );
-    });
+
+      await step.do("notify_customer_order_ready", async () => {
+        return await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: "READY",
+            updatedAt: new Date().toISOString(),
+          },
+          params,
+          step
+        );
+      });
+    } catch (error) {
+      console.log(
+        `⏰ [ORDER-PREP-TIMEOUT] Order ${params.orderId} preparation timeout after 3 hours - sending friendly notifications`
+      );
+
+      // Send friendly update to customer (no choices)
+      await step.do("notify_customer_prep_delay", async () => {
+        const pushNotificationService = new PushNotificationService();
+        return await pushNotificationService.sendNotificationToUser(
+          params.customerId,
+          {
+            title: "⏰ Order Update",
+            body: `Your order #${params.orderId.slice(-6)} is taking a bit longer than expected. We're checking with the restaurant now.`,
+            data: {
+              type: "preparation_delay_update",
+              orderId: params.orderId,
+              action: "track_order",
+              link: `/orders/${params.orderId}/track`,
+            },
+          }
+        );
+      });
+
+      // Notify vendor about the delay - supportive message
+      await step.do("notify_vendor_prep_delay", async () => {
+        const pushNotificationService = new PushNotificationService();
+        return await pushNotificationService.sendNotificationToShop(
+          params.shopId,
+          {
+            title: "📞 Order Status Check",
+            body: `Order #${params.orderId.slice(-6)} has been in preparation for 3+ hours. Please update status when ready.`,
+            data: {
+              type: "preparation_delay_reminder",
+              orderId: params.orderId,
+              delayDuration: "3_hours",
+              action: "update_order_status",
+              link: `/vendor/orders/${params.orderId}`,
+            },
+          }
+        );
+      });
+
+      // Alert admins for manual follow-up
+      const adminUsers = await this.getAdminUsers(step);
+      await step.do("notify_admins_prep_delay", async () => {
+        const pushNotificationService = new PushNotificationService();
+        for (const adminId of adminUsers) {
+          await pushNotificationService.sendNotificationToUser(adminId, {
+            title: "⏰ Order Preparation Delay",
+            body: `Order #${params.orderId.slice(-6)} in preparation for 3+ hours. May need follow-up with vendor.`,
+            data: {
+              type: "preparation_delay_alert",
+              category: "admin",
+              orderId: params.orderId,
+              shopId: params.shopId,
+              delayDuration: "3_hours",
+              action: "contact_vendor",
+              link: `/superadmin/orders/${params.orderId}/vendor-contact`,
+              sound: "admin_alert.mp3",
+            },
+          });
+        }
+        return { success: true };
+      });
+
+      // Continue waiting for vendor to update (no automatic cancellation)
+      console.log(
+        `🔄 [ORDER-PREP-TIMEOUT] Continuing to wait for order preparation for ${params.orderId}`
+      );
+      return await this.waitForOrderPreparation(params, step);
+    }
   } /**
-   * Phase 4: Assign rider for delivery
+   * Phase 4: Wait for admin to manually assign a rider
+   * This method waits for admin action through admin routes
    */
-  private async assignRider(
+  private async waitForAdminRiderAssignment(
     params: OrderParams,
     step: WorkflowStep
   ): Promise<any> {
     console.log(
-      `🚀 [RIDER-ASSIGNMENT] Finding suitable rider for order: ${params.orderId}`
+      `🔄 [ADMIN-RIDER-ASSIGNMENT] Waiting for admin to assign rider for order: ${params.orderId}`
     );
+
+    // Notify admins that order is ready for rider assignment
+    await step.do("notify_admins_order_ready_for_assignment", async () => {
+      const pushNotificationService = new PushNotificationService();
+      const adminUsers = await this.getAdminUsers(step);
+
+      for (const adminId of adminUsers) {
+        await pushNotificationService.sendNotificationToUser(adminId, {
+          title: "📋 Order Ready for Rider Assignment",
+          body: `Order #${params.orderId.slice(-6)} is ready for pickup. Please assign a rider.`,
+          data: {
+            type: "order_ready_for_assignment",
+            category: "admin",
+            orderId: params.orderId,
+            shopId: params.shopId,
+            urgency: "medium",
+            action: "assign_rider",
+            link: `/superadmin/orders/${params.orderId}/assign-rider`,
+            sound: "admin_alert.mp3",
+          },
+        });
+      }
+
+      console.log(
+        `✅ [ADMIN-RIDER-ASSIGNMENT] Admin notifications sent for order: ${params.orderId}`
+      );
+      return { success: true, adminCount: adminUsers.length };
+    });
+
+    // Notify customer that admin is assigning rider
+    await step.do("notify_customer_admin_assigning_rider", async () => {
+      const pushNotificationService = new PushNotificationService();
+      return await pushNotificationService.sendNotificationToUser(
+        params.customerId,
+        {
+          title: "🚚 Finding Your Rider",
+          body: `Your order #${params.orderId.slice(-6)} is ready! We're assigning a rider now.`,
+          data: {
+            type: "admin_assigning_rider",
+            orderId: params.orderId,
+            action: "track_order",
+            link: `/orders/${params.orderId}/track`,
+          },
+        }
+      );
+    });
+
     try {
-      const riderAssignment = (await step.waitForEvent("accept_order", {
-        type: "accept_order",
-        timeout: "30 minutes",
+      // Wait indefinitely for admin to assign rider (no timeout)
+      const riderAssignment = (await step.waitForEvent("admin_rider_assigned", {
+        type: "admin_rider_assigned",
       })) as WorkflowStepEvent<{
         orderId: string;
         riderId: string;
+        adminId: string;
         timestamp: string;
-        estimatedPickupTime?: string;
+        riderName?: string;
       }>;
 
-      const riderData = riderAssignment.payload;
+      const assignmentData = riderAssignment.payload;
       console.log(
-        `✅ [RIDER-ASSIGNMENT] Rider ${riderData.riderId} assigned to order: ${params.orderId}`
+        `✅ [ADMIN-RIDER-ASSIGNMENT] Admin assigned rider ${assignmentData.riderId} to order: ${params.orderId}`
       );
+
+      // Notify customer about rider assignment
       await step.do("notify_customer_rider_assigned", async () => {
         return await this.notifyCustomer(
           {
             id: params.orderId,
             status: "RIDER_ASSIGNED",
             updatedAt: new Date().toISOString(),
-            riderId: riderData.riderId,
+            riderId: assignmentData.riderId,
           },
           params,
           step
         );
       });
 
+      // Notify the assigned rider
       await step.do("notify_assigned_rider", async () => {
-        return await this.notifyAssignedRider(params, riderData.riderId);
+        return await this.notifyAssignedRider(params, assignmentData.riderId);
       });
 
       return riderAssignment;
     } catch (error) {
+      // This should rarely happen since we don't have a timeout
       console.error(
-        `⏰ [RIDER-ASSIGNMENT] Timeout occurred for order ${params.orderId} after 30 minutes - no rider accepted`
+        `❌ [ADMIN-RIDER-ASSIGNMENT] Error waiting for admin assignment for order ${params.orderId}:`,
+        error
       );
-
-      if (error instanceof Error && error.message.includes("timeout")) {
-        return await this.handleRiderAssignmentTimeout(params, step);
-      }
-
       throw error;
     }
-  }
-
-  /**
-   * Handle rider assignment timeout with fallback scenarios
-   */
-  private async handleRiderAssignmentTimeout(
-    params: OrderParams,
-    step: WorkflowStep
-  ): Promise<any> {
-    console.log(
-      `🔄 [TIMEOUT-HANDLER] Starting timeout handling for order ${params.orderId}`
-    );
-    try {
-      const riderDispatchService = new RiderDispatchService();
-
-      console.log(
-        `📊 [TIMEOUT-HANDLER] Scenario 1: Attempting auto-assignment for order ${params.orderId}`
-      );
-      const autoAssignResult = await step.do(
-        "auto_assign_rider_timeout",
-        async () => {
-          return await riderDispatchService.autoAssignRider(params.orderId);
-        }
-      );
-
-      if (autoAssignResult.success && autoAssignResult.riderId) {
-        console.log(
-          `✅ [TIMEOUT-HANDLER] Auto-assignment successful - rider ${autoAssignResult.riderId} assigned to order ${params.orderId}`
-        );
-        await step.do("notify_customer_auto_assigned_rider", async () => {
-          return await this.notifyCustomer(
-            {
-              id: params.orderId,
-              status: "RIDER_ASSIGNED",
-              updatedAt: new Date().toISOString(),
-              riderId: autoAssignResult.riderId,
-            },
-            params,
-            step
-          );
-        });
-        await step.do("notify_auto_assigned_rider", async () => {
-          if (autoAssignResult.riderId) {
-            return await this.notifyAssignedRider(
-              params,
-              autoAssignResult.riderId
-            );
-          }
-        });
-
-        return {
-          type: "rider_assigned",
-          payload: {
-            orderId: params.orderId,
-            riderId: autoAssignResult.riderId,
-            timestamp: new Date().toISOString(),
-            estimatedPickupTime: "15 minutes",
-            assignmentMethod: "auto_assigned_after_timeout",
-          },
-        };
-      }
-      console.log(
-        `⚠️ [TIMEOUT-HANDLER] Scenario 2: Auto-assignment failed, cancelling order ${params.orderId}`
-      );
-      console.log(`📝 [TIMEOUT-HANDLER] Reason: ${autoAssignResult.message}`);
-      await step.do("cancel_order_no_riders", async () => {
-        const db = createClient(env.DB);
-        await db
-          .update(orderTable)
-          .set({
-            status: "CANCELLED",
-            cancelReason: "No riders available within 30-minute timeout",
-            canceledAt: new Date().toISOString(),
-          })
-          .where(eq(orderTable.id, params.orderId));
-        return { success: true };
-      });
-      await step.do("notify_customer_no_riders", async () => {
-        return await this.notifyCustomer(
-          {
-            id: params.orderId,
-            status: "CANCELLED",
-            updatedAt: new Date().toISOString(),
-          },
-          params,
-          step
-        );
-      });
-      await step.do("process_refund_no_riders", async () => {
-        return await this.processRefund(params, step);
-      });
-
-      console.log(
-        `❌ [TIMEOUT-HANDLER] Order ${params.orderId} cancelled due to rider assignment timeout`
-      );
-
-      throw new Error(
-        `Order ${params.orderId} cancelled: No riders available within timeout period`
-      );
-    } catch (timeoutError) {
-      console.error(
-        `💥 [TIMEOUT-HANDLER] Critical error during timeout handling for order ${params.orderId}:`,
-        timeoutError
-      );
-      throw timeoutError;
-    }
-  }
-  /**
+  } /**
    * Process refund for cancelled order
    */
   private async processRefund(
@@ -1146,50 +1222,6 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           .where(eq(orderTable.id, params.orderId));
         return { success: true };
       });
-      const MINIMUM_REFUND_AMOUNT_NGN = 50;
-
-      if (order.total < MINIMUM_REFUND_AMOUNT_NGN) {
-        console.log(
-          `⚠️ [REFUND] Order ${params.orderId} amount (NGN${order.total}) is below Paystack minimum refund amount of NGN50. Marking as completed without Paystack refund.`
-        );
-
-        await step.do("update_small_amount_refund_completed", async () => {
-          const db = createClient(env.DB);
-          await db
-            .update(orderTable)
-            .set({
-              refundStatus: "COMPLETED",
-              refundReference: `SMALL_AMOUNT_${Date.now()}`,
-              refundedAt: new Date().toISOString(),
-            })
-            .where(eq(orderTable.id, params.orderId));
-          return { success: true };
-        });
-
-        await step.do("send_small_amount_refund_notification", async () => {
-          const pushNotificationService = new PushNotificationService();
-          return await pushNotificationService.sendNotificationToUser(
-            params.customerId,
-            {
-              title: "🔄 Order Cancelled - Refund Processed",
-              body: `Your order #${params.orderId.slice(-6)} has been cancelled and refunded. The amount (NGN${order.total.toFixed(2)}) will reflect in your account balance.`,
-              data: {
-                type: "refund_processed",
-                orderId: params.orderId,
-                refundReference: `SMALL_AMOUNT_${Date.now()}`,
-                refundAmount: order.total.toString(),
-                action: "view_order_details",
-                link: `/orders/${params.orderId}`,
-              },
-            }
-          );
-        });
-
-        console.log(
-          `✅ [REFUND] Small amount refund processed for order ${params.orderId}`
-        );
-        return;
-      }
 
       const refundResponse = await step.do(
         "process_paystack_refund",
@@ -1291,53 +1323,6 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         error
       );
 
-      if (error?.message?.includes("Cannot refund less than NGN50")) {
-        console.log(
-          `⚠️ [REFUND] Handling small amount refund for order ${params.orderId} due to Paystack minimum amount constraint`
-        );
-
-        try {
-          await step.do("handle_small_amount_refund_fallback", async () => {
-            const db = createClient(env.DB);
-            await db
-              .update(orderTable)
-              .set({
-                refundStatus: "COMPLETED",
-                refundReference: `SMALL_AMOUNT_${Date.now()}`,
-                refundedAt: new Date().toISOString(),
-              })
-              .where(eq(orderTable.id, params.orderId));
-
-            const pushNotificationService = new PushNotificationService();
-            await pushNotificationService.sendNotificationToUser(
-              params.customerId,
-              {
-                title: "🔄 Order Cancelled - Refund Processed",
-                body: `Your order #${params.orderId.slice(-6)} has been cancelled and refunded. The small amount will reflect in your account balance.`,
-                data: {
-                  type: "refund_processed",
-                  orderId: params.orderId,
-                  refundReference: `SMALL_AMOUNT_${Date.now()}`,
-                  action: "view_order_details",
-                  link: `/orders/${params.orderId}`,
-                },
-              }
-            );
-            return { success: true };
-          });
-
-          console.log(
-            `✅ [REFUND] Small amount refund fallback completed for order ${params.orderId}`
-          );
-          return;
-        } catch (fallbackError) {
-          console.error(
-            `❌ [REFUND] Failed to handle small amount refund fallback for order ${params.orderId}:`,
-            fallbackError
-          );
-        }
-      }
-
       try {
         await step.do("handle_refund_error", async () => {
           const db = createClient(env.DB);
@@ -1403,8 +1388,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         error
       );
     }
-  }
-  /**
+  } /**
    * Phase 5: Wait for rider pickup
    */
   private async waitForRiderPickup(
@@ -1412,28 +1396,83 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     riderAssignment: any,
     step: WorkflowStep
   ): Promise<void> {
-    console.log(`Waiting for rider pickup for order: ${params.orderId}`); // Wait for rider to confirm pickup (through rider's update status endpoint)
-    await step.waitForEvent("order_picked_up", {
-      type: "order_picked_up",
-      timeout: "1 hour",
-    });
-    console.log(
-      `Order ${params.orderId} picked up by rider ${riderAssignment.riderId}`
-    );
-    await step.do("notify_customer_order_in_transit", async () => {
-      return await this.notifyCustomer(
-        {
-          id: params.orderId,
-          status: "IN_TRANSIT",
-          updatedAt: new Date().toISOString(),
-          riderId: riderAssignment.riderId,
-        },
-        params,
-        step
+    console.log(`Waiting for rider pickup for order: ${params.orderId}`);
+
+    try {
+      // Wait for rider to confirm pickup (through rider's update status endpoint)
+      await step.waitForEvent("order_picked_up", {
+        type: "order_picked_up",
+        timeout: "4 hours",
+      });
+
+      console.log(
+        `Order ${params.orderId} picked up by rider ${riderAssignment.riderId}`
       );
-    });
-  }
-  /**
+
+      await step.do("notify_customer_order_in_transit", async () => {
+        return await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: "IN_TRANSIT",
+            updatedAt: new Date().toISOString(),
+            riderId: riderAssignment.riderId,
+          },
+          params,
+          step
+        );
+      });
+    } catch (error) {
+      console.log(
+        `⏰ [PICKUP-TIMEOUT] Rider pickup timeout for order ${params.orderId} after 4 hours - sending friendly notifications`
+      );
+
+      // Send supportive reminder to rider
+      await step.do("re_engage_rider_pickup", async () => {
+        const pushNotificationService = new PushNotificationService();
+
+        await pushNotificationService.sendNotificationToUser(
+          riderAssignment.riderId,
+          {
+            title: "📞 Pickup Reminder",
+            body: `Order #${params.orderId.slice(-6)} is still waiting for pickup. Please confirm when you arrive.`,
+            data: {
+              type: "pickup_reminder",
+              orderId: params.orderId,
+              urgency: "medium",
+              action: "confirm_pickup",
+              link: `/rider/orders/${params.orderId}/pickup`,
+            },
+          }
+        );
+
+        return { success: true };
+      });
+
+      // Send friendly update to customer (no choices)
+      await step.do("notify_customer_pickup_delay", async () => {
+        const pushNotificationService = new PushNotificationService();
+        return await pushNotificationService.sendNotificationToUser(
+          params.customerId,
+          {
+            title: "🚚 Pickup Update",
+            body: `Your rider is on the way to pickup order #${params.orderId.slice(-6)}. Thanks for your patience!`,
+            data: {
+              type: "pickup_delay_update",
+              orderId: params.orderId,
+              action: "track_order",
+              link: `/orders/${params.orderId}/track`,
+            },
+          }
+        );
+      });
+
+      // Continue waiting for pickup (no cancellation)
+      console.log(
+        `🔄 [PICKUP-TIMEOUT] Continuing to wait for pickup for order ${params.orderId}`
+      );
+      return await this.waitForRiderPickup(params, riderAssignment, step);
+    }
+  } /**
    * Wait for delivery confirmation with rider code
    */
   private async waitForDeliveryConfirmation(
@@ -1442,23 +1481,77 @@ export class OrderWorkflow extends WorkflowEntrypoint {
   ): Promise<void> {
     console.log(
       `Waiting for delivery confirmation for order: ${params.orderId}`
-    ); // Wait for rider to confirm delivery with code (through rider's delivery confirmation endpoint)
-    await step.waitForEvent("order_delivered", {
-      type: "order_delivered",
-      timeout: "3 hours",
-    });
-    console.log(`Order ${params.orderId} delivered successfully`);
-    await step.do("notify_customer_order_delivered", async () => {
-      return await this.notifyCustomer(
-        {
-          id: params.orderId,
-          status: "DELIVERED",
-          updatedAt: new Date().toISOString(),
-        },
-        params,
-        step
+    );
+
+    try {
+      // Wait for rider to confirm delivery with code (through rider's delivery confirmation endpoint)
+      await step.waitForEvent("order_delivered", {
+        type: "order_delivered",
+        timeout: "4 hours",
+      });
+
+      console.log(`Order ${params.orderId} delivered successfully`);
+
+      await step.do("notify_customer_order_delivered", async () => {
+        return await this.notifyCustomer(
+          {
+            id: params.orderId,
+            status: "DELIVERED",
+            updatedAt: new Date().toISOString(),
+          },
+          params,
+          step
+        );
+      });
+    } catch (error) {
+      console.log(
+        `⏰ [DELIVERY-TIMEOUT] Delivery timeout for order ${params.orderId} after 4 hours - alerting support team`
       );
-    });
+
+      // Alert support team for assistance
+      const adminUsers = await this.getAdminUsers(step);
+      await step.do("alert_support_delivery_timeout", async () => {
+        const pushNotificationService = new PushNotificationService();
+        for (const adminId of adminUsers) {
+          await pushNotificationService.sendNotificationToUser(adminId, {
+            title: "📞 Delivery Confirmation Needed",
+            body: `Order #${params.orderId.slice(-6)} - Rider hasn't confirmed delivery in 4 hours. Please check delivery status.`,
+            data: {
+              type: "delivery_timeout_alert",
+              orderId: params.orderId,
+              urgency: "medium",
+              action: "check_delivery_status",
+              link: `/admin/orders/${params.orderId}/delivery-check`,
+            },
+          });
+        }
+        return { success: true };
+      });
+
+      // Send friendly update to customer
+      await step.do("notify_customer_delivery_check", async () => {
+        const pushNotificationService = new PushNotificationService();
+        return await pushNotificationService.sendNotificationToUser(
+          params.customerId,
+          {
+            title: "📦 Checking Delivery Status",
+            body: `We're confirming the delivery status of order #${params.orderId.slice(-6)}. We'll update you shortly!`,
+            data: {
+              type: "delivery_status_check",
+              orderId: params.orderId,
+              action: "track_order",
+              link: `/orders/${params.orderId}/track`,
+            },
+          }
+        );
+      });
+
+      // Continue waiting for delivery confirmation (no automatic cancellation)
+      console.log(
+        `🔄 [DELIVERY-TIMEOUT] Continuing to wait for delivery confirmation for order ${params.orderId}`
+      );
+      return await this.waitForDeliveryConfirmation(params, step);
+    }
   }
   /**
    * Process payment settlements to vendor and rider

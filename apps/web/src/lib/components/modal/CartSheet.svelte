@@ -14,7 +14,7 @@
 	const cartItemCount = $derived(shopCart?.totalItems || 0);
 
 	// Optimistic updates tracking
-	let optimisticTotals = $state({
+	let optimisticTotals = $derived({
 		items: shopCart?.totalItems || 0,
 		subtotal: shopCart?.subtotal || 0
 	});
