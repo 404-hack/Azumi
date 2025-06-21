@@ -1,44 +1,67 @@
 import { client } from '$lib/hc';
-import type { Delivery } from '$lib/types/rider';
 
-export interface OrderDetails {
+type ApiOrder = {
 	id: string;
-	orderNumber: string;
-	status: 'READY' | 'RIDER_ASSIGNED' | 'PICKED_UP' | 'IN_TRANSIT' | 'DELIVERED';
+	code: string | null;
+	status:
+		| 'PENDING'
+		| 'PAYMENT_CONFIRMED'
+		| 'CONFIRMED'
+		| 'READY'
+		| 'RIDER_ASSIGNED'
+		| 'IN_TRANSIT'
+		| 'DELIVERED'
+		| 'COMPLETED'
+		| 'CANCELLED';
 	total: number;
-	deliveryFee: number;
-	createdAt: string;
-	riderConfirmationCode?: number;
-	pickupLocation: {
-		address: string;
-		latitude: number;
-		longitude: number;
-	};
-	deliveryLocation: {
-		address: string;
-		latitude: number;
-		longitude: number;
-	};
+	deliveryFee: number | null;
+	createdAt: string | null;
+	riderConfirmationCode?: number | null;
+	latitude: number;
+	longitude: number;
+	specialInstructions?: string | null;
 	shop: {
 		id: string;
 		name: string;
-		phone: string;
-		address: string;
+		phoneNumber: string | null;
+		address: string | null;
+		latitude: number | null;
+		longitude: number | null;
 	};
-	customer: {
-		name: string;
-		phone: string;
-	};
-	items: Array<{
+	estimatedDistance?: number;
+	estimatedDuration?: number;
+};
+
+export interface OrderDetails {
+	id: string;
+	code: string | null;
+	status:
+		| 'PENDING'
+		| 'PAYMENT_CONFIRMED'
+		| 'CONFIRMED'
+		| 'READY'
+		| 'RIDER_ASSIGNED'
+		| 'IN_TRANSIT'
+		| 'DELIVERED'
+		| 'COMPLETED'
+		| 'CANCELLED';
+	total: number;
+	deliveryFee: number | null;
+	createdAt: string | null;
+	riderConfirmationCode?: number | null;
+	latitude: number;
+	longitude: number;
+	specialInstructions?: string | null;
+	shop: {
 		id: string;
 		name: string;
-		quantity: number;
-		price: number;
-		specialInstructions?: string;
-	}>;
-	estimatedDistance: number;
-	estimatedDuration: number;
-	specialInstructions?: string;
+		phoneNumber: string | null;
+		address: string | null;
+		latitude: number | null;
+		longitude: number | null;
+	};
+	estimatedDistance?: number;
+	estimatedDuration?: number;
 }
 
 export interface AcceptedOrder {
@@ -51,9 +74,7 @@ export interface AcceptedOrder {
 export class RiderOrderService {
 	async getOrderDetails(orderId: string): Promise<OrderDetails | null> {
 		try {
-			const response = await client.rider.orders[':id'].$get({
-				param: { id: orderId }
-			});
+			const response = await client.rider.orders.$get();
 
 			if (!response.ok) {
 				console.error('Failed to fetch order details');
@@ -61,17 +82,18 @@ export class RiderOrderService {
 			}
 
 			const data = await response.json();
-			return data as OrderDetails;
+			const order = data.data?.find((o: { id: string }) => o.id === orderId);
+			return (order as OrderDetails) || null;
 		} catch (error) {
 			console.error('Error fetching order details:', error);
 			return null;
 		}
 	}
-
 	async acceptOrder(orderId: string): Promise<AcceptedOrder | null> {
 		try {
-			const response = await client.rider.orders[':id'].accept.$post({
-				param: { id: orderId }
+			const response = await fetch(`/api/rider/orders/${orderId}/accept`, {
+				method: 'POST',
+				credentials: 'include'
 			});
 
 			if (!response.ok) {
@@ -79,8 +101,8 @@ export class RiderOrderService {
 				return null;
 			}
 
-			const data = await response.json();
-			return data.data as AcceptedOrder;
+			const data = (await response.json()) as { data?: AcceptedOrder };
+			return data.data || null;
 		} catch (error) {
 			console.error('Error accepting order:', error);
 			return null;
@@ -89,8 +111,9 @@ export class RiderOrderService {
 
 	async markOrderPickedUp(orderId: string): Promise<boolean> {
 		try {
-			const response = await client.rider.orders[':id'].pickup.$post({
-				param: { id: orderId }
+			const response = await fetch(`/api/rider/orders/${orderId}/pickup`, {
+				method: 'POST',
+				credentials: 'include'
 			});
 
 			return response.ok;
@@ -99,11 +122,16 @@ export class RiderOrderService {
 			return false;
 		}
 	}
+
 	async markOrderDelivered(orderId: string, confirmationCode?: number): Promise<boolean> {
 		try {
-			const response = await client.rider.orders[':id'].deliver.$post({
-				param: { id: orderId },
-				json: { confirmationCode }
+			const response = await fetch(`/api/rider/orders/${orderId}/deliver`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ confirmationCode }),
+				credentials: 'include'
 			});
 
 			return response.ok;
@@ -115,7 +143,7 @@ export class RiderOrderService {
 
 	async getAvailableOrders(): Promise<OrderDetails[]> {
 		try {
-			const response = await client.rider.dispatch.orders.$get();
+			const response = await client.rider.orders.$get();
 
 			if (!response.ok) {
 				console.error('Failed to fetch available orders');
@@ -123,7 +151,7 @@ export class RiderOrderService {
 			}
 
 			const data = await response.json();
-			return data.orders || [];
+			return (data.data || []) as OrderDetails[];
 		} catch (error) {
 			console.error('Error fetching available orders:', error);
 			return [];
@@ -132,14 +160,17 @@ export class RiderOrderService {
 
 	async getCurrentDelivery(): Promise<OrderDetails | null> {
 		try {
-			const response = await client.rider.orders.current.$get();
+			const response = await client.rider.orders.$get();
 
 			if (!response.ok) {
 				return null;
 			}
 
 			const data = await response.json();
-			return data as OrderDetails;
+			const currentOrder = data.data?.find(
+				(order: ApiOrder) => order.status === 'RIDER_ASSIGNED' || order.status === 'IN_TRANSIT'
+			);
+			return (currentOrder as OrderDetails) || null;
 		} catch (error) {
 			console.error('Error fetching current delivery:', error);
 			return null;
@@ -148,9 +179,7 @@ export class RiderOrderService {
 
 	async getOrderHistory(limit = 20): Promise<OrderDetails[]> {
 		try {
-			const response = await client.rider.orders.history.$get({
-				query: { limit: limit.toString() }
-			});
+			const response = await client.rider.orders.$get();
 
 			if (!response.ok) {
 				console.error('Failed to fetch order history');
@@ -158,7 +187,16 @@ export class RiderOrderService {
 			}
 
 			const data = await response.json();
-			return data.orders || [];
+			const deliveredOrders =
+				data.data
+					?.filter(
+						(order: ApiOrder) =>
+							order.status === 'DELIVERED' ||
+							order.status === 'COMPLETED' ||
+							order.status === 'CANCELLED'
+					)
+					.slice(0, limit) || [];
+			return deliveredOrders as OrderDetails[];
 		} catch (error) {
 			console.error('Error fetching order history:', error);
 			return [];

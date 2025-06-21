@@ -43,6 +43,13 @@
       "when": 1750089461279,
       "tag": "0005_naive_nightshade",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1750546767188,
+      "tag": "0006_wise_sentry",
+      "breakpoints": true
     }
   ]
 }
