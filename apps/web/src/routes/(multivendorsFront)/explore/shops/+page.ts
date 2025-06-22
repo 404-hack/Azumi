@@ -8,9 +8,9 @@ export const load: PageLoad = async ({ url }) => {
 	const category = url.searchParams.get('category') || 'restaurant';
 
 	// Redirect if no location is set
-	if (activeLocation.current.lat === 0 && activeLocation.current.lng === 0) {
-		redirect(308, '/');
-	}
+	// if (activeLocation.current.lat === 0 && activeLocation.current.lng === 0) {
+	// 	redirect(308, '/');
+	// }
 
 	// Extract simplified filter parameters from URL
 	const openNow = url.searchParams.get('openNow');
@@ -25,7 +25,7 @@ export const load: PageLoad = async ({ url }) => {
 		latitude: activeLocation.current.lat.toString(),
 		longitude: activeLocation.current.lng.toString(),
 		shopType: category,
-		distance: '30'
+		distance: '50'
 	} as Record<string, string>;
 
 	// Add filter parameters if they exist
@@ -49,6 +49,7 @@ export const load: PageLoad = async ({ url }) => {
 
 	const { data } = await response.json();
 
+	console.log('🚀 ~ constload:PageLoad= ~ data:', data);
 	return {
 		userLocation: data.userLocation,
 		shops: data.shops

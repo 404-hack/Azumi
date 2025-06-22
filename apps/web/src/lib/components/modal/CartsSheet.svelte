@@ -35,7 +35,7 @@
 		id: string;
 		categoryId: string;
 		description: string;
-		image: string | null;
+		imageUrl: string | null;
 		inStock: boolean;
 		name: string;
 		price: number;
@@ -58,6 +58,7 @@
 		name: string;
 		logo: string | null;
 		slug: string;
+		coverImage: string | null;
 	};
 
 	type Cart = {
@@ -366,7 +367,7 @@
 										<div class="flex items-center justify-between">
 											<div class="flex items-center gap-3">
 												<img
-													src={getImageUrl(cart.shop.logo)}
+													src={getImageUrl(cart.shop.coverImage)}
 													alt={cart.shop.name}
 													class="h-14 w-14 rounded-lg object-cover shadow"
 												/>
@@ -416,7 +417,7 @@
 												<div class="flex items-center justify-between py-3">
 													<div class="flex items-center gap-3">
 														<img
-															src={getImageUrl(item.menuItem.image)}
+															src={getImageUrl(item.menuItem.imageUrl)}
 															alt={item.menuItem.name}
 															class="size-12 rounded-md object-cover shadow-sm"
 														/>

@@ -6,8 +6,8 @@ export const createMenuSchema = z.object({
   image: z
     .instanceof(File, { message: "Image file is required" })
     .refine(
-      (file) => file.size <= 30 * 1024 * 1024,
-      "File size must be less than 2MB"
+      (file) => file.size <= 5 * 1024 * 1024,
+      "File size must be less than 5MB"
     )
     .refine(
       (file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type),
@@ -17,7 +17,7 @@ export const createMenuSchema = z.object({
     (val) => (typeof val === "string" ? parseFloat(val) : val),
     z.number().min(0, { message: "Price must be a positive number" })
   ),
-  priceDescription: z.string().optional(),
+  priceDescription: z.string(),
   // inStock: z.boolean().default(true),
   inStock: z.preprocess(
     (val) => (typeof val === "string" ? val === "true" : val),
@@ -46,5 +46,9 @@ export const createMenuCategorySchema = z.object({
   published: z.boolean().default(true),
 });
 
-export const updateMenuSchema = createMenuSchema.partial();
+export const updateMenuSchema = createMenuSchema
+  .extend({
+    image: z.union([z.instanceof(File), z.string().url(), z.null()]).optional(),
+  })
+  .partial();
 export const updateMenuCategorySchema = createMenuCategorySchema.partial();

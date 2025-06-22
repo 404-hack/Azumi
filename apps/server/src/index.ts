@@ -15,22 +15,32 @@ import paystackWebhookRoute from "./routes/paystack-webhook.route";
 import favoriteRoute from "./routes/favorite.route";
 import deliveryFeeRoute from "./routes/fee.route";
 import wsRoute from "./routes/ws.route";
+import adminRoute from "./routes/admin.route";
+import riderRoute from "./routes/rider.route";
+import promotionRoute from "./routes/promotion.route";
+import pushNotificationRoute from "./routes/push-notification.route";
+import { firebaseAdminMiddleware } from "./middlewares/firebase.middleware";
+
 // Create app instance using factory
 const app = factory
   .createApp({ strict: false })
   .basePath("/api")
   // Add global middleware
-  .use("*", customCors);
+  .use("*", customCors)
+  .use("*", firebaseAdminMiddleware);
+
 app.on(["POST", "GET"], "/auth/*", async (c) => {
   const db = c.get("db");
   const auth = await createAuth(db);
   return auth.handler(c.req.raw);
 });
+
 // Mount routes
 export const routes = app
   .route("/user", userRoute)
   .route("/shop", shopRoute)
   .route("/vendor", vendorRoute)
+  .route("/admin", adminRoute)
   .route("/favorite", favoriteRoute)
   .route("/order", orderRoute)
   .route("/menu", menuRoute)
@@ -40,11 +50,17 @@ export const routes = app
   .route("/address", addressRoute)
   .route("/delivery-fee", deliveryFeeRoute)
   .route("/webhook/paystack", paystackWebhookRoute)
+  .route("/rider", riderRoute)
+  .route("/push-notifications", pushNotificationRoute)
+  .route("promotions", promotionRoute)
   .route("/", bucketRoute)
   .route("/ws", wsRoute)
   .get("/love", (c) => {
     return c.json({ message: "Welcome to the API" });
   });
+
 export { OrderNotification } from "./durable-objects/order-notification.do";
+export { RiderDispatch } from "./durable-objects/rider-dispatch.do";
+export { OrderWorkflow } from "./workflows/order.workflow";
 
 export default app;

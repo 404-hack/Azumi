@@ -23,6 +23,8 @@
 	});
 	let { title, phoneNumber }: Props = $props();
 
+	let otpInputRef = $state<HTMLElement>();
+
 	let countdown = $state(50);
 	let canResend = $state(false);
 	let intervalId: ReturnType<typeof setInterval>;
@@ -40,10 +42,17 @@
 			}
 		}, 1000);
 	}
-
 	$effect(() => {
 		if (verifyOtpModalState.value) {
 			startCountdown();
+			setTimeout(() => {
+				// if (otpInputRef) {
+				// 	const firstInput = otpInputRef.querySelector('input');
+				// 	if (firstInput) {
+				// 		firstInput.focus();
+				// 	}
+				// }
+			}, 100);
 		}
 		return () => clearInterval(intervalId);
 	});
@@ -75,8 +84,10 @@
 								if (isNewUser) {
 									// For new users, show profile setup modal
 									verifyOtpModalState.setFalse();
-									profileSetupModalState.setTrue();
-									toast.success('Phone verified! Please complete your profile.');
+									setTimeout(() => {
+										profileSetupModalState.setTrue();
+									}, 100);
+									// toast.success('Phone verified! Please complete your profile.');
 								} else {
 									// For existing users, just close modal and show success
 									verifyOtpModalState.setFalse();
@@ -110,15 +121,18 @@
 				{#snippet children({ props })}
 					<InputOTP.Root
 						maxlength={6}
+						{...props}
 						bind:value={$formData.otp}
 						class="flex items-center justify-center gap-2"
+						pattern="[0-9]*"
+						autocomplete="one-time-code"
 					>
 						{#snippet children({ cells })}
 							<InputOTP.Group>
 								{#each cells.slice(0, 3) as cell}
 									<InputOTP.Slot
 										{cell}
-										class="h-10 w-10 rounded-md border border-input bg-background text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:border-primary focus:ring-1 focus:ring-primary"
+										class="border-input bg-background focus:border-primary focus:ring-primary h-10 w-10 rounded-md border text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:ring-1"
 									/>
 								{/each}
 							</InputOTP.Group>
@@ -127,7 +141,7 @@
 								{#each cells.slice(3) as cell}
 									<InputOTP.Slot
 										{cell}
-										class="h-10 w-10 rounded-md border border-input bg-background text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:border-primary focus:ring-1 focus:ring-primary"
+										class="border-input bg-background focus:border-primary focus:ring-primary h-10 w-10 rounded-md border text-center text-lg shadow-sm transition-all duration-150 invalid:border-red-500 focus:ring-1"
 									/>
 								{/each}
 							</InputOTP.Group>
@@ -140,13 +154,13 @@
 
 		<div class="flex flex-col items-center gap-2">
 			{#if !canResend}
-				<p class="text-sm text-muted-foreground">
+				<p class="text-muted-foreground text-sm">
 					Didn't receive the code? Resend in {countdown}s
 				</p>
 			{:else}
 				<button
 					type="button"
-					class="text-sm text-primary hover:underline"
+					class="text-primary text-sm hover:underline"
 					onclick={() => {
 						authClient.phoneNumber.sendOtp({
 							phoneNumber: phoneNumber || ''

@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Google Geocoding API Test</title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 20px;
+				background-color: #f5f5f5;
+			}
+			.container {
+				background: white;
+				padding: 20px;
+				border-radius: 8px;
+				box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+				margin-bottom: 20px;
+			}
+			.test-section {
+				margin-bottom: 30px;
+				padding: 20px;
+				border: 1px solid #e0e0e0;
+				border-radius: 6px;
+				background-color: #fafafa;
+			}
+			button {
+				background-color: #007bff;
+				color: white;
+				border: none;
+				padding: 10px 20px;
+				border-radius: 5px;
+				cursor: pointer;
+				margin: 5px;
+			}
+			button:disabled {
+				background-color: #6c757d;
+				cursor: not-allowed;
+			}
+			input {
+				width: 300px;
+				padding: 8px;
+				margin: 5px;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+			}
+			.result {
+				margin-top: 15px;
+				padding: 10px;
+				background-color: white;
+				border-radius: 4px;
+				border-left: 4px solid #007bff;
+			}
+			.error {
+				border-left-color: #dc3545;
+				background-color: #f8d7da;
+			}
+			.success {
+				border-left-color: #28a745;
+				background-color: #d4edda;
+			}
+			.coords {
+				font-family: monospace;
+				background-color: #f8f9fa;
+				padding: 5px;
+				border-radius: 3px;
+				display: inline-block;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>🗺️ Google Geocoding API Test</h1>
+			<p>Test Google's Geocoding API with fallback to OpenStreetMap</p>
+
+			<div class="test-section">
+				<h3>🧭 Reverse Geocoding (Coordinates to Address)</h3>
+				<p>Convert latitude/longitude to human-readable address</p>
+				<div>
+					<input type="number" id="lat" placeholder="Latitude (e.g., 6.5568768)" step="any" />
+					<input type="number" id="lng" placeholder="Longitude (e.g., 3.3390592)" step="any" />
+					<button onclick="testReverseGeocode()">Get Address</button>
+					<button onclick="useCurrentLocation()">Use My Location</button>
+				</div>
+				<div id="reverseResult"></div>
+			</div>
+
+			<div class="test-section">
+				<h3>🏠 Forward Geocoding (Address to Coordinates)</h3>
+				<p>Convert address to latitude/longitude coordinates</p>
+				<div>
+					<input
+						type="text"
+						id="address"
+						placeholder="Enter address (e.g., Lagos, Nigeria)"
+						style="width: 400px"
+					/>
+					<button onclick="testForwardGeocode()">Get Coordinates</button>
+				</div>
+				<div id="forwardResult"></div>
+			</div>
+
+			<div class="test-section">
+				<h3>🔄 Round Trip Test</h3>
+				<p>Test address → coordinates → address conversion</p>
+				<div>
+					<input
+						type="text"
+						id="roundTripAddress"
+						placeholder="Enter address for round trip test"
+						style="width: 400px"
+					/>
+					<button onclick="testRoundTrip()">Test Round Trip</button>
+				</div>
+				<div id="roundTripResult"></div>
+			</div>
+			<div class="test-section">
+				<h3>📍 Common Nigerian Locations Test</h3>
+				<p>Test with popular Nigerian addresses</p>
+				<div>
+					<button onclick="testCommonLocations()">Test Common Locations</button>
+				</div>
+				<div id="commonResult"></div>
+			</div>
+
+			<div class="test-section">
+				<h3>🔍 Enhanced Google vs OpenStreetMap Comparison</h3>
+				<p>
+					Compare the enhanced Google Maps implementation vs OpenStreetMap for your current location
+				</p>
+				<div>
+					<button onclick="testLocationComparison()">Compare Location Services</button>
+				</div>
+				<div id="comparisonResult"></div>
+			</div>
+		</div>
+
+		<script>
+			const API_KEY = 'AIzaSyBaKld94OVIQ3ifigG8X02wEfOa4JzVRS4';
+			let isGoogleApiAvailable = API_KEY !== '{{PUBLIC_GOOGLE_MAP_API_KEY_REPLACE_ME}}';
+
+			console.log('Google API available:', isGoogleApiAvailable);
+
+			async function reverseGeocode(latitude, longitude, apiKey) {
+				console.log('Reverse geocoding coordinates:', { latitude, longitude });
+
+				if (
+					!latitude ||
+					!longitude ||
+					latitude === 0 ||
+					longitude === 0 ||
+					Math.abs(latitude) > 90 ||
+					Math.abs(longitude) > 180
+				) {
+					throw new Error('Invalid coordinates provided for reverse geocoding');
+				}
+				if (apiKey && isGoogleApiAvailable) {
+					try {
+						const googleResponse = await fetch(
+							`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}&language=en&region=ng&location_type=ROOFTOP|RANGE_INTERPOLATED|GEOMETRIC_CENTER`
+						);
+
+						if (!googleResponse.ok) {
+							console.warn(
+								'Google Geocoding API error:',
+								googleResponse.status,
+								googleResponse.statusText
+							);
+							throw new Error(`Google Geocoding API error: ${googleResponse.status}`);
+						}
+
+						const googleData = await googleResponse.json();
+						console.log('Google Geocoding response:', googleData);
+
+						if (googleData.status === 'OK' && googleData.results && googleData.results.length > 0) {
+							// Try to find the most specific result first
+							let bestResult = googleData.results[0];
+
+							// Prefer results with more specific location types
+							for (const result of googleData.results) {
+								const types = result.types || [];
+								if (
+									types.includes('street_address') ||
+									types.includes('premise') ||
+									types.includes('subpremise')
+								) {
+									bestResult = result;
+									break;
+								}
+							}
+
+							const address = bestResult.formatted_address || 'Unknown location';
+							const addressComponents = bestResult.address_components || [];
+
+							// Enhanced name extraction for Nigerian locations
+							let name = 'Current Location';
+
+							// Priority order for location names
+							const nameSearchOrder = [
+								['premise', 'subpremise'], // Building/house names
+								['route'], // Street names
+								['establishment', 'point_of_interest'], // Landmarks
+								['neighborhood', 'sublocality_level_1', 'sublocality'], // Neighborhoods
+								['locality', 'administrative_area_level_2'], // Local areas
+								['administrative_area_level_1'] // State level
+							];
+
+							for (const typeGroup of nameSearchOrder) {
+								const component = addressComponents.find((c) =>
+									typeGroup.some((type) => c.types.includes(type))
+								);
+								if (component && component.long_name) {
+									name = component.long_name;
+									break;
+								}
+							}
+
+							// If still generic, try to extract from formatted address
+							if (name === 'Current Location') {
+								const addressParts = address.split(',');
+								if (addressParts.length > 1) {
+									// Take the first meaningful part (not just numbers)
+									for (const part of addressParts) {
+										const trimmed = part.trim();
+										if (trimmed && !/^\d+$/.test(trimmed) && !trimmed.includes('Nigeria')) {
+											name = trimmed;
+											break;
+										}
+									}
+								}
+							}
+
+							console.log('Enhanced Google address parsing:', { name, address, bestResult });
+							return {
+								address,
+								name,
+								details: bestResult,
+								source: 'Google Enhanced'
+							};
+						} else if (googleData.status === 'ZERO_RESULTS') {
+							console.warn('Google Geocoding: No results found');
+						} else {
+							console.warn(
+								'Google Geocoding API error:',
+								googleData.status,
+								googleData.error_message
+							);
+						}
+					} catch (googleError) {
+						console.warn('Google Geocoding failed, falling back to OpenStreetMap:', googleError);
+					}
+				}
+
+				const response = await fetch(
+					`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1&zoom=18&accept-language=en`,
+					{
+						headers: {
+							'User-Agent': 'Azumi-App/1.0'
+						}
+					}
+				);
+
+				if (!response.ok) {
+					console.error('Reverse geocoding API error:', response.status, response.statusText);
+					throw new Error(`Geocoding service error: ${response.status}`);
+				}
+				const data = await response.json();
+				console.log('OpenStreetMap reverse geocoding response:', data);
+
+				if (!data || data.error || typeof data !== 'object') {
+					throw new Error('No address found for these coordinates');
+				}
+				const address = data.display_name || 'Unknown location';
+				const addressData = data.address || {};
+
+				if (typeof addressData !== 'object' || addressData === null) {
+					console.warn('Address data is not an object:', addressData);
+					return {
+						address,
+						name: 'Current Location',
+						details: null,
+						source: 'OpenStreetMap'
+					};
+				}
+				const name =
+					addressData.road ||
+					addressData.neighbourhood ||
+					addressData.suburb ||
+					addressData.town ||
+					addressData.city ||
+					'Current Location';
+
+				console.log('Parsed OpenStreetMap address:', { name, address });
+				return {
+					address,
+					name,
+					details: addressData,
+					source: 'OpenStreetMap'
+				};
+			}
+
+			async function geocodeAddress(address, apiKey) {
+				console.log('Geocoding address:', address);
+
+				if (!address || address.trim().length === 0) {
+					throw new Error('Invalid address provided for geocoding');
+				}
+				if (apiKey && isGoogleApiAvailable) {
+					try {
+						// Enhanced Google geocoding with Nigerian region bias
+						const googleResponse = await fetch(
+							`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}&language=en&region=ng&components=country:NG`
+						);
+
+						if (!googleResponse.ok) {
+							console.warn(
+								'Google Geocoding API error:',
+								googleResponse.status,
+								googleResponse.statusText
+							);
+							throw new Error(`Google Geocoding API error: ${googleResponse.status}`);
+						}
+
+						const googleData = await googleResponse.json();
+						console.log('Enhanced Google Geocoding response:', googleData);
+
+						if (googleData.status === 'OK' && googleData.results && googleData.results.length > 0) {
+							// Find the most accurate result
+							let bestResult = googleData.results[0];
+
+							// Prefer more specific location types
+							for (const result of googleData.results) {
+								const types = result.types || [];
+								const geometry = result.geometry || {};
+
+								// Prefer results with higher accuracy
+								if (
+									geometry.location_type === 'ROOFTOP' ||
+									geometry.location_type === 'RANGE_INTERPOLATED' ||
+									types.includes('street_address') ||
+									types.includes('premise')
+								) {
+									bestResult = result;
+									break;
+								}
+							}
+
+							const location = bestResult.geometry?.location;
+
+							if (
+								location &&
+								typeof location.lat === 'number' &&
+								typeof location.lng === 'number'
+							) {
+								console.log('Enhanced Google geocode result:', {
+									latitude: location.lat,
+									longitude: location.lng,
+									formatted_address: bestResult.formatted_address,
+									location_type: bestResult.geometry?.location_type,
+									types: bestResult.types
+								});
+
+								return {
+									latitude: location.lat,
+									longitude: location.lng,
+									formatted_address: bestResult.formatted_address,
+									place_id: bestResult.place_id,
+									location_type: bestResult.geometry?.location_type,
+									accuracy: bestResult.geometry?.location_type,
+									source: 'Google Enhanced'
+								};
+							}
+						} else if (googleData.status === 'ZERO_RESULTS') {
+							console.warn('Google Geocoding: No results found for address');
+						} else {
+							console.warn(
+								'Google Geocoding API error:',
+								googleData.status,
+								googleData.error_message
+							);
+						}
+					} catch (googleError) {
+						console.warn('Google Geocoding failed, falling back to OpenStreetMap:', googleError);
+					}
+				}
+
+				const response = await fetch(
+					`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&addressdetails=1&limit=1&accept-language=en`,
+					{
+						headers: {
+							'User-Agent': 'Azumi-App/1.0'
+						}
+					}
+				);
+
+				if (!response.ok) {
+					console.error('OpenStreetMap geocoding API error:', response.status, response.statusText);
+					throw new Error(`Geocoding service error: ${response.status}`);
+				}
+
+				const data = await response.json();
+				console.log('OpenStreetMap geocoding response:', data);
+
+				if (Array.isArray(data) && data.length > 0) {
+					const result = data[0];
+					if (result.lat && result.lon) {
+						const latitude = parseFloat(result.lat);
+						const longitude = parseFloat(result.lon);
+
+						if (!isNaN(latitude) && !isNaN(longitude)) {
+							console.log('Parsed OpenStreetMap geocode result:', {
+								latitude,
+								longitude,
+								formatted_address: result.display_name
+							});
+
+							return {
+								latitude,
+								longitude,
+								formatted_address: result.display_name || address,
+								source: 'OpenStreetMap'
+							};
+						}
+					}
+				}
+
+				console.warn('No valid geocoding results found for address:', address);
+				return null;
+			}
+
+			async function testReverseGeocode() {
+				const lat = parseFloat(document.getElementById('lat').value);
+				const lng = parseFloat(document.getElementById('lng').value);
+				const resultDiv = document.getElementById('reverseResult');
+
+				if (isNaN(lat) || isNaN(lng)) {
+					resultDiv.innerHTML =
+						'<div class="result error">Please enter valid latitude and longitude values</div>';
+					return;
+				}
+
+				resultDiv.innerHTML = '<div class="result">🔄 Reverse geocoding...</div>';
+
+				try {
+					const result = await reverseGeocode(lat, lng, API_KEY);
+					resultDiv.innerHTML = `
+                    <div class="result success">
+                        <strong>✅ Address Found (${result.source}):</strong><br>
+                        <strong>Name:</strong> ${result.name}<br>
+                        <strong>Address:</strong> ${result.address}<br>
+                        <strong>Coordinates:</strong> <span class="coords">${lat}, ${lng}</span>
+                    </div>
+                `;
+				} catch (error) {
+					resultDiv.innerHTML = `<div class="result error"><strong>❌ Error:</strong> ${error.message}</div>`;
+				}
+			}
+
+			async function testForwardGeocode() {
+				const address = document.getElementById('address').value.trim();
+				const resultDiv = document.getElementById('forwardResult');
+
+				if (!address) {
+					resultDiv.innerHTML = '<div class="result error">Please enter an address</div>';
+					return;
+				}
+
+				resultDiv.innerHTML = '<div class="result">🔄 Forward geocoding...</div>';
+
+				try {
+					const result = await geocodeAddress(address, API_KEY);
+					if (result) {
+						resultDiv.innerHTML = `
+                        <div class="result success">
+                            <strong>✅ Coordinates Found (${result.source}):</strong><br>
+                            <strong>Address:</strong> ${result.formatted_address}<br>
+                            <strong>Coordinates:</strong> <span class="coords">${result.latitude}, ${result.longitude}</span>
+                        </div>
+                    `;
+					} else {
+						resultDiv.innerHTML =
+							'<div class="result error"><strong>❌ No results found for this address</strong></div>';
+					}
+				} catch (error) {
+					resultDiv.innerHTML = `<div class="result error"><strong>❌ Error:</strong> ${error.message}</div>`;
+				}
+			}
+
+			async function testRoundTrip() {
+				const address = document.getElementById('roundTripAddress').value.trim();
+				const resultDiv = document.getElementById('roundTripResult');
+
+				if (!address) {
+					resultDiv.innerHTML = '<div class="result error">Please enter an address</div>';
+					return;
+				}
+
+				resultDiv.innerHTML = '<div class="result">🔄 Testing round trip conversion...</div>';
+
+				try {
+					const coords = await geocodeAddress(address, API_KEY);
+					if (!coords) {
+						resultDiv.innerHTML =
+							'<div class="result error"><strong>❌ Could not find coordinates for address</strong></div>';
+						return;
+					}
+
+					const reverseResult = await reverseGeocode(coords.latitude, coords.longitude, API_KEY);
+
+					resultDiv.innerHTML = `
+                    <div class="result success">
+                        <strong>✅ Round Trip Test Complete:</strong><br>
+                        <strong>Original:</strong> ${address}<br>
+                        <strong>Coordinates:</strong> <span class="coords">${coords.latitude}, ${coords.longitude}</span> (${coords.source})<br>
+                        <strong>Reverse Result:</strong> ${reverseResult.address} (${reverseResult.source})
+                    </div>
+                `;
+				} catch (error) {
+					resultDiv.innerHTML = `<div class="result error"><strong>❌ Error:</strong> ${error.message}</div>`;
+				}
+			}
+
+			async function testCommonLocations() {
+				const locations = [
+					'Lagos, Nigeria',
+					'Victoria Island, Lagos',
+					'Ikeja, Lagos',
+					'Abuja, Nigeria',
+					'Port Harcourt, Nigeria'
+				];
+
+				const resultDiv = document.getElementById('commonResult');
+				resultDiv.innerHTML = '<div class="result">🔄 Testing common Nigerian locations...</div>';
+
+				let results =
+					'<div class="result success"><strong>✅ Common Location Tests:</strong><br><br>';
+
+				for (const location of locations) {
+					try {
+						const coords = await geocodeAddress(location, API_KEY);
+						if (coords) {
+							results += `<strong>${location}:</strong> <span class="coords">${coords.latitude}, ${coords.longitude}</span> (${coords.source})<br>`;
+						} else {
+							results += `<strong>${location}:</strong> ❌ Not found<br>`;
+						}
+					} catch (error) {
+						results += `<strong>${location}:</strong> ❌ Error: ${error.message}<br>`;
+					}
+				}
+
+				results += '</div>';
+				resultDiv.innerHTML = results;
+			}
+
+			async function useCurrentLocation() {
+				const resultDiv = document.getElementById('reverseResult');
+
+				if (!navigator.geolocation) {
+					resultDiv.innerHTML =
+						'<div class="result error">Geolocation is not supported by your browser</div>';
+					return;
+				}
+
+				resultDiv.innerHTML = '<div class="result">🔄 Getting your current location...</div>';
+
+				navigator.geolocation.getCurrentPosition(
+					async (position) => {
+						const lat = position.coords.latitude;
+						const lng = position.coords.longitude;
+
+						document.getElementById('lat').value = lat;
+						document.getElementById('lng').value = lng;
+
+						try {
+							const result = await reverseGeocode(lat, lng, API_KEY);
+							resultDiv.innerHTML = `
+                            <div class="result success">
+                                <strong>✅ Your Location (${result.source}):</strong><br>
+                                <strong>Name:</strong> ${result.name}<br>
+                                <strong>Address:</strong> ${result.address}<br>
+                                <strong>Coordinates:</strong> <span class="coords">${lat}, ${lng}</span><br>
+                                <strong>Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m
+                            </div>
+                        `;
+						} catch (error) {
+							resultDiv.innerHTML = `<div class="result error"><strong>❌ Error:</strong> ${error.message}</div>`;
+						}
+					},
+					(error) => {
+						let errorMessage = 'Failed to get location';
+						switch (error.code) {
+							case error.PERMISSION_DENIED:
+								errorMessage = 'Please allow location access to use this feature';
+								break;
+							case error.POSITION_UNAVAILABLE:
+								errorMessage = 'Location information is unavailable';
+								break;
+							case error.TIMEOUT:
+								errorMessage = 'Location request timed out';
+								break;
+						}
+						resultDiv.innerHTML = `<div class="result error"><strong>❌ Location Error:</strong> ${errorMessage}</div>`;
+					},
+					{
+						enableHighAccuracy: true,
+						timeout: 15000,
+						maximumAge: 60000
+					}
+				);
+			}
+
+			async function testLocationComparison() {
+				const resultDiv = document.getElementById('comparisonResult');
+
+				if (!navigator.geolocation) {
+					resultDiv.innerHTML =
+						'<div class="result error">Geolocation is not supported by your browser</div>';
+					return;
+				}
+
+				resultDiv.innerHTML =
+					'<div class="result">🔄 Getting location and comparing enhanced Google vs OpenStreetMap...</div>';
+
+				navigator.geolocation.getCurrentPosition(
+					async (position) => {
+						const lat = position.coords.latitude;
+						const lng = position.coords.longitude;
+
+						try {
+							let googleResult = null;
+							let osmResult = null;
+
+							// Test Enhanced Google
+							if (API_KEY && isGoogleApiAvailable) {
+								try {
+									googleResult = await reverseGeocode(lat, lng, API_KEY);
+								} catch (error) {
+									console.warn('Enhanced Google geocoding failed:', error);
+								}
+							}
+
+							// Test OpenStreetMap by temporarily disabling Google
+							const originalAvailable = isGoogleApiAvailable;
+							isGoogleApiAvailable = false;
+							try {
+								osmResult = await reverseGeocode(lat, lng, null);
+							} catch (error) {
+								console.warn('OSM geocoding failed:', error);
+							} finally {
+								isGoogleApiAvailable = originalAvailable;
+							}
+
+							let comparisonHTML = `
+								<div class="result success">
+									<strong>📍 Enhanced Location Service Comparison</strong><br>
+									<strong>Coordinates:</strong> <span class="coords">${lat}, ${lng}</span><br>
+									<strong>GPS Accuracy:</strong> ±${Math.round(position.coords.accuracy)}m<br><br>
+							`;
+
+							if (googleResult) {
+								comparisonHTML += `
+									<strong>🔵 Enhanced Google Maps Result:</strong><br>
+									<strong>Name:</strong> ${googleResult.name}<br>
+									<strong>Address:</strong> ${googleResult.address}<br>
+									<strong>Source:</strong> ${googleResult.source}<br><br>
+								`;
+							} else {
+								comparisonHTML += `<strong>🔵 Enhanced Google Maps:</strong> ${API_KEY ? 'Failed to get result' : 'API key not configured'}<br><br>`;
+							}
+
+							if (osmResult) {
+								comparisonHTML += `
+									<strong>🟠 OpenStreetMap Result:</strong><br>
+									<strong>Name:</strong> ${osmResult.name}<br>
+									<strong>Address:</strong> ${osmResult.address}<br>
+									<strong>Source:</strong> ${osmResult.source}<br><br>
+								`;
+							} else {
+								comparisonHTML += `<strong>🟠 OpenStreetMap:</strong> Failed to get result<br><br>`;
+							}
+
+							if (googleResult && osmResult) {
+								comparisonHTML += `
+									<strong>📊 Analysis:</strong><br>
+									• Enhanced Google now uses Nigerian region bias and better address parsing<br>
+									• Google prioritizes more specific location types (street addresses, premises)<br>
+									• OpenStreetMap provides community-sourced data with consistent formatting<br>
+									• Both should now give you more accurate, specific location names<br><br>
+									<strong>🎯 Key Improvements Made:</strong><br>
+									• Added region=ng bias for Nigerian locations<br>
+									• Enhanced address component parsing priority<br>
+									• Better handling of location types and accuracy levels<br>
+									• Improved name extraction from formatted addresses
+								`;
+							} else if (!googleResult && osmResult) {
+								comparisonHTML += `
+									<strong>📊 Note:</strong> Only OpenStreetMap result available.<br>
+									OpenStreetMap is working well as you mentioned!
+								`;
+							} else if (googleResult && !osmResult) {
+								comparisonHTML += `
+									<strong>📊 Note:</strong> Only Enhanced Google result available.<br>
+									The Google implementation has been improved with Nigerian region bias.
+								`;
+							}
+
+							comparisonHTML += '</div>';
+							resultDiv.innerHTML = comparisonHTML;
+						} catch (error) {
+							resultDiv.innerHTML = `<div class="result error"><strong>❌ Error:</strong> ${error.message}</div>`;
+						}
+					},
+					(error) => {
+						let errorMessage = 'Failed to get location';
+						switch (error.code) {
+							case error.PERMISSION_DENIED:
+								errorMessage = 'Please allow location access to use this feature';
+								break;
+							case error.POSITION_UNAVAILABLE:
+								errorMessage = 'Location information is unavailable';
+								break;
+							case error.TIMEOUT:
+								errorMessage = 'Location request timed out';
+								break;
+						}
+						resultDiv.innerHTML = `<div class="result error"><strong>❌ Location Error:</strong> ${errorMessage}</div>`;
+					},
+					{
+						enableHighAccuracy: true,
+						timeout: 15000,
+						maximumAge: 60000
+					}
+				);
+			}
+
+			document.getElementById('lat').value = '6.5568768';
+			document.getElementById('lng').value = '3.3390592';
+			document.getElementById('address').value = 'Victoria Island, Lagos, Nigeria';
+			document.getElementById('roundTripAddress').value = 'Lagos State University, Ojo, Lagos';
+		</script>
+	</body>
+</html>

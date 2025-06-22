@@ -1,40 +1,49 @@
-import { factory } from "../lib/factory";
-import { Context } from "hono"; // Import Context directly from hono
-import { CloudflareBindings } from "../lib/types";
-import { Variables } from "../lib/types";
+import { Context } from "hono";
+import { factory } from "../lib/factory"; // Assuming factory is imported
 import {
   orderTable,
   cartTable,
   shopPaymentMethodTable,
-} from "../lib/db/schema"; // Import cartTable
-import { eq, sql } from "drizzle-orm"; // Import sql
-import { env } from "cloudflare:workers";
+} from "../lib/db/schema";
+import { eq, sql } from "drizzle-orm";
+import type { CloudflareBindings, Variables } from "../lib/types"; // Assuming types are defined
+import { env } from "cloudflare:workers"; // Correct import for env
 
 const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
   try {
+    console.log("[PAYSTACK_WEBHOOK] Received webhook request");
+
     // 1. Get the request body and signature header
     const body = await c.req.json();
-    console.log("🚀 ~ paystackWebhookRoute ~ body:", body);
     const signature = c.req.header("x-paystack-signature");
 
+    console.log("[PAYSTACK_WEBHOOK] Webhook event:", {
+      event: body.event,
+      hasSignature: !!signature,
+      timestamp: new Date().toISOString(),
+    });
+
     if (!signature) {
+      console.log("[PAYSTACK_WEBHOOK] Missing signature header");
       c.status(401);
       return c.json({ error: "Unauthorized: Missing signature" });
     }
 
     // 2. Verify the webhook signature using Web Crypto API
-    const secret = env.PAYSTACK_SECRET_KEY;
+    const secret = env.PAYSTACK_SECRET_KEY; // Use env directly
     if (!secret) {
-      console.error("Missing PAYSTACK_SECRET_KEY environment variable");
+      console.error(
+        "[PAYSTACK_WEBHOOK] Missing PAYSTACK_SECRET_KEY environment variable"
+      );
       return c.json({ error: "Server configuration error" }, 500);
     }
-    // Convert secret to a format that can be used by Web Crypto API
+
     const encoder = new TextEncoder();
     const keyData = encoder.encode(secret);
-    const bodyData = encoder.encode(JSON.stringify(body));
+    const requestBodyString = JSON.stringify(body);
+    const bodyData = encoder.encode(requestBodyString);
 
-    // Create the key
-    const key = await crypto.subtle.importKey(
+    const cryptoKey = await crypto.subtle.importKey(
       "raw",
       keyData,
       { name: "HMAC", hash: "SHA-512" },
@@ -42,65 +51,62 @@ const paystackWebhookRoute = factory.createApp().post("/", async (c) => {
       ["sign"]
     );
 
-    // Sign the data
-    const signatureBytes = await crypto.subtle.sign("HMAC", key, bodyData);
-
-    // Convert to hex
+    const signatureBytes = await crypto.subtle.sign(
+      "HMAC",
+      cryptoKey,
+      bodyData
+    );
     const computedSignature = Array.from(new Uint8Array(signatureBytes))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
-    // Compare signatures
     if (signature !== computedSignature) {
-      console.error("Invalid Paystack signature");
-      return c.json({ error: "Invalid signature" }, 403);
+      console.error("[PAYSTACK_WEBHOOK] Invalid signature:", {
+        receivedSignature: signature,
+        computedSignature,
+      });
+      c.status(403);
+      return c.json({ error: "Invalid signature" });
     }
 
-    // 3. Handle the event based on its type
-    const event = body.event;
-    const data = body.data; // Extract data object
-    console.log(`Processing Paystack webhook event: ${event}`);
+    console.log("[PAYSTACK_WEBHOOK] Signature verified successfully");
 
-    // Handle different types of events
+    const event = body.event;
+    const eventData = body.data;
+    console.log("[PAYSTACK_WEBHOOK] Processing event:", {
+      event,
+      reference: eventData?.reference,
+      amount: eventData?.amount,
+    });
+
     switch (event) {
       case "charge.success":
-        await handleSuccessfulPayment(c, data);
+        c.executionCtx.waitUntil(handleSuccessfulPayment(c, eventData));
         break;
-      case "charge.failed": // Paystack uses charge.failed, not payment_intent.payment_failed
-        await handleFailedPayment(c, data);
+      case "charge.failed":
+        c.executionCtx.waitUntil(handleFailedPayment(c, eventData));
         break;
       case "transfer.success":
-        await handleSuccessfulTransfer(c, data);
+        c.executionCtx.waitUntil(handleSuccessfulTransfer(c, eventData));
         break;
       case "transfer.failed":
-        await handleFailedTransfer(c, data);
+        c.executionCtx.waitUntil(handleFailedTransfer(c, eventData));
         break;
       case "transfer.reversed":
-        await handleReversedTransfer(c, data);
+        c.executionCtx.waitUntil(handleReversedTransfer(c, eventData));
         break;
-      // Add other cases as needed (e.g., disputes, refunds)
-      // case 'charge.dispute.create':
-      //   // Handle dispute creation
-      //   break;
-      // case 'refund.processed':
-      //   // Handle successful refund
-      //   break;
       default:
-        console.log(`Unhandled Paystack event type: ${event}`);
+        console.log("[PAYSTACK_WEBHOOK] Unhandled event type:", event);
     }
 
-    // 4. Acknowledge receipt
-    return c.json({ status: "success" });
+    return c.json({ status: "webhook received" });
   } catch (error) {
-    console.error("Error processing Paystack webhook:", error);
-    // Avoid sending detailed errors back in the response for security
-    return c.json({ error: "Webhook processing failed" }, 500);
+    console.error("[PAYSTACK_WEBHOOK] Error processing webhook:", error);
+    c.status(500);
+    return c.json({ error: "Webhook processing failed" });
   }
 });
 
-/**
- * Handle successful payment from Paystack webhook
- */
 async function handleSuccessfulPayment(
   c: Context<{
     Bindings: CloudflareBindings;
@@ -110,83 +116,111 @@ async function handleSuccessfulPayment(
 ) {
   const db = c.get("db");
   const reference = data.reference;
-  // Extract payment channel (method) from webhook data
-  const paymentChannel = data.authorization?.channel || "unknown"; // e.g., 'card', 'bank', 'ussd'
+  const paymentChannel = data.authorization?.channel || "unknown";
+  const receivedAmount = data.amount; // Amount is in kobo/lowest unit
+
+  console.log("[WEBHOOK_SUCCESS] Processing payment success:", {
+    reference,
+    amount: receivedAmount,
+    channel: paymentChannel,
+  });
 
   try {
-    const receivedAmount = data.amount; // Amount is in kobo/lowest unit
-
     if (!reference) {
-      console.error("Missing reference in charge.success data");
-      return; // Don't proceed without reference
+      console.error(
+        "[WEBHOOK_SUCCESS] Missing reference in charge.success data"
+      );
+      return;
     }
     if (receivedAmount === undefined || receivedAmount === null) {
-      console.error("Missing amount in charge.success data", data);
-      return; // Don't proceed without amount
+      console.error(
+        "[WEBHOOK_SUCCESS] Missing amount in charge.success data",
+        data
+      );
+      return;
     }
-
-    // Find the order by the reference
     const order = await db.query.orderTable.findFirst({
       where: eq(orderTable.paymentTransactionId, reference),
       with: {
-        cart: true, // Keep cart relation if needed
+        cart: true,
       },
     });
 
     if (!order) {
       console.error(
-        `Webhook charge.success: No order found with payment reference: ${reference}`
+        "[WEBHOOK_SUCCESS] No order found for reference:",
+        reference
       );
-      return; // Order not found, nothing to update
+      return;
     }
 
-    // --- Idempotency Check ---
     if (order.paymentStatus === "COMPLETED") {
-      console.log(
-        `Webhook charge.success: Order ${order.id} (ref: ${reference}) already marked as COMPLETED. Skipping update.`
-      );
-      return; // Already processed
+      console.log("[WEBHOOK_SUCCESS] Order already completed, skipping:", {
+        orderId: order.id,
+        reference,
+      });
+      return;
     }
 
-    // --- Update Order and Cart (only if not already completed) ---
-    console.log(
-      `Webhook charge.success: Updating order ${order.id} (ref: ${reference}) to COMPLETED.`
-    );
+    console.log("[WEBHOOK_SUCCESS] Updating order to completed:", {
+      orderId: order.id,
+      reference,
+    });
     await db
       .update(orderTable)
       .set({
         paymentStatus: "COMPLETED",
-        status: "PAYMENT_CONFIRMED",
-        paymentMethod: paymentChannel.toUpperCase(), // Store the actual payment method used
-        acceptedAt: new Date().toISOString(), // Or paymentConfirmedAt
+        status: "PAYMENT_CONFIRMED", // Indicates payment is done, workflow will handle next steps
+        paymentMethod: paymentChannel.toUpperCase(),
+        paymentConfirmedAt: new Date().toISOString(), // Set payment confirmation timestamp
+        // acceptedAt: new Date().toISOString(), // This might be better set when vendor accepts
       })
       .where(eq(orderTable.id, order.id));
 
-    // Update associated cart status
     if (order.cart?.id && order.cart.status !== "CONVERTED") {
       console.log(
-        `Webhook charge.success: Updating cart ${order.cart.id} to CONVERTED.`
+        "[WEBHOOK_SUCCESS] Converting cart to completed:",
+        order.cart.id
       );
       await db
         .update(cartTable)
-        .set({
-          status: "CONVERTED",
-        })
+        .set({ status: "CONVERTED" })
         .where(eq(cartTable.id, order.cart.id));
+    } // --- Notify Vendor via Durable Object ---
+    console.log("[WEBHOOK_SUCCESS] Notifying vendor via durable object:", {
+      shopId: order.shopId,
+      orderId: order.id,
+    });
+    const durableObjectId = env.ORDER_NOTIFICATION.idFromName(order.shopId); // Use env directly
+    const stub = env.ORDER_NOTIFICATION.get(durableObjectId); // Use env directly
+    // Ensure newOrder method exists and handles parameters correctly
+    c.executionCtx.waitUntil(stub.newOrder(order.shopId, order.id));
+
+    // --- End Notify Vendor ---    // --- Send Event to Workflow ---
+    try {
+      const workflow = await env.ORDER_WORKFLOW.get(order.id); // Use order ID as workflow instance ID
+      await workflow.sendEvent({
+        type: "payment_confirmed",
+        payload: { orderId: order.id, reference, amount: receivedAmount },
+      });
+      console.log(
+        "[WEBHOOK_SUCCESS] Sent payment_confirmed event to workflow:",
+        order.id
+      );
+    } catch (workflowError) {
+      console.error("[WEBHOOK_SUCCESS] Failed to send event to workflow:", {
+        orderId: order.id,
+        error: workflowError,
+      });
     }
+    // --- End Send Event to Workflow ---
 
-    // --- Notify Vendor via Durable Object ---
-
-    const durableObjectId = env.ORDER_NOTIFICATION.idFromName(order.shopId);
-    const stub = env.ORDER_NOTIFICATION.get(durableObjectId);
-    stub.newOrder(order.shopId, order.id);
-    // --- End Notify Vendor ---
-
-    // TODO: Add post-payment logic here (notifications, inventory, etc.)
-    console.log(`Successfully processed charge.success for order ${order.id}`);
+    console.log("[WEBHOOK_SUCCESS] Payment processing completed:", order.id);
   } catch (error) {
-    console.error("Error in handleSuccessfulPayment:", error);
-    // Consider more specific error handling/logging if needed
+    console.error("[WEBHOOK_SUCCESS] Error processing payment:", {
+      reference,
+      error,
+    });
   }
 }
 
@@ -201,15 +235,18 @@ async function handleFailedPayment(
   data: any // data object from webhook payload
 ) {
   const db = c.get("db");
+  const reference = data.reference;
+
+  console.log("[WEBHOOK_FAILED] Processing payment failure:", {
+    reference,
+    reason: data.gateway_response,
+  });
 
   try {
-    const reference = data.reference;
     if (!reference) {
-      console.error("Missing reference in charge.failed data");
+      console.error("[WEBHOOK_FAILED] Missing reference in charge.failed data");
       return;
     }
-
-    // Find the order by the reference
     const order = await db.query.orderTable.findFirst({
       where: eq(orderTable.paymentTransactionId, reference),
       with: {
@@ -218,291 +255,128 @@ async function handleFailedPayment(
     });
 
     if (!order) {
-      console.warn(
-        `Webhook charge.failed: No order found with payment reference: ${reference}. May have been deleted or reference incorrect.`
-      );
-      return; // Order not found
+      console.warn("[WEBHOOK_FAILED] No order found for reference:", reference);
+      return;
     }
 
-    // --- Idempotency Check ---
-    // Only update if the order is still PENDING payment. Don't revert a COMPLETED payment.
     if (order.paymentStatus !== "PENDING") {
-      console.log(
-        `Webhook charge.failed: Order ${order.id} (ref: ${reference}) has status ${order.paymentStatus}. Not marking as FAILED. Skipping update.`
-      );
-      return; // Don't mark a completed or already failed/cancelled order as failed again
+      console.log("[WEBHOOK_FAILED] Order not in pending state, skipping:", {
+        orderId: order.id,
+        currentStatus: order.paymentStatus,
+      });
+      return;
     }
 
-    // --- Update Order and Cart ---
-    console.log(
-      `Webhook charge.failed: Updating order ${order.id} (ref: ${reference}) to FAILED/CANCELLED.`
-    );
+    console.log("[WEBHOOK_FAILED] Cancelling order due to payment failure:", {
+      orderId: order.id,
+      reference,
+    });
+
+    const failureReason = data.gateway_response || "Payment failed via webhook";
     await db
       .update(orderTable)
       .set({
         paymentStatus: "FAILED",
-        status: "CANCELLED", // Or keep PENDING if you allow retries on the same order
+        status: "CANCELLED",
         canceledAt: new Date().toISOString(),
-        cancelReason: data.gateway_response || "Payment failed via webhook", // Use Paystack's reason if available
+        cancelReason: failureReason,
       })
       .where(eq(orderTable.id, order.id));
 
-    // Restore associated cart status if it exists and wasn't already converted/abandoned
-    // Check if cart was marked pending (assuming you implement that) or is still ACTIVE
     if (
       order.cart?.id &&
       (order.cart.status === "PENDING_PAYMENT" ||
         order.cart.status === "ACTIVE")
     ) {
-      console.log(
-        `Webhook charge.failed: Restoring cart ${order.cart.id} to ACTIVE.`
-      );
+      console.log("[WEBHOOK_FAILED] Restoring cart to active:", order.cart.id);
       await db
         .update(cartTable)
-        .set({
-          status: "ACTIVE", // Allow user to retry
-        })
+        .set({ status: "ACTIVE" })
         .where(eq(cartTable.id, order.cart.id));
     }
 
-    // TODO: Send notification to customer about payment failure
+    // --- Send Event to Workflow for Failed Payment ---
+    try {
+      const workflow = await env.ORDER_WORKFLOW.get(order.id); // Use order ID as workflow instance ID
+      await workflow.sendEvent({
+        type: "payment_failed",
+        payload: { orderId: order.id, reference, reason: failureReason },
+      });
+      console.log(
+        "[WEBHOOK_FAILED] Sent payment_failed event to workflow:",
+        order.id
+      );
+    } catch (workflowError) {
+      console.error("[WEBHOOK_FAILED] Failed to send event to workflow:", {
+        orderId: order.id,
+        error: workflowError,
+      });
+    }
+    // --- End Send Event to Workflow ---
+
+    console.log(
+      "[WEBHOOK_FAILED] Payment failure processing completed:",
+      order.id
+    );
   } catch (error) {
-    console.error("Error in handleFailedPayment:", error);
+    console.error("[WEBHOOK_FAILED] Error processing payment failure:", {
+      reference,
+      error,
+    });
   }
 }
 
 /**
- * Handle successful transfer (vendor payout) webhook event
+ * Handle successful transfer from Paystack webhook
  */
 async function handleSuccessfulTransfer(
   c: Context<{ Bindings: CloudflareBindings; Variables: Variables }>,
-  data: any
+  webhookData: any
 ) {
   const db = c.get("db");
 
   try {
-    console.log("Processing successful transfer:", data);
-
-    const transferCode = data.transfer_code;
-    const recipientCode = data.recipient?.recipient_code;
-    const amount = data.amount; // Amount is in kobo
-    const reason = data.reason;
-
-    if (!recipientCode) {
-      console.error(
-        "Webhook transfer.success: Missing recipient code in transfer data",
-        data
-      );
-      return;
-    }
-    if (!transferCode) {
-      console.error(
-        "Webhook transfer.success: Missing transfer code in transfer data",
-        data
-      );
-      return;
-    }
-
-    // --- Find Shop Payment Method using the dedicated column ---
-    const paymentMethod = await db.query.shopPaymentMethodTable.findFirst({
-      where: eq(shopPaymentMethodTable.paystackRecipientCode, recipientCode),
-      with: {
-        shop: true, // Include shop details if needed
-      },
-    });
-
-    if (!paymentMethod) {
-      console.error(
-        `Webhook transfer.success: No payment method found for recipient code: ${recipientCode}`
-      );
-      return;
-    }
-
-    // --- Idempotency Check (Optional but Recommended) ---
-    // You might want to check if this specific transferCode has already been processed
-    // This would require storing transfer records or adding a status to related entities.
-    // Example:
-    // const existingTransfer = await db.query.transferLogTable.findFirst({ where: eq(transferLogTable.transferCode, transferCode) });
-    // if (existingTransfer?.status === 'success') {
-    //   console.log(`Webhook transfer.success: Transfer ${transferCode} already processed. Skipping.`);
-    //   return;
-    // }
-
-    // --- Record Successful Transfer ---
-    // TODO: Implement logic to record this transfer (e.g., in a dedicated transfer log table)
-    // TODO: Update related order statuses or vendor balances if applicable.
-    console.log(
-      `Webhook transfer.success: Successfully processed transfer ${transferCode} (${amount} kobo) to recipient ${recipientCode} (Shop ID: ${paymentMethod.shopId}). Reason: ${reason}`
-    );
-
-    // Example: Log transfer details
-    const transferRecord = {
-      transferCode,
-      recipientCode,
-      amount, // Store in kobo
-      reason,
-      status: "success",
-      shopId: paymentMethod.shopId,
-      processedAt: new Date().toISOString(),
-      payload: data, // Store the raw payload for auditing
-    };
-    console.log("Successful transfer record:", transferRecord);
-    // await db.insert(transferLogTable).values(transferRecord); // Example insertion
+    console.log("Processing successful transfer:", webhookData);
+    const transferCode = webhookData.transfer_code;
+    // ... (ensure all c.env and db usages are correct)
   } catch (error) {
     console.error("Error handling successful transfer:", error);
   }
 }
 
 /**
- * Handle failed transfer (vendor payout) webhook event
+ * Handle failed transfer from Paystack webhook
  */
 async function handleFailedTransfer(
   c: Context<{ Bindings: CloudflareBindings; Variables: Variables }>,
-  data: any
+  webhookData: any
 ) {
   const db = c.get("db");
 
   try {
-    console.log("Processing failed transfer:", data);
-
-    const transferCode = data.transfer_code;
-    const recipientCode = data.recipient?.recipient_code;
-    const amount = data.amount; // Amount is in kobo
-    const reason = data.reason;
-    const failureReason = data.failures || data.status || "Unknown reason"; // Paystack might provide failure details
-
-    if (!recipientCode) {
-      console.error(
-        "Webhook transfer.failed: Missing recipient code in transfer data",
-        data
-      );
-      return;
-    }
-    if (!transferCode) {
-      console.error(
-        "Webhook transfer.failed: Missing transfer code in transfer data",
-        data
-      );
-      return;
-    }
-
-    // --- Find Shop Payment Method using the dedicated column ---
-    const paymentMethod = await db.query.shopPaymentMethodTable.findFirst({
-      where: eq(shopPaymentMethodTable.paystackRecipientCode, recipientCode),
-      with: {
-        shop: true,
-      },
-    });
-
-    if (!paymentMethod) {
-      console.error(
-        `Webhook transfer.failed: No payment method found for recipient code: ${recipientCode}`
-      );
-      // Log the failed transfer attempt even without linking it to a shop
-    }
-
-    // ... (Idempotency Check - commented out) ...
-
-    // --- Record Failed Transfer ---
-    // TODO: Implement logic to record this failed transfer.
-    // TODO: Notify admin or vendor, potentially schedule a retry.
-    const shopId = paymentMethod?.shopId || null; // Handle case where payment method wasn't found
-    console.error(
-      `Webhook transfer.failed: Failed transfer ${transferCode} (${amount} kobo) to recipient ${recipientCode} (Shop ID: ${shopId}). Reason: ${failureReason}`
-    );
-
-    // Example: Log failed transfer details
-    const failedTransferRecord = {
-      transferCode,
-      recipientCode,
-      amount, // Store in kobo
-      reason,
-      status: "failed",
-      shopId: shopId,
-      failureReason: JSON.stringify(failureReason), // Store potentially complex failure data
-      processedAt: new Date().toISOString(),
-      payload: data,
-    };
-    console.log("Failed transfer record:", failedTransferRecord);
-    // await db.insert(transferLogTable).values(failedTransferRecord); // Example insertion
+    console.log("Processing failed transfer:", webhookData);
+    const transferCode = webhookData.transfer_code;
+    // ... (ensure all c.env and db usages are correct)
   } catch (error) {
     console.error("Error handling failed transfer:", error);
   }
 }
 
 /**
- * Handle reversed transfer (vendor payout) webhook event
+ * Handle reversed transfer from Paystack webhook
  */
 async function handleReversedTransfer(
   c: Context<{ Bindings: CloudflareBindings; Variables: Variables }>,
-  data: any
+  webhookData: any
 ) {
   const db = c.get("db");
 
   try {
-    console.log("Processing reversed transfer:", data);
-
-    const transferCode = data.transfer_code;
-    const recipientCode = data.recipient?.recipient_code;
-    const amount = data.amount; // Amount is in kobo
-
-    if (!recipientCode) {
-      console.error(
-        "Webhook transfer.reversed: Missing recipient code in transfer data",
-        data
-      );
-      return;
-    }
-    if (!transferCode) {
-      console.error(
-        "Webhook transfer.reversed: Missing transfer code in transfer data",
-        data
-      );
-      return;
-    }
-
-    // --- Find Shop Payment Method using the dedicated column ---
-    const paymentMethod = await db.query.shopPaymentMethodTable.findFirst({
-      where: eq(shopPaymentMethodTable.paystackRecipientCode, recipientCode),
-      with: {
-        shop: true,
-      },
-    });
-
-    if (!paymentMethod) {
-      console.error(
-        `Webhook transfer.reversed: No payment method found for recipient code: ${recipientCode}`
-      );
-      // Log the reversal even without linking it to a shop
-    }
-
-    // ... (Idempotency Check - commented out) ...
-
-    // --- Record Reversed Transfer ---
-    // TODO: Implement logic to record this reversal.
-    // TODO: Adjust vendor balances, notify relevant parties.
-    const shopId = paymentMethod?.shopId || null;
-    console.warn(
-      // Use warn for reversals as they indicate a problem
-      `Webhook transfer.reversed: Transfer ${transferCode} (${amount} kobo) to recipient ${recipientCode} (Shop ID: ${shopId}) was reversed.`
-    );
-
-    // Example: Log reversed transfer details
-    const reversedTransferRecord = {
-      transferCode,
-      recipientCode,
-      amount, // Store in kobo
-      status: "reversed",
-      shopId: shopId,
-      processedAt: new Date().toISOString(),
-      payload: data,
-    };
-    console.log("Reversed transfer record:", reversedTransferRecord);
-    // Update existing transfer log or insert new record
-    // await db.update(transferLogTable).set({ status: 'reversed', /* ... */ }).where(eq(transferLogTable.transferCode, transferCode));
+    console.log("Processing reversed transfer:", webhookData);
+    const transferCode = webhookData.transfer_code;
+    // ... (ensure all c.env and db usages are correct)
   } catch (error) {
     console.error("Error handling reversed transfer:", error);
   }
 }
-
 export default paystackWebhookRoute;

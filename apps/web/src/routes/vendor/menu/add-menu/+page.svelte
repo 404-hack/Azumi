@@ -12,7 +12,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { createMenuSchema } from '@repo/server/validations';
 	import AddCategoryModal from '$lib/components/modal/AddCategoryModal.svelte';
-	import { toast } from "svelte-sonner"
+	import { toast } from 'svelte-sonner';
 	import {
 		addCategoryModalState,
 		addOptionGroupModalState,
@@ -50,10 +50,10 @@
 		const file = target.files?.[0];
 
 		if (file) {
-			// Check file size (max 2MB)
-			const maxSizeInBytes = 2 * 1024 * 1024; // 2MB
+			// Check file size (max 5MB)
+			const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
 			if (file.size > maxSizeInBytes) {
-				alert('Image size exceeds the maximum limit of 2MB. Please choose a smaller image.');
+				alert('Image size exceeds the maximum limit of 5MB. Please choose a smaller image.');
 				// Reset the file input
 				if (fileInput) {
 					fileInput.value = '';
@@ -109,8 +109,8 @@
 					if (form.data.name) formData.append('name', form.data.name);
 					if (form.data.description) formData.append('description', form.data.description);
 					if (form.data.price !== undefined) formData.append('price', form.data.price.toString());
-					if (form.data.priceDescription)
-						formData.append('priceDescription', form.data.priceDescription);
+					// if (form.data.priceDescription)
+					// 	formData.append('priceDescription', form.data.priceDescription);
 					if (form.data.inStock !== undefined)
 						formData.append('inStock', form.data.inStock.toString());
 					if (form.data.categoryId) formData.append('categoryId', form.data.categoryId);
@@ -128,7 +128,6 @@
 					const res = await client.vendor.menu.$post({
 						form: form.data
 					});
-					
 
 					if (res.ok) {
 						const data = await res.json();
@@ -136,10 +135,8 @@
 						goto('/vendor/menu/');
 						// Show toast here
 						toast.success('Menu Item Created', {
-							description: 'Your menu item has been created successfully.',
-
+							description: 'Your menu item has been created successfully.'
 						});
-
 					}
 				} catch (error) {
 					console.error('Failed to create menu item', error);
@@ -219,7 +216,7 @@
 									<Button
 										variant="link"
 										class="h-auto p-0"
-										on:click={() => addCategoryModalState.setTrue()}
+										onclick={() => addCategoryModalState.setTrue()}
 									>
 										+ Add new category
 									</Button>
@@ -337,7 +334,7 @@
 														<span class="font-semibold">Click to upload</span>
 														or drag and drop
 													</p>
-													<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 2MB)</p>
+													<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 5MB)</p>
 												</div>
 												<input
 													id="dropzone-file"
@@ -360,13 +357,13 @@
 											class="relative"
 											onclick={(e) => {
 												e.preventDefault();
-												if (fileInput) fileInput.click();
+												fileInput.click();
 											}}
 										>
 											<Upload class="mr-2 h-4 w-4" />
 											{imagePreview ? 'Change Image' : 'Choose Image'}
 										</Button>
-										<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 2MB)</p>
+										<p class="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 5MB)</p>
 									</div>
 								</div>
 							{/snippet}
@@ -425,7 +422,7 @@
 											<Button
 												variant="link"
 												onclick={() => addOptionGroupModalState.setTrue()}
-												class="h-auto p-0 text-primary">+ Quick Add Group</Button
+												class="text-primary h-auto p-0">+ Quick Add Group</Button
 											>
 										</div>
 									</div>

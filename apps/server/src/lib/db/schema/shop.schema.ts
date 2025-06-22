@@ -19,6 +19,7 @@ import { userTable } from "./auth.schema";
 import { relations } from "drizzle-orm";
 import { menuItemTable, menuCategoryTable } from "./menu.schema";
 import { TCoordinates } from "../../types";
+import { promotions } from "./promotion.schema";
 
 export const shopTypeTable = sqliteTable("shopType", {
   id: text("id")
@@ -45,10 +46,10 @@ export const shopTable = sqliteTable(
     metadata: text("metadata", { mode: "json" }),
     phoneNumber: text("phone_number"),
     address: text("address"),
-    commission: integer("commission").default(10),
-    minimumOrderAmount: integer("minimum_order_amount").default(0),
+    commission: integer("commission").default(0),
+    minimumOrderAmount: integer("minimum_order_amount").default(500),
     active: integer("active", { mode: "boolean" }).default(false),
-    status: text("status", { enum: SHOP_STATUS }).default("PENDING"),
+    status: text("status", { enum: SHOP_STATUS }).default("DRAFT"),
     logo: text("logo"),
     coverImage: text("cover_image"),
     averageRating: integer("average_rating"),
@@ -176,7 +177,19 @@ export const shopPaymentMethodTable = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.accountNumber, table.shopId] })]
 );
+export const memberRelations = relations(member, ({ one }) => ({
+  shop: one(shopTable, {
+    fields: [member.organizationId],
+    references: [shopTable.id],
+    relationName: "shopOfMember",
+  }),
+  user: one(userTable, {
+    fields: [member.userId],
+    references: [userTable.id],
+  }),
+}));
 export const shopRelations = relations(shopTable, ({ one, many }) => ({
+  members: many(member),
   todo: one(shopTodoTable, {
     fields: [shopTable.id],
     references: [shopTodoTable.shopId],
@@ -186,6 +199,7 @@ export const shopRelations = relations(shopTable, ({ one, many }) => ({
   agreements: many(shopAgreementsTable),
   paymentMethods: many(shopPaymentMethodTable),
   operatingHours: many(shopOperatingHoursTable),
+  promotions: many(promotions),
 }));
 export const shopAgreementRelations = relations(
   shopAgreementsTable,

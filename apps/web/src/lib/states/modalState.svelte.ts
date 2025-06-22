@@ -43,6 +43,24 @@ class DeleteModalState extends ModalState {
 	}
 }
 
+class LoginModalState extends ModalState {
+	public title = $state<string | undefined>(undefined);
+
+	constructor() {
+		super(false);
+	}
+
+	open(title?: string) {
+		this.title = title;
+		this.setTrue();
+	}
+
+	close() {
+		this.title = undefined;
+		this.setFalse();
+	}
+}
+
 // Create interfaces that match our mapped database schema
 export interface OptionItem {
 	id: string;
@@ -69,7 +87,7 @@ export interface MenuItem {
 	id: string;
 	name: string;
 	description?: string;
-	image: string | null;
+	imageUrl: string | null;
 	price: number;
 	priceDescription?: string;
 	inStock?: boolean;
@@ -220,7 +238,7 @@ export const updatePasswordModalState = new ModalState(false);
 export const addAddressModalState = new ModalState(false);
 export const deliveryAddressModalState = new ModalState(false);
 export const addDeliveryAddressModalState = new ModalState(false);
-export const loginModalState = new ModalState(false);
+export const loginModalState = new LoginModalState();
 export const registerModalState = new ModalState(false);
 export const verifyOtpModalState = new ModalState(false);
 export const profileSetupModalState = new ModalState(false);

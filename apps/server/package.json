@@ -8,7 +8,7 @@
 	"scripts": {
 		"dev": "wrangler dev --env staging",
 		"deploy": "wrangler deploy --minify",
-		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
+		"typegen": "wrangler types --env staging",
 		"db:push": "drizzle-kit push --config=drizzle-dev.config.ts",
 		"db:push:staging": "drizzle-kit push --config=drizzle-staging.config.ts",
 		"db:push:prod": "drizzle-kit push --config=drizzle.config.ts",
@@ -20,12 +20,14 @@
 		"db:generate:prod": "drizzle-kit generate --config=drizzle.config.ts",
 		"db:studio": "drizzle-kit studio --config=drizzle-dev.config.ts",
 		"db:studio:staging": "drizzle-kit studio --config=drizzle-staging.config.ts",
+		"db:drop:staging": "drizzle-kit drop --config=drizzle-staging.config.ts",
+		"db:pull:staging": "drizzle-kit pull --config=drizzle-staging.config.ts",
 		"db:studio:prod": "drizzle-kit studio --config=drizzle.config.ts"
 	},
 	"dependencies": {
 		"@hono/zod-validator": "^0.5.0",
 		"@paystack/inline-js": "^2.22.2",
-		"better-auth": "^1.1.18",
+		"better-auth": "^1.2.8",
 		"better-sqlite3": "^11.8.1",
 		"dotenv": "^16.4.7",
 		"drizzle-kit": "^0.30.4",
@@ -38,6 +40,6 @@
 	},
 	"devDependencies": {
 		"@types/node": "^22.13.14",
-		"wrangler": "^4.6.0"
+		"wrangler": "^4.16.1"
 	}
 }

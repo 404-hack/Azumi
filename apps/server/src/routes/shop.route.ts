@@ -11,7 +11,7 @@ import {
   shopTable,
   shopTodoTable,
 } from "../lib/db/schema/shop.schema";
-import { and, between, eq, gte, in_, lte, sql } from "drizzle-orm";
+import { and, between, eq, gte, lte, sql } from "drizzle-orm";
 import { createAuth } from "../lib/auth";
 import { nanoid } from "nanoid";
 import { factory } from "../lib/factory";
@@ -19,10 +19,10 @@ import { DAYS_OF_WEEK } from "../lib/constant";
 import {
   isShopCurrentlyOpen,
   parseTimeStringToMinutes,
-  calculateHaversineDistance, // Import new utility function
-  calculateDeliveryFee, // Import new utility function
-  estimateTravelTime, // Import new utility function
-} from "../lib/utils/shop.utils"; // Import helpers
+  calculateDeliveryFee,
+  estimateTravelTime,
+} from "../lib/utils/shop.utils";
+import { calculateDistance } from "../lib/utils/geo";
 import { z } from "zod";
 
 const shopRoute = factory
@@ -97,7 +97,7 @@ const shopRoute = factory
             lte(shops.latitude, maxLat),
             gte(shops.longitude, minLon),
             lte(shops.longitude, maxLon),
-            // eq(shops.active, true), // Only active shops
+            eq(shops.status, "APPROVED"),
           ];
 
           // Add shop type filter if provided
@@ -123,6 +123,7 @@ const shopRoute = factory
           averageRating: true,
           totalRatings: true,
           active: true,
+          status: true,
           longitude: true,
           latitude: true,
           createdAt: true,
@@ -158,19 +159,16 @@ const shopRoute = factory
             }
 
             // Calculate actual distance using Haversine formula (use imported function)
-            const distance = calculateHaversineDistance(
-              lat,
-              lng,
-              shopLat,
-              shopLng
-            );
+            const distance = calculateDistance(lat, lng, shopLat, shopLng);
 
-            // Calculate isOpen status
-            const isOpen = isShopCurrentlyOpen(
-              shop.operatingHours,
-              currentDayString,
-              currentTimeMinutes
-            );
+            // Calculate isOpen status (inactive shops are always closed)
+            const isOpen = shop.active
+              ? isShopCurrentlyOpen(
+                  shop.operatingHours,
+                  currentDayString,
+                  currentTimeMinutes
+                )
+              : false;
 
             // Return shop with distance and isOpen status
             return { ...shop, distance, isOpen };
@@ -224,8 +222,12 @@ const shopRoute = factory
         case "newest":
           // Sort by creation date (newest first)
           nearbyShops.sort((a, b) => {
-            const aCreatedAt = a.createdAt ? new Date(aCreatedAt).getTime() : 0;
-            const bCreatedAt = b.createdAt ? new Date(bCreatedAt).getTime() : 0;
+            const aCreatedAt = a.createdAt
+              ? new Date(a.createdAt).getTime()
+              : 0;
+            const bCreatedAt = b.createdAt
+              ? new Date(b.createdAt).getTime()
+              : 0;
             return bCreatedAt - aCreatedAt;
           });
           break;
@@ -395,8 +397,29 @@ const shopRoute = factory
         const { slug } = c.req.param();
         const { latitude: userLat, longitude: userLng } = c.req.valid("query");
         const db = c.get("db");
-        const shop = await db.query.shopTable.findFirst({
+        const session = c.get("session");
+        const orgId = session?.activeOrganizationId;
+
+        // First, get the shop without restrictions to check ownership
+        const shopForOwnershipCheck = await db.query.shopTable.findFirst({
           where: eq(shopTable.slug, slug),
+          columns: { id: true },
+        });
+
+        if (!shopForOwnershipCheck) {
+          return c.json({ message: "Shop not found" }, 404);
+        }
+
+        // Check if user owns this shop
+        const isOwner = orgId === shopForOwnershipCheck.id;
+
+        // Build where conditions based on ownership
+        const whereConditions = isOwner
+          ? eq(shopTable.slug, slug) // No restrictions for owner
+          : and(eq(shopTable.slug, slug), eq(shopTable.status, "APPROVED"));
+
+        const shop = await db.query.shopTable.findFirst({
+          where: whereConditions,
           with: {
             operatingHours: true,
             menuCategories: {
@@ -503,11 +526,13 @@ const shopRoute = factory
         const currentDayString =
           dayMapping[currentDay as keyof typeof dayMapping];
 
-        const isOpen = isShopCurrentlyOpen(
-          shop.operatingHours,
-          currentDayString,
-          currentTimeMinutes
-        );
+        const isOpen = shop.active
+          ? isShopCurrentlyOpen(
+              shop.operatingHours,
+              currentDayString,
+              currentTimeMinutes
+            )
+          : false;
         // --- Calculate distance, fee, and time if user location is provided ---
         let distance: number | undefined = undefined;
         let deliveryFee: number | undefined = undefined;
@@ -527,12 +552,7 @@ const shopRoute = factory
         ) {
           console.log("this actually runs2");
           distance = parseFloat(
-            calculateHaversineDistance(
-              userLat,
-              userLng,
-              shopLat,
-              shopLng
-            ).toFixed(2)
+            calculateDistance(userLat, userLng, shopLat, shopLng).toFixed(2)
           );
           deliveryFee = calculateDeliveryFee(distance);
           estimatedTime = estimateTravelTime(distance);

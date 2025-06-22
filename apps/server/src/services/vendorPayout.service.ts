@@ -1,11 +1,13 @@
-import { db } from "../lib/db";
 import { eq, and, gte, lt, sql } from "drizzle-orm";
 import { shopPaymentMethodTable } from "../lib/db/schema/shop.schema";
-import { transactionTable } from "../lib/db/schema/payment.schema";
+import { vendorTransactionTable } from "../lib/db/schema/payment.schema";
 import { nanoid } from "nanoid";
+import { createClient } from "../lib/db";
 
 type PaystackEnv = {
   PAYSTACK_SECRET_KEY: string;
+  DB: D1Database;
+  RIDER_COMMISSION_RATE: string;
 };
 
 /**
@@ -19,6 +21,8 @@ export async function processVendorPayouts(env: PaystackEnv) {
   console.log("Starting vendor payouts processing...");
 
   try {
+    const db = createClient(env.DB);
+
     // Get the date range for this payout period
     // Process transactions from the previous week (Sunday to Saturday)
     const now = new Date();
@@ -35,13 +39,11 @@ export async function processVendorPayouts(env: PaystackEnv) {
 
     console.log(
       `Processing payouts for period: ${startDate.toISOString()} to ${endDate.toISOString()}`
-    );
-
-    // 1. Find all vendors with bank account information
+    ); // 1. Find all vendors with bank account information
     const vendorsWithBankInfo = await db.query.shopPaymentMethodTable.findMany({
       where: and(
         eq(shopPaymentMethodTable.type, "BANK_TRANSFER"),
-        sql`${shopPaymentMethodTable.additionalDetails} LIKE '%paystackRecipientCode%'`
+        sql`${shopPaymentMethodTable.paystackRecipientCode} IS NOT NULL`
       ),
     });
 
@@ -61,46 +63,35 @@ export async function processVendorPayouts(env: PaystackEnv) {
     // 2. For each vendor, calculate earnings for the period
     // We'll collect all the transfers to be made
     const transfers = [];
-
     for (const vendorPaymentMethod of vendorsWithBankInfo) {
       try {
-        // Parse additionalDetails to get the recipient code
-        const additionalDetails = JSON.parse(
-          vendorPaymentMethod.additionalDetails || "{}"
-        );
-        const recipientCode = additionalDetails.paystackRecipientCode;
+        // Get the recipient code directly from the field
+        const recipientCode = vendorPaymentMethod.paystackRecipientCode;
 
         if (!recipientCode) {
           console.warn(
             `Vendor ${vendorPaymentMethod.shopId} has no recipient code. Skipping.`
           );
           continue;
-        }
-
-        // Calculate total pending earnings for the vendor
+        } // Calculate total pending earnings for the vendor
         const vendorEarnings = await db
           .select({
-            total: sql`SUM(${transactionTable.amount})`.mapWith(Number),
+            total: sql`SUM(${vendorTransactionTable.netAmount})`.mapWith(
+              Number
+            ),
           })
-          .from(transactionTable)
+          .from(vendorTransactionTable)
           .where(
             and(
-              eq(transactionTable.status, "PENDING"),
-              eq(transactionTable.type, "CREDIT"),
-              gte(transactionTable.createdAt, startDate.toISOString()),
-              lt(transactionTable.createdAt, endDate.toISOString()),
-              // Find the user ID associated with this shop
-              // We get this from the payment method, which is linked to the shop
-              sql`${transactionTable.userId} IN (
-              SELECT u.id FROM user_table u
-              JOIN shop s ON s.user_id = u.id
-              WHERE s.id = ${vendorPaymentMethod.shopId}
-            )`
+              eq(vendorTransactionTable.shopId, vendorPaymentMethod.shopId),
+              eq(vendorTransactionTable.status, "PENDING"),
+              eq(vendorTransactionTable.type, "CREDIT"),
+              gte(vendorTransactionTable.createdAt, startDate.toISOString()),
+              lt(vendorTransactionTable.createdAt, endDate.toISOString())
             )
           )
           .get();
-
-        const amount = vendorEarnings.total || 0;
+        const amount = (vendorEarnings.total || 0) / 100; // Convert from cents to NGN
 
         // Skip if no earnings to process
         if (amount <= 0) {
@@ -184,13 +175,11 @@ export async function processVendorPayouts(env: PaystackEnv) {
               const reference = transfer.reference;
 
               // Get the amount in database units (NGN not kobo)
-              const amount = transfer.amount / 100;
-
-              // Start a transaction to keep operations atomic
+              const amount = transfer.amount / 100; // Start a transaction to keep operations atomic
               await db.transaction(async (tx) => {
                 // 1. Mark pending transactions as completed
                 await tx
-                  .update(transactionTable)
+                  .update(vendorTransactionTable)
                   .set({
                     status: "COMPLETED",
                     reference: transfer.transfer_code,
@@ -201,29 +190,25 @@ export async function processVendorPayouts(env: PaystackEnv) {
                   })
                   .where(
                     and(
-                      eq(transactionTable.status, "PENDING"),
-                      eq(transactionTable.type, "CREDIT"),
-                      // Find transactions for the shop associated with this recipient
-                      sql`${transactionTable.userId} IN (
-                        SELECT u.id FROM user_table u
-                        JOIN shop s ON s.user_id = u.id
-                        JOIN "shopPaymentMethod" pm ON pm.shop_id = s.id
-                        WHERE pm.additional_details LIKE '%${transfer.recipient}%'
+                      eq(vendorTransactionTable.status, "PENDING"),
+                      eq(vendorTransactionTable.type, "CREDIT"), // Find transactions for this specific shop
+                      sql`${vendorTransactionTable.shopId} = (
+                        SELECT pm.shop_id FROM "shopPaymentMethod" pm
+                        WHERE pm.paystack_recipient_code = '${transfer.recipient}'
                       )`
                     )
-                  );
-
-                // 2. Create a withdrawal transaction record
-                await tx.insert(transactionTable).values({
-                  id: nanoid(),
-                  userId: sql`(
-                    SELECT u.id FROM user_table u
-                    JOIN shop s ON s.user_id = u.id
-                    JOIN "shopPaymentMethod" pm ON pm.shop_id = s.id
-                    WHERE pm.additional_details LIKE '%${transfer.recipient}%'
+                  ); // 2. Create a withdrawal transaction record
+                await tx.insert(vendorTransactionTable).values({
+                  shopId: sql`(
+                    SELECT pm.shop_id FROM "shopPaymentMethod" pm
+                    WHERE pm.paystack_recipient_code = '${transfer.recipient}'
                     LIMIT 1
                   )`,
-                  amount: amount,
+                  grossAmount: Math.round(amount * 100), // Convert to cents
+                  commissionRate: 0, // No commission on withdrawals
+                  commissionAmount: 0, // No commission on withdrawals
+                  netAmount: Math.round(amount * 100), // Convert to cents
+                  amount: Math.round(amount * 100), // Legacy field
                   currency: "NGN",
                   status: "COMPLETED",
                   type: "DEBIT",
@@ -235,8 +220,8 @@ export async function processVendorPayouts(env: PaystackEnv) {
                     batchId: i + 1,
                     processedAt: new Date().toISOString(),
                   }),
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
                 });
               });
 

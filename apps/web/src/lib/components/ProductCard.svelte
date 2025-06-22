@@ -9,7 +9,7 @@
 	}
 	let {
 		description,
-		image,
+		imageUrl,
 		name,
 		price,
 		id,
@@ -30,7 +30,7 @@
 			id,
 			name,
 			description,
-			image,
+			imageUrl,
 			price,
 			categoryId,
 			// category, // category is not part of MenuItem/ProductDataForModal
@@ -62,7 +62,7 @@
 >
 	<div class="relative aspect-square w-24 flex-shrink-0 overflow-hidden rounded-md">
 		<img
-			src={image || '/shop.avif'}
+			src={imageUrl || '/shop.avif'}
 			alt={name}
 			class="absolute inset-0 h-full w-full object-cover"
 		/>

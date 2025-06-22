@@ -19,10 +19,11 @@ import {
 import { env } from "cloudflare:workers";
 import {
   calculateDeliveryFee,
-  calculateHaversineDistance,
   isShopCurrentlyOpen,
 } from "../lib/utils/shop.utils";
+import { calculateDistance } from "../lib/utils/geo";
 import { DAYS_OF_WEEK } from "../lib/constant";
+import { RiderDispatchService } from "../services/riderDispatch.service";
 
 const orderRoute = factory
   .createApp()
@@ -42,9 +43,6 @@ const orderRoute = factory
       const vendorId = c.req.query("vendorId");
       const customerId = c.req.query("customerId");
       const status = c.req.query("status");
-      const limit = Number(c.req.query("limit")) || 50;
-      const page = Number(c.req.query("page")) || 1;
-      const offset = (page - 1) * limit;
 
       // Base query conditions
       let whereConditions = [];
@@ -61,7 +59,7 @@ const orderRoute = factory
 
       // Filter by status if specified
       if (status) {
-        whereConditions.push(eq(orderTable.status, status));
+        whereConditions.push(eq(orderTable.status, status as any));
       }
 
       // If user is a vendor, only show their orders
@@ -80,28 +78,22 @@ const orderRoute = factory
         where: finalWhereCondition,
         with: {
           items: true,
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              address: true,
+              coverImage: true,
+              latitude: true,
+              longitude: true,
+            },
+          },
         },
         orderBy: [desc(orderTable.createdAt)],
-        limit,
-        offset,
       });
-
-      // Count total orders for pagination
-      const countResult = await db
-        .select({ count: db.fn.count() })
-        .from(orderTable)
-        .where(finalWhereCondition);
-
-      const totalCount = Number(countResult[0]?.count || 0);
 
       return c.json({
         data: orders,
-        pagination: {
-          total: totalCount,
-          page,
-          limit,
-          pages: Math.ceil(totalCount / limit),
-        },
       });
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -119,9 +111,9 @@ const orderRoute = factory
       if (!user) {
         return c.json({ error: "Unauthorized" }, 401);
       }
-
+      // paymentTransactionId
       const order = await db.query.orderTable.findFirst({
-        where: eq(orderTable.paymentTransactionId, id), // Query by paymentTransactionId
+        where: eq(orderTable.id, id), // Query by paymentTransactionId
         with: {
           items: {
             with: {
@@ -134,7 +126,11 @@ const orderRoute = factory
           },
           shop: true,
           customer: true,
-          rider: true,
+          rider: {
+            with: {
+              user: true,
+            },
+          },
         },
       });
 
@@ -169,13 +165,26 @@ const orderRoute = factory
       const db = c.get("db");
       const user = c.get("user");
 
+      console.log("[ORDER_ROUTE] Starting order creation process:", {
+        userId: user?.id,
+        cartId: data.cartId,
+        timestamp: new Date().toISOString(),
+      });
+
       if (!user) {
+        console.log("[ORDER_ROUTE] Unauthorized: No user found");
         return c.json({ error: "Unauthorized" }, 401);
       }
 
       if (!data.cartId) {
+        console.log("[ORDER_ROUTE] Bad request: No cart ID provided");
         return c.json({ error: "Cart ID is required" }, 400);
       }
+
+      console.log(
+        "[ORDER_ROUTE] Fetching cart details for cart ID:",
+        data.cartId
+      );
 
       // Fetch cart with items, menu item details (including inStock), options (including inStock), and shop details
       const cart = await db.query.cartTable.findFirst({
@@ -210,7 +219,9 @@ const orderRoute = factory
               latitude: true,
               longitude: true,
               active: true,
+              status: true,
               name: true,
+              minimumOrderAmount: true,
             },
             with: {
               operatingHours: true,
@@ -220,10 +231,26 @@ const orderRoute = factory
       });
 
       if (!cart) {
+        console.log("[ORDER_ROUTE] Cart not found for ID:", data.cartId);
         return c.json({ error: "Cart not found" }, 404);
       }
 
+      console.log("[ORDER_ROUTE] Cart found:", {
+        cartId: cart.id,
+        customerId: cart.customerId,
+        shopId: cart.shopId,
+        status: cart.status,
+        itemsCount: cart.items?.length || 0,
+      });
+
       if (cart.customerId !== user.id) {
+        console.log(
+          "[ORDER_ROUTE] Permission denied: Cart belongs to different user:",
+          {
+            cartCustomerId: cart.customerId,
+            currentUserId: user.id,
+          }
+        );
         return c.json(
           { error: "You don't have permission to access this cart" },
           403
@@ -231,22 +258,38 @@ const orderRoute = factory
       }
 
       if (cart.status !== "ACTIVE") {
+        console.log("[ORDER_ROUTE] Cart not active:", {
+          cartId: cart.id,
+          status: cart.status,
+        });
         return c.json({ error: "This cart has already been processed" }, 400);
       }
 
       if (!cart.items || cart.items.length === 0) {
+        console.log("[ORDER_ROUTE] Cart is empty:", cart.id);
         return c.json({ error: "Cart is empty" }, 400);
       }
 
       if (!cart.shop) {
-        console.error(`Cart ${cart.id} is missing shop data.`);
+        console.error("[ORDER_ROUTE] Cart missing shop data:", cart.id);
         return c.json({ error: "Shop data not found for this cart" }, 500);
       }
+
+      console.log("[ORDER_ROUTE] Starting shop validation:", {
+        shopId: cart.shop.id,
+        shopName: cart.shop.name,
+        active: cart.shop.active,
+        status: cart.shop.status,
+      });
 
       // --- Pre-Order Validation ---
 
       // 1. Check if Shop is Active
       if (!cart.shop.active) {
+        console.log("[ORDER_ROUTE] Shop inactive:", {
+          shopId: cart.shop.id,
+          shopName: cart.shop.name,
+        });
         return c.json(
           {
             error: `Sorry, the shop "${cart.shop.name}" is currently inactive and cannot accept orders. Please try again later.`,
@@ -255,7 +298,22 @@ const orderRoute = factory
         );
       }
 
-      // 2. Check if Shop is Open
+      // 2. Check if Shop is Approved
+      if (cart.shop.status !== "APPROVED") {
+        console.log("[ORDER_ROUTE] Shop not approved:", {
+          shopId: cart.shop.id,
+          shopName: cart.shop.name,
+          status: cart.shop.status,
+        });
+        return c.json(
+          {
+            error: `Sorry, the shop "${cart.shop.name}" is not approved to accept orders. Please try again later.`,
+          },
+          400
+        );
+      }
+
+      // 3. Check if Shop is Open
       const now = new Date();
       const currentDay = now.getDay();
       const currentHour = now.getHours();
@@ -273,6 +331,13 @@ const orderRoute = factory
       const currentDayString =
         dayMapping[currentDay as keyof typeof dayMapping];
 
+      console.log("[ORDER_ROUTE] Checking shop operating hours:", {
+        shopId: cart.shop.id,
+        currentDay: currentDayString,
+        currentTime: `${currentHour}:${currentMinute}`,
+        operatingHoursCount: cart.shop.operatingHours?.length || 0,
+      });
+
       const isOpen = isShopCurrentlyOpen(
         cart.shop.operatingHours,
         currentDayString,
@@ -280,6 +345,12 @@ const orderRoute = factory
       );
 
       if (!isOpen) {
+        console.log("[ORDER_ROUTE] Shop closed:", {
+          shopId: cart.shop.id,
+          shopName: cart.shop.name,
+          currentDay: currentDayString,
+          currentTime: `${currentHour}:${currentMinute}`,
+        });
         return c.json(
           {
             error: `Sorry, the shop "${cart.shop.name}" is currently closed and cannot accept orders. Please check their opening hours.`,
@@ -288,9 +359,15 @@ const orderRoute = factory
         );
       }
 
-      // 3. Check Item and Option Availability (In Stock)
+      console.log("[ORDER_ROUTE] Shop is open, checking item availability");
+
+      // 4. Check Item and Option Availability (In Stock)
       for (const item of cart.items) {
         if (!item.menuItem) {
+          console.log(
+            "[ORDER_ROUTE] Menu item missing for cart item:",
+            item.id
+          );
           return c.json(
             {
               error: `Oops! We couldn't find the details for an item in your cart. Please try removing and re-adding it.`,
@@ -299,6 +376,10 @@ const orderRoute = factory
           );
         }
         if (!item.menuItem.inStock) {
+          console.log("[ORDER_ROUTE] Menu item out of stock:", {
+            itemId: item.menuItem.id,
+            itemName: item.menuItem.name,
+          });
           return c.json(
             {
               error: `Sorry, the item "${item.menuItem.name}" is currently out of stock. Please remove it from your cart to proceed.`,
@@ -311,6 +392,10 @@ const orderRoute = factory
         if (item.options && item.options.length > 0) {
           for (const cartOption of item.options) {
             if (!cartOption.option) {
+              console.log(
+                "[ORDER_ROUTE] Option details missing for cart option:",
+                cartOption.id
+              );
               return c.json(
                 {
                   error: `Oops! We couldn't find the details for an option selected with "${item.menuItem.name}". Please try removing and re-adding the item.`,
@@ -319,6 +404,11 @@ const orderRoute = factory
               );
             }
             if (!cartOption.option.inStock) {
+              console.log("[ORDER_ROUTE] Option out of stock:", {
+                optionId: cartOption.option.id,
+                optionName: cartOption.option.name,
+                itemName: item.menuItem.name,
+              });
               return c.json(
                 {
                   error: `Sorry, the option "${cartOption.option.name}" for the item "${item.menuItem.name}" is currently out of stock. Please remove or change the selection to proceed.`,
@@ -330,6 +420,8 @@ const orderRoute = factory
         }
       }
 
+      console.log("[ORDER_ROUTE] All items available, calculating totals");
+
       // --- End Pre-Order Validation ---
 
       // --- Backend Calculation (already implemented) ---
@@ -337,6 +429,32 @@ const orderRoute = factory
         (sum, item) => sum + Number(item.totalPrice || 0),
         0
       );
+
+      console.log("[ORDER_ROUTE] Calculated subtotal:", subtotal);
+
+      // 5. Check Minimum Order Amount
+      const minimumOrderAmount = cart.shop?.minimumOrderAmount || 0;
+
+      if (subtotal < minimumOrderAmount) {
+        console.log("[ORDER_ROUTE] Order below minimum amount:", {
+          subtotal,
+          minimumOrderAmount,
+          shopId: cart.shop.id,
+          shopName: cart.shop.name,
+        });
+        return c.json(
+          {
+            error: `Sorry, the minimum order amount for "${cart.shop.name}" is ₦${minimumOrderAmount.toLocaleString()}. Your current order total is ₦${subtotal.toLocaleString()}. Please add more items to proceed.`,
+          },
+          400
+        );
+      }
+
+      console.log("[ORDER_ROUTE] Order meets minimum amount requirement:", {
+        subtotal,
+        minimumOrderAmount,
+        shopName: cart.shop.name,
+      });
 
       let deliveryFee = 0;
       const shopLat = cart.shop?.latitude;
@@ -348,25 +466,44 @@ const orderRoute = factory
         shopLat !== undefined &&
         shopLng !== undefined
       ) {
-        const distance = calculateHaversineDistance(
+        const distance = calculateDistance(
           data.userLatitude,
           data.userLongitude,
           shopLat,
           shopLng
         );
         deliveryFee = calculateDeliveryFee(distance);
+        console.log("[ORDER_ROUTE] Calculated delivery fee:", {
+          distance,
+          deliveryFee,
+          shopCoords: { lat: shopLat, lng: shopLng },
+          userCoords: { lat: data.userLatitude, lng: data.userLongitude },
+        });
       } else {
         console.warn(
-          `Shop ${cart.shopId} missing coordinates. Using default delivery fee.`
+          "[ORDER_ROUTE] Shop missing coordinates, using default delivery fee:",
+          {
+            shopId: cart.shopId,
+            shopLat,
+            shopLng,
+          }
         );
       }
 
-      const serviceFee = 0; // Example fee
+      const serviceFee = Math.min(Math.round(subtotal * 0.1), 1000); // 10% of subtotal, capped at ₦1,000
       const total = subtotal + deliveryFee + serviceFee - data.discount;
 
-      // orderCode generation and saving is intentionally omitted as per user request
+      console.log("[ORDER_ROUTE] Final totals:", {
+        subtotal,
+        deliveryFee,
+        serviceFee,
+        discount: data.discount,
+        total,
+      });
 
       const riderConfirmationCode = Math.floor(1000 + Math.random() * 9000);
+
+      console.log("[ORDER_ROUTE] Creating order in database");
 
       // Create the order (only if validations passed)
       const order = await db
@@ -378,7 +515,6 @@ const orderRoute = factory
           cartId: data.cartId,
           deliveryNotes: data.deliveryNotes,
           vendorNotes: data.vendorNotes,
-          contactPhone: data.contactPhone,
           status: "PENDING",
           paymentStatus: "PENDING",
           subtotal,
@@ -389,10 +525,21 @@ const orderRoute = factory
           latitude: data.userLatitude,
           longitude: data.userLongitude,
           addressName: data.addressName,
-          riderConfirmationCode, // Save the generated number
+          riderConfirmationCode: riderConfirmationCode, // Save the generated number
         })
         .returning()
         .get();
+
+      console.log("[ORDER_ROUTE] Order created:", {
+        orderId: order.id,
+        customerId: order.customerId,
+        shopId: order.shopId,
+        total: order.total,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+      });
+
+      console.log("[ORDER_ROUTE] Creating order items");
 
       // Create order items (only if validations passed)
       const orderItems = await Promise.all(
@@ -402,24 +549,35 @@ const orderRoute = factory
             .insert(orderItemTable)
             .values({
               orderId: order.id,
-              menuItemId: item.menuItem.id, // Corrected: Use ID from the resolved menuItem object
-              menuItemName: item.menuItem.name, // Corrected: Use name from the resolved menuItem object
+              menuItemId: item.menuItem!.id,
+              menuItemName: item.menuItem!.name,
               quantity: item.quantity,
-              unitPrice: Number(item.menuItem.price) || 0,
+              unitPrice: Number(item.menuItem!.price) || 0,
               totalPrice: Number(item.totalPrice) || 0,
               specialInstructions: item.specialInstructions || null,
             })
             .returning()
             .get();
 
+          console.log("[ORDER_ROUTE] Created order item:", {
+            orderItemId: orderItem.id,
+            menuItemId: item.menuItem!.id,
+            menuItemName: item.menuItem!.name,
+            quantity: item.quantity,
+            totalPrice: item.totalPrice,
+          });
+
           if (item.options && item.options.length > 0) {
+            console.log(
+              "[ORDER_ROUTE] Adding options for order item:",
+              orderItem.id
+            );
             await db.insert(orderItemOptionTable).values(
               item.options.map((cartOption) => ({
-                // cartOption is a cartItemOption from cart.items.options
                 orderItemId: orderItem.id,
-                optionId: cartOption.option.id, // Corrected: Use ID from the resolved option object within cartOption
+                optionId: cartOption.option!.id,
                 optionGroupId: cartOption.optionGroupId,
-                optionName: cartOption.option.name, // Corrected: Use name from the resolved option object within cartOption
+                optionName: cartOption.option!.name,
                 quantity: cartOption.quantity,
                 price: Number(cartOption.price) || 0,
               }))
@@ -442,6 +600,11 @@ const orderRoute = factory
       //   .where(eq(cartTable.id, data.cartId))
       //   .execute();
 
+      console.log(
+        "[ORDER_ROUTE] Order items created successfully, total items:",
+        orderItems.length
+      );
+
       // Get the complete order with items
       const completeOrder = await db.query.orderTable.findFirst({
         where: eq(orderTable.id, order.id),
@@ -450,11 +613,17 @@ const orderRoute = factory
         },
       });
 
+      console.log("[ORDER_ROUTE] Complete order retrieved for payment:", {
+        orderId: completeOrder?.id,
+        itemsCount: completeOrder?.items?.length || 0,
+      });
+
       // Initialize Paystack payment with backend-calculated total
       const paystackSecretKey = env.PAYSTACK_SECRET_KEY;
       if (!paystackSecretKey) {
-        console.error("Missing PAYSTACK_SECRET_KEY environment variable");
-        // Potentially delete the created order or mark it as failed immediately
+        console.error(
+          "[ORDER_ROUTE] Missing PAYSTACK_SECRET_KEY environment variable"
+        );
         await db.delete(orderTable).where(eq(orderTable.id, order.id));
         return c.json({ error: "Server configuration error" }, 500);
       }
@@ -463,7 +632,15 @@ const orderRoute = factory
       const frontendBaseUrl = "http://localhost:5173"; // Example: Use env var in production
       const callbackUrl = `${frontendBaseUrl}/checkout/callback`; // Redirect URL after payment attempt
 
-      const reference = `ORD-${order.id}-${nanoid(6)}`; // Generate unique reference
+      const reference = `ORD-${nanoid(10)}`; // Generate unique reference
+
+      console.log("[ORDER_ROUTE] Initializing Paystack payment:", {
+        orderId: order.id,
+        reference,
+        amount: Math.round(total * 100),
+        email: user.email,
+        callbackUrl,
+      });
 
       const accessCodeRes = await fetch(
         "https://api.paystack.co/transaction/initialize",
@@ -497,11 +674,11 @@ const orderRoute = factory
 
       if (!accessCodeRes.ok) {
         const errorBody = await accessCodeRes.text();
-        console.error(
-          "Paystack initialization failed:",
-          accessCodeRes.status,
-          errorBody
-        );
+        console.error("[ORDER_ROUTE] Paystack initialization failed:", {
+          status: accessCodeRes.status,
+          error: errorBody,
+          orderId: order.id,
+        });
         await db.delete(orderTable).where(eq(orderTable.id, order.id));
         return c.json(
           { error: "Payment initialization failed", details: errorBody },
@@ -509,14 +686,27 @@ const orderRoute = factory
         );
       }
 
-      const accessCodeData = await accessCodeRes.json();
+      const accessCodeData = (await accessCodeRes.json()) as any;
       console.log("🚀 ~ .post ~ accessCodeData:", accessCodeData);
+      console.log("[ORDER_ROUTE] Paystack response received:", {
+        status: accessCodeData?.status,
+        hasAccessCode: !!accessCodeData?.data?.access_code,
+        orderId: order.id,
+      });
 
-      if (!accessCodeData.status || !accessCodeData.data?.access_code) {
-        console.error("Invalid Paystack response:", accessCodeData);
+      if (!accessCodeData?.status || !accessCodeData?.data?.access_code) {
+        console.error("[ORDER_ROUTE] Invalid Paystack response:", {
+          accessCodeData,
+          orderId: order.id,
+        });
         await db.delete(orderTable).where(eq(orderTable.id, order.id));
         return c.json({ error: "Invalid payment provider response" }, 500);
       }
+
+      console.log("[ORDER_ROUTE] Updating order with payment transaction ID:", {
+        orderId: order.id,
+        reference,
+      });
 
       await db
         .update(orderTable)
@@ -526,14 +716,69 @@ const orderRoute = factory
         })
         .where(eq(orderTable.id, order.id));
 
-      const accessCode = accessCodeData.data.access_code;
+      const accessCode = accessCodeData?.data?.access_code;
 
-      return c.json({ data: { accessCode } });
-    } catch (error) {
-      console.error("Error creating order:", error);
-      if (error instanceof z.ZodError) {
-        return c.json({ error: "Invalid input", details: error.errors }, 400);
+      console.log("[ORDER_ROUTE] Starting order workflow");
+
+      // WORKFLOW: Initiate order workflow
+      // This is the entry point for the order workflow
+      try {
+        // Start the workflow with order information
+        const workflowExecution = await env.ORDER_WORKFLOW.create({
+          params: {
+            orderId: order.id, // From the created order
+            timestamp: new Date().toISOString(),
+            customerEmail: user.email,
+            customerId: user.id,
+            customerPhone: user.phoneNumber,
+            shopId: order.shopId,
+            // vendorEmail: cart.shop.email, // Assuming shop schema has email
+            paymentTransactionId: reference, // Use the same reference stored in DB
+            paymentMethod: order.paymentMethod,
+            items: completeOrder?.items.map((item) => ({
+              id: item.id,
+              name: item.menuItemName,
+              quantity: item.quantity,
+              price: item.unitPrice,
+            })),
+            deliveryAddress: {
+              latitude: order.latitude,
+              longitude: order.longitude,
+              formattedAddress: order.addressName,
+            },
+            subtotal: order.subtotal,
+            deliveryFee: order.deliveryFee,
+            total: order.total,
+          },
+          id: order.id, // Use the order ID as the workflow instance ID
+        });
+
+        console.log("[ORDER_ROUTE] Order workflow started successfully:", {
+          orderId: order.id,
+          workflowId: workflowExecution.id,
+          paymentTransactionId: reference,
+        });
+      } catch (workflowError) {
+        console.error("[ORDER_ROUTE] Failed to start order workflow:", {
+          orderId: order.id,
+          error: workflowError,
+        });
+        // Continue with order creation even if workflow fails
+        // The workflow can be manually started later if needed
       }
+
+      console.log("[ORDER_ROUTE] Order creation completed successfully:", {
+        orderId: order.id,
+        accessCode,
+        total: order.total,
+      });
+
+      // Return the order information to the client
+      return c.json({
+        data: { orderId: order.id, paymentInfo: { accessCode } },
+      });
+    } catch (error) {
+      console.error("[ORDER_ROUTE] Error creating order:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
   })
@@ -595,9 +840,10 @@ const orderRoute = factory
     async (c) => {
       try {
         const { id } = c.req.param();
-        const { status, reason } = c.req.valid("json");
+        const { status, reason: cancelReason } = c.req.valid("json");
         const db = c.get("db");
-        const user = c.get("user");
+
+        const user = c.get("user"); // Removed duplicate session declaration
 
         if (!user) {
           return c.json({ error: "Unauthorized" }, 401);
@@ -606,6 +852,13 @@ const orderRoute = factory
         // Get the current order
         const existingOrder = await db.query.orderTable.findFirst({
           where: eq(orderTable.id, id),
+          columns: {
+            id: true,
+            status: true,
+            customerId: true,
+            shopId: true,
+            riderId: true,
+          },
         });
 
         if (!existingOrder) {
@@ -613,37 +866,36 @@ const orderRoute = factory
         }
 
         // Check permissions
-        const session = c.get("session");
-        // Corrected: Use shopId from existingOrder
+        const session = c.get("session"); // Keep this one
         const isVendor = session?.activeOrganizationId === existingOrder.shopId;
-        const isRider = user.id === existingOrder.riderId; // Assuming riderId is stored
-
-        // Allow customer to cancel PENDING orders
+        const isRider = user.id === existingOrder.riderId;
         const isCustomer = user.id === existingOrder.customerId;
-        if (
-          status === "CANCELLED" &&
-          isCustomer &&
-          existingOrder.status !== "PENDING"
-        ) {
-          return c.json(
-            { error: "Customers can only cancel pending orders" },
-            403
-          );
-        } else if (status === "CANCELLED" && !isCustomer && !isVendor) {
-          // Allow vendors to cancel at other stages (adjust logic as needed)
-          return c.json(
-            {
-              error:
-                "Only the customer (for pending orders) or vendor can cancel",
-            },
-            403
-          );
+
+        if (status === "CANCELLED") {
+          // Prioritize vendor/rider permissions - they can cancel at any status
+          if (isVendor || isRider) {
+            // Vendors and riders can cancel orders at any status
+          } else if (isCustomer && existingOrder.status !== "PENDING") {
+            // Customers can only cancel pending orders
+            return c.json(
+              { error: "Customers can only cancel pending orders" },
+              403
+            );
+          } else if (!isCustomer && !isVendor && !isRider) {
+            // No permission to cancel
+            return c.json(
+              {
+                error:
+                  "Only the customer (for pending orders), vendor, or rider can cancel",
+              },
+              403
+            );
+          }
         }
 
-        // Certain status changes require specific roles (excluding cancellation handled above)
         if (status !== "CANCELLED") {
           if (
-            ["CONFIRMED", "PREPARING", "READY"].includes(status) &&
+            ["CONFIRMED", "READY"].includes(status) && // Removed "PREPARING"
             !isVendor
           ) {
             return c.json(
@@ -653,8 +905,6 @@ const orderRoute = factory
           }
 
           if (["IN_TRANSIT", "DELIVERED"].includes(status) && !isRider) {
-            // If no rider assigned yet, maybe vendor marks as ready for pickup? Adjust logic.
-            // For now, strictly enforce rider role for these statuses.
             return c.json(
               { error: "Only assigned riders can update to this status" },
               403
@@ -662,45 +912,184 @@ const orderRoute = factory
           }
         }
 
-        // Prepare update data
         const updateData: Partial<typeof orderTable.$inferInsert> = { status };
-
-        // Add timestamps based on status
         const nowISO = new Date().toISOString();
+
         switch (status) {
           case "CONFIRMED":
             updateData.acceptedAt = nowISO;
             break;
-          case "PREPARING":
+          case "READY":
             updateData.preparedAt = nowISO;
             break;
-          // Add READY status handling if needed
-          // case "READY":
-          //   updateData.readyAt = nowISO;
-          //   break;
+          case "RIDER_ASSIGNED":
+            updateData.riderAssignedAt = nowISO;
+            break;
+          // "PREPARING" case removed
           case "IN_TRANSIT":
             updateData.pickedUpAt = nowISO;
             break;
           case "DELIVERED":
             updateData.deliveredAt = nowISO;
-            // Potentially update payment status if cash on delivery, etc.
             break;
           case "CANCELLED":
             updateData.canceledAt = nowISO;
-            updateData.cancelReason = reason;
-            // Handle potential refunds or payment voiding here or via webhook
+            updateData.cancelReason = cancelReason; // Use validated cancelReason
             break;
         }
 
-        // Update the order
         const updatedOrder = await db
           .update(orderTable)
           .set(updateData)
           .where(eq(orderTable.id, id))
-          .returning()
+          .returning({
+            id: orderTable.id,
+            status: orderTable.status,
+            shopId: orderTable.shopId, // Add shopId for rider notification
+          })
           .get();
 
-        // TODO: Add logic to notify relevant parties (customer, vendor, rider) about the status change
+        try {
+          const workflowInstance = await env.ORDER_WORKFLOW.get(id); // Use order ID as workflow instance ID
+
+          if (workflowInstance) {
+            let eventType = "";
+            let eventPayload: {
+              orderId: string;
+              status: string;
+              timestamp: string;
+              [key: string]: any; // Allow other properties
+            } = {
+              orderId: id,
+              status,
+              timestamp: new Date().toISOString(),
+            };
+
+            switch (status) {
+              case "CONFIRMED":
+                eventType = "vendor_order_response";
+                eventPayload = {
+                  ...eventPayload,
+                  vendorId: session?.activeOrganizationId,
+                  accepted: true,
+                };
+                break;
+              // "PREPARING" case and "order_preparing" event removed
+              case "READY":
+                eventType = "order_ready";
+                break;
+              case "CANCELLED":
+                eventType = "vendor_order_response";
+                eventPayload = {
+                  ...eventPayload,
+                  accepted: false,
+                  reason: cancelReason || "No reason provided",
+                  cancelledBy: user.id,
+                };
+                break;
+            }
+
+            if (eventType) {
+              await workflowInstance.sendEvent({
+                // Changed to sendEvent
+                type: eventType,
+                payload: eventPayload,
+              });
+              console.log(
+                `Sent ${eventType} event to workflow for order: ${id}`
+              );
+            }
+
+            // Automatically trigger rider notification when order is marked as READY
+            console.log(`📦 Order ${id} status update: ${status}`);
+            if (status === "READY") {
+              console.log(
+                `🚨 Order ${id} marked as READY, initiating real-time rider dispatch`
+              );
+              console.log(`🔍 Environment check:`, {
+                hasEnv: !!env,
+                durableObjectNamespace: !!env?.RIDER_DISPATCH,
+              });
+
+              // Use the RiderDispatchService to dispatch with real-time WebSocket notifications
+              const riderDispatch = new RiderDispatchService();
+
+              // Execute in background to prevent blocking the response
+              c.executionCtx.waitUntil(
+                (async () => {
+                  try {
+                    console.log(
+                      `🚀 Starting dispatchOrderWithRealTime for order ${id}`
+                    );
+                    const dispatchResult =
+                      await riderDispatch.dispatchOrderWithRealTime(id, env);
+
+                    console.log(
+                      `🔄 [REALTIME-DISPATCH] Result:`,
+                      dispatchResult
+                    );
+
+                    // Enhanced logging for success/failure analysis
+                    if (dispatchResult.success) {
+                      console.log(
+                        `✅ [REALTIME-DISPATCH] SUCCESS: ${dispatchResult.notifiedRiders} riders notified for order ${id}`
+                      );
+                      if (dispatchResult.notifiedRiders === 0) {
+                        console.log(
+                          `⚠️ [REALTIME-DISPATCH] WARNING: No riders were online/available for order ${id}`
+                        );
+                        console.log(
+                          `💡 [REALTIME-DISPATCH] Fallback: Push notifications should still work`
+                        );
+                      }
+                    } else {
+                      console.log(
+                        `❌ [REALTIME-DISPATCH] FAILED for order ${id}`
+                      );
+                      console.log(
+                        `🔄 [REALTIME-DISPATCH] Attempting fallback dispatch...`
+                      );
+
+                      // Fallback to traditional dispatch if real-time fails
+                      try {
+                        await riderDispatch.findAndNotifyRiders(
+                          id,
+                          updatedOrder.shopId
+                        );
+                        console.log(
+                          `✅ [FALLBACK-DISPATCH] Traditional dispatch successful for order ${id}`
+                        );
+                      } catch (fallbackError) {
+                        console.error(
+                          `❌ [FALLBACK-DISPATCH] Failed for order ${id}:`,
+                          fallbackError
+                        );
+                      }
+                    }
+                  } catch (error) {
+                    console.error(
+                      `❌ Failed to dispatch order ${id} via real-time:`,
+                      error
+                    );
+                    console.log(
+                      `🔄 Falling back to traditional push notifications`
+                    );
+                    // Fallback to traditional push notification method
+                    await riderDispatch.findAndNotifyRiders(
+                      id,
+                      updatedOrder.shopId
+                    );
+                  }
+                })()
+              );
+            }
+          }
+        } catch (workflowError) {
+          console.error(
+            "Failed to notify workflow about status update:",
+            workflowError
+          );
+        }
 
         return c.json({ data: updatedOrder });
       } catch (error) {
@@ -714,6 +1103,101 @@ const orderRoute = factory
         return c.json({ error: "Internal server error" }, 500);
       }
     }
-  );
+  )
+  .post("/test", async (c) => {
+    const db = c.get("db");
+
+    const workflowInput = {
+      orderId: `test-${nanoid(6)}`,
+      timestamp: new Date().toISOString(),
+      customerEmail: "test@example.com",
+      items: [
+        { id: "item1", name: "Test Product", quantity: 2 },
+        { id: "item2", name: "Another Product", quantity: 1 },
+      ],
+    };
+
+    try {
+      const workflowExecution = await env.ORDER_WORKFLOW.create({
+        params: workflowInput,
+      });
+
+      console.log(`Workflow started with ID: ${workflowExecution.id}`);
+
+      return c.json({
+        success: true,
+        message: "Workflow initiated",
+        workflowId: workflowExecution.id,
+        input: workflowInput,
+      });
+    } catch (error) {
+      console.error("Failed to start workflow:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to start workflow",
+          error: error instanceof Error ? error.message : String(error),
+        },
+        500
+      );
+    }
+  })
+
+  // Test endpoint: Manually trigger rider dispatch for any order
+  .post("/:id/test-dispatch", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const env = c.env;
+
+      console.log(
+        `🧪 [TEST-DISPATCH] Manual dispatch trigger for order: ${id}`
+      );
+
+      const order = await db.query.orderTable.findFirst({
+        where: eq(orderTable.id, id),
+        columns: { id: true, status: true, shopId: true },
+      });
+
+      if (!order) {
+        return c.json({ error: "Order not found" }, 404);
+      }
+
+      console.log(`🧪 [TEST-DISPATCH] Found order:`, {
+        id: order.id,
+        status: order.status,
+        shopId: order.shopId,
+      });
+
+      const riderDispatch = new RiderDispatchService();
+
+      const dispatchResult = await riderDispatch.dispatchOrderWithRealTime(
+        id,
+        env
+      );
+
+      console.log(`🧪 [TEST-DISPATCH] Result:`, dispatchResult);
+
+      return c.json({
+        success: true,
+        message: `Manual dispatch triggered for order ${id}`,
+        result: dispatchResult,
+        order: {
+          id: order.id,
+          status: order.status,
+          shopId: order.shopId,
+        },
+      });
+    } catch (error) {
+      console.error(`🧪 [TEST-DISPATCH] Error:`, error);
+      return c.json(
+        {
+          error: "Test dispatch failed",
+          details: (error as any)?.message || String(error),
+        },
+        500
+      );
+    }
+  });
 
 export default orderRoute;

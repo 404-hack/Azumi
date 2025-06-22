@@ -5,6 +5,7 @@
 	import Switch from '$lib/components/ui/switch/switch.svelte';
 	import { Bike, Info, Loader2, LocateIcon, MapPin, Minus, Plus, Star, Clock } from 'lucide-svelte';
 	import { Label } from '$lib/components/ui/label';
+	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as RadioGroup from '$lib/components/ui/radio-group';
 	import { formatCurrency } from '$lib/utils';
 	import { toast } from 'svelte-sonner';
@@ -19,20 +20,21 @@
 	import { activeLocation } from '$lib/states/locationState.svelte.js';
 	import ProductModal from '$lib/components/modal/ProductModal.svelte';
 	import { getShopOpeningInfo } from '$lib/utils/shop.utils'; // Import the new utility function
-
-	let loading = false;
+	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
+	let loading = $state(false);
 	let couponCode = '';
 	let { data } = $props(); // data no longer includes deliveryFee
 	let deliveryNotes = $state('');
 	let vendorNotes = $state('');
 	let deliveryFee = $state(0); // Use $state again for async updates
-	let serviceFee = $state(0);
-	console.log('🚀 ~ data:', data.cart);
-	// Use isOpen from backend data
-	const isOpenNow = $derived(data.cart.shop.isOpen);
+
+	// Calculate service fee: 10% of subtotal, capped at ₦1,000
+	let serviceFee = $derived(Math.min(Math.round(data.cart.subtotal * 0.1), 1000));
 
 	// Get information about when the shop will open today
-	const openingInfo = $derived(getShopOpeningInfo(data.cart.shop.operatingHours, isOpenNow));
+	const openingInfo = $derived(
+		getShopOpeningInfo(data.cart.shop.operatingHours, data.cart.shop.isOpen)
+	);
 
 	async function checkOut() {
 		if (!activeLocation.current.lat || !activeLocation.current.lng) {
@@ -49,31 +51,24 @@
 					cartId: data.cart.id,
 					userLatitude: activeLocation.current.lat,
 					userLongitude: activeLocation.current.lng,
-					addressName: activeLocation.current.address,
-					contactPhone: '0909888998'
+					addressName: activeLocation.current.address
 				}
 			});
-
 			const responseData = await res.json();
-			console.log('🚀 ~ checkOut ~ responseData:', responseData);
-
-			if (!res.ok || !responseData.data?.accessCode) {
+			const accessCode = responseData?.data?.paymentInfo?.accessCode;
+			if (!res.ok || !accessCode) {
 				throw new Error(responseData.error || 'Failed to initialize payment.');
 			}
-
 			const popup = new PaystackPop();
-			popup.resumeTransaction(responseData.data.accessCode, {
+			popup.resumeTransaction(accessCode, {
 				async onSuccess(transaction) {
-					console.log('Transaction successful:', transaction);
 					const { reference, status, message, trxref } = transaction;
 					toast.success('Payment successful!');
 					if (status === 'success') {
-						console.log(`Order confirmed with reference: ${reference}`);
-						await goto(`/checkout/${data.cart.shop.id}/confirmation/${trxref}`);
+						await goto(`/checkout/${data.cart.shop.id}/confirmation/${responseData?.data.orderId}`);
 					}
 				},
 				onCancel() {
-					console.log('Transaction cancelled');
 					toast.error('Payment cancelled!');
 				}
 			});
@@ -133,7 +128,9 @@
 	}}
 /> -->
 <ProductModal />
+
 <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+	<NotificationPermissionBanner context="customer" />
 	<div class="mb-8">
 		<div class="relative h-64 overflow-hidden rounded-lg">
 			<img
@@ -142,12 +139,16 @@
 				alt={data.cart.shop.name}
 				class="absolute inset-0 h-full w-full object-cover"
 			/>
-			{#if !isOpenNow}
+			{#if !openingInfo.isOpenNow}
 				<div class="absolute inset-0 flex items-center justify-center backdrop-blur-sm">
-					<div class="rounded-xl text-center text-white backdrop-blur-md">
-						{#if openingInfo.willOpenToday && openingInfo.opensAt}
+					<div class="rounded-xl bg-black/50 p-6 text-center text-white backdrop-blur-md">
+						{#if !data.cart.shop.active}
+							<h2 class="mb-2 text-2xl font-bold">Store Temporarily Closed</h2>
+							<p class="text-white/80">The owner has temporarily closed this store</p>
+							<p class="mt-2 text-sm text-white/60">Orders cannot be placed at this time</p>
+						{:else if openingInfo.willOpenToday && openingInfo.opensAt}
 							<h2 class="mb-2 text-2xl font-bold">Opens Today at {openingInfo.opensAt}</h2>
-							<p class="text-white/80">You can still place your order</p>
+							<p class="text-white/80">Come back later</p>
 						{:else}
 							<h2 class="mb-2 text-2xl font-bold">Closed Today</h2>
 							<p class="text-white/80">Check our operating hours for other days</p>
@@ -163,14 +164,14 @@
 			<!-- Rating -->
 			<div class="flex items-center">
 				<Star class="size-4 text-yellow-500" />
-				<span class="ml-1">4.8</span>
+				<span class="ml-1">{data.cart.shop.averageRating || '0.0'}</span>
 				<!-- TODO: Replace with dynamic rating -->
 			</div>
 
 			<!-- Delivery Info -->
 			<div class="flex items-center">
 				<div class="flex items-center gap-2">
-					<Bike class="size-4 text-primary" />
+					<Bike class="text-primary size-4" />
 					{#if data.cart.shop.estimatedTime}
 						<span>{data.cart.shop.estimatedTime}</span>
 					{:else if data.cart.shop.distance !== undefined}
@@ -179,7 +180,7 @@
 				</div>
 				{#if data.cart.shop.distance !== undefined}
 					<div class="mx-2 flex items-center gap-2">
-						<MapPin class="size-4 text-primary" />
+						<MapPin class="text-primary size-4" />
 						<span>{data.cart.shop.distance} km</span>
 					</div>
 				{/if}
@@ -205,6 +206,16 @@
 				{/if}
 			</div>
 
+			<!-- Minimum Order -->
+			{#if data.cart.shop.minimumOrderAmount}
+				<div class="flex items-center gap-2">
+					<Info class="size-4" />
+					<span class="text-gray-600">
+						Min order: {formatCurrency(data.cart.shop.minimumOrderAmount)}
+					</span>
+				</div>
+			{/if}
+
 			<!-- Shop Address -->
 			{#if data.cart.shop.addressName || data.cart.shop.address}
 				<div class="flex items-center gap-2">
@@ -216,15 +227,15 @@
 			{/if}
 		</div>
 
+		<!-- TODO: Replace with dynamic tags -->
 		<!-- Shop Tags -->
-		<div class="mt-3 flex flex-wrap gap-2">
+		<!-- <div class="mt-3 flex flex-wrap gap-2">
 			{#each ['Mediterranean', 'Kebab', 'Halal', 'Falafel'] as tag}
-				<!-- TODO: Replace with dynamic tags -->
 				<Badge variant="outline" class="rounded-full">
 					{tag}
 				</Badge>
 			{/each}
-		</div>
+		</div> -->
 
 		<!-- Additional Information Box -->
 		{#if !openingInfo.isOpenNow}
@@ -262,18 +273,18 @@
 									<span class="font-medium">
 										{activeLocation.current.name || 'Current Location'}
 									</span>
-									<span class="block text-sm text-muted-foreground">
+									<span class="text-muted-foreground block text-sm">
 										{activeLocation.current.address || 'No address set'}
 									</span>
 								</div>
 							</div>
-							<Button
+							<!-- <Button
 								variant="ghost"
 								size="sm"
 								onclick={() => {
 									/* Logic to open location change modal */
 								}}>Change</Button
-							>
+							> -->
 						</div>
 
 						{#if activeLocation.current.lat && activeLocation.current.lng}
@@ -334,12 +345,12 @@
 				<h4 class="font-display text-lg font-semibold tracking-wide md:text-2xl lg:text-3xl">
 					Promo code
 				</h4>
-				<p class="mb-2 mt-4 text-sm text-muted-foreground md:mb-4 md:mt-8">
+				<p class="text-muted-foreground mb-2 mt-4 text-sm md:mb-4 md:mt-8">
 					If you have an <span class="font-display font-medium capitalize text-black">Azumi</span> promo
 					code, enter it below to claim your benefits.
 				</p>
 				<form
-					class="flex w-full items-center rounded-md border-2 bg-white px-3 text-foreground focus-within:ring-2 focus-within:ring-primary md:max-w-lg"
+					class="text-foreground focus-within:ring-primary flex w-full items-center rounded-md border-2 bg-white px-3 focus-within:ring-2 md:max-w-lg"
 				>
 					<input
 						type="text"
@@ -358,13 +369,13 @@
 		<div class="relative z-10 mb-5 w-full lg:mt-[-7.5rem] lg:max-w-[400px]">
 			<div class="left-0 top-[1rem] flex w-full flex-col lg:sticky">
 				<div
-					class="flex flex-col gap-4 rounded border border-[#2021251f] bg-card p-3 lg:p-[1.5rem] lg:shadow-lg"
+					class="bg-card flex flex-col gap-4 rounded border border-[#2021251f] p-3 lg:p-[1.5rem] lg:shadow-lg"
 				>
-					<div class="mb-4 flex items-start gap-3 rounded-lg bg-green-100/50 p-4 text-foreground">
+					<div class="text-foreground mb-4 flex items-start gap-3 rounded-lg bg-green-100/50 p-4">
 						<Info class="mt-1 size-5 flex-shrink-0 text-green-500" />
 						<div>
 							<p class="font-semibold">Delivery includes PIN confirmation</p>
-							<p class="text-sm text-muted-foreground">
+							<p class="text-muted-foreground text-sm">
 								This helps ensure that your order is given to the right person
 							</p>
 						</div>
@@ -377,26 +388,57 @@
 							<p class="text-sm font-medium lg:text-base">
 								Subtotal ({data.cart.totalItems} items)
 							</p>
-							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
+							<span class="text-primary rounded-md px-2 py-1 text-sm font-medium lg:text-base">
 								{formatCurrency(data.cart.subtotal)}
 							</span>
 						</li>
 						<li class="flex items-center justify-between">
-							<p class="text-sm font-medium lg:text-base">Service Fee</p>
-							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
-								{formatCurrency(serviceFee)}
+							<div class="flex items-center gap-1">
+								<p class="text-sm font-medium lg:text-base">Service Fee</p>
+								<Popover.Root>
+									<Popover.Trigger>
+										<Button variant="ghost" size="icon-sm" class="h-5 w-5 rounded-full p-0">
+											<Info class="text-muted-foreground h-4 w-4" />
+											<span class="sr-only">Service fee information</span>
+										</Button>
+									</Popover.Trigger>
+									<Popover.Content class="w-80 p-4">
+										<div class="space-y-2">
+											<h4 class="font-medium leading-none">Service Fee</h4>
+											<p class="text-muted-foreground text-sm">
+												The service fee helps us maintain the platform and provide customer support.
+												This fee supports our operations to ensure a reliable and quality experience
+												for all users.
+											</p>
+											<div class="pt-2">
+												<a
+													href="/service-fee-info"
+													class="text-primary hover:text-primary/80 text-sm font-medium underline-offset-4 hover:underline"
+													target="_blank"
+													rel="noopener noreferrer"
+												>
+													See more details →
+												</a>
+											</div>
+										</div>
+									</Popover.Content>
+								</Popover.Root>
+							</div>
+							<span class="text-primary rounded-md px-2 py-1 text-sm font-medium lg:text-base">
+								<!-- <span class="text-muted-foreground line-through">₦500</span> -->
+								<span class="ml-2 text-green-600">{formatCurrency(serviceFee)}</span>
 							</span>
 						</li>
 						<li class="flex items-center justify-between">
 							<p class="text-sm font-medium lg:text-base">Delivery Fee</p>
-							<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
+							<span class="text-primary rounded-md px-2 py-1 text-sm font-medium lg:text-base">
 								{formatCurrency(deliveryFee)}
 							</span>
 						</li>
 					</ul>
 					<div class="flex items-center justify-between">
 						<p class="text-sm font-medium lg:text-base">Total</p>
-						<span class="rounded-md px-2 py-1 text-sm font-medium text-primary lg:text-base">
+						<span class="text-primary rounded-md px-2 py-1 text-sm font-medium lg:text-base">
 							{formatCurrency(total)}
 						</span>
 					</div>

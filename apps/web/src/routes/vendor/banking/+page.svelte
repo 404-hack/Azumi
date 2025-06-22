@@ -3,14 +3,15 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
-	import * as Select from '$lib/components/ui/select';
+	import { Label } from '$lib/components/ui/label';	import * as Command from '$lib/components/ui/command';
+	import * as Popover from '$lib/components/ui/popover';
 	import * as Alert from '$lib/components/ui/alert';
 	import { toast } from 'svelte-sonner';
-	import { Loader2, CheckCircle2, AlertCircle, Trash2, CreditCard, Landmark } from 'lucide-svelte';
+	import { Loader2, CheckCircle2, AlertCircle, Trash2, CreditCard, Landmark, Check, ChevronsUpDown } from 'lucide-svelte';
+	import { tick } from 'svelte';
+	import { cn } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import { client } from '$lib/hc';
-
 	// Get data from loader
 	let { data } = $props();
 
@@ -18,11 +19,13 @@
 	let verifyingAccount = $state(false);
 	let accountVerified = $state(false);
 	let deletingPaymentMethod = $state(false);
+	let bankSelectorOpen = $state(false);
 
 	let accountNumber = $state('');
 	let bankCode = $state('');
 	let accountName = $state('');
 	let savingAccount = $state(false);
+	let triggerRef = $state<HTMLButtonElement>(null!);
 
 	let paymentMethods = $state(data.paymentMethods || []);
 	let banks = $state(data.banks || []);
@@ -43,6 +46,18 @@
 		isDefault: boolean;
 		additionalDetails?: string;
 	};
+	const selectedBank = $derived(
+		banks.find((bank) => bank.code === bankCode)
+	);
+
+	const isBankSelectorDisabled = $derived(verifyingAccount || accountVerified);
+
+	function closeAndFocusTrigger() {
+		bankSelectorOpen = false;
+		tick().then(() => {
+			triggerRef.focus();
+		});
+	}
 
 	// Format masked account number for display
 	function formatMaskedAccount(accountNumber?: string): string {
@@ -262,28 +277,57 @@
 				</Card.Description>
 			</Card.Header>
 			<Card.Content>
-				<div class="space-y-6">
-					<div class="space-y-2">
+				<div class="space-y-6">					<div class="space-y-2">
 						<Label for="bankCode">Bank</Label>
-						<Select.Root
-							type="single"
-							bind:value={bankCode}
-							disabled={verifyingAccount || accountVerified}
-						>
-							<Select.Trigger id="bankCode" class="w-full">
-								{bankCode
-									? data.banks.find((bank) => bank.code === bankCode)?.name
-									: 'Select your bank'}
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Group>
-									<Select.GroupHeading>Nigerian Banks</Select.GroupHeading>
-									{#each data.banks as bank}
-										<Select.Item value={bank.code}>{bank.name}</Select.Item>
-									{/each}
-								</Select.Group>
-							</Select.Content>
-						</Select.Root>
+						<Popover.Root bind:open={bankSelectorOpen}>
+							<Popover.Trigger bind:ref={triggerRef}>
+								{#snippet child({ props })}
+									<Button
+										variant="outline"
+										class="w-full justify-between"
+										{...props}
+										role="combobox"
+										aria-expanded={bankSelectorOpen}
+										disabled={isBankSelectorDisabled}
+										onclick={() => {
+											if (!isBankSelectorDisabled) {
+												bankSelectorOpen = !bankSelectorOpen;
+											}
+										}}
+									>
+										{selectedBank?.name || 'Select your bank'}
+										<ChevronsUpDown class="h-4 w-4 shrink-0 opacity-50" />
+									</Button>
+								{/snippet}
+							</Popover.Trigger>
+							<Popover.Content class="w-full p-0">
+								<Command.Root>
+									<Command.Input placeholder="Search banks..." />
+									<Command.List>
+										<Command.Empty>No bank found.</Command.Empty>										<Command.Group>
+											<Command.GroupHeading>Nigerian Banks</Command.GroupHeading>
+											{#each banks as bank, index (bank.id || `${bank.code}-${index}`)}
+												<Command.Item
+													value={bank.name}
+													onSelect={() => {
+														bankCode = bank.code;
+														closeAndFocusTrigger();
+													}}
+												>
+													<Check
+														class={cn(
+															"mr-2 h-4 w-4",
+															bankCode !== bank.code && "text-transparent"
+														)}
+													/>
+													{bank.name}
+												</Command.Item>
+											{/each}
+										</Command.Group>
+									</Command.List>
+								</Command.Root>
+							</Popover.Content>
+						</Popover.Root>
 					</div>
 
 					<div class="space-y-2">

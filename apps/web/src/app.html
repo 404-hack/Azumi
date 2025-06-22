@@ -1,10 +1,124 @@
 <!doctype html>
 <html lang="en">
 	<head>
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@type": "FoodEstablishment",
+				"name": "Azumi Food Delivery",
+				"description": "Your fast and reliable food delivery service across Nigeria. Order from a wide selection of local restaurants and enjoy convenient delivery to your doorstep.",
+				"url": "https://azumi.com.ng",
+				"logo": "https://azumi.com.ng/logo.webp",
+				"servesCuisine": "African, Continental, Fast Food, Local Cuisine",
+				"address": {
+					"@type": "PostalAddress",
+					"addressCountry": "NG",
+					"addressLocality": "Lagos"
+				},
+
+				"telephone": "07049723597",
+				"email": "info@azumi.com.ng",
+				"openingHoursSpecification": [
+					{
+						"@type": "OpeningHoursSpecification",
+						"dayOfWeek": [
+							"Monday",
+							"Tuesday",
+							"Wednesday",
+							"Thursday",
+							"Friday",
+							"Saturday",
+							"Sunday"
+						],
+						"opens": "06:00",
+						"closes": "23:00"
+					}
+				],
+				"sameAs": [
+					"YOUR_FACEBOOK_PAGE_URL_HERE",
+					"YOUR_TWITTER_URL_HERE",
+					"YOUR_INSTAGRAM_URL_HERE"
+				],
+				"potentialAction": {
+					"@type": "OrderAction",
+					"target": {
+						"@type": "EntryPoint",
+						"urlTemplate": "YOUR_APP_OR_WEBSITE_ORDER_PAGE_URL_TEMPLATE_HERE",
+						"actionPlatform": [
+							"http://schema.org/DesktopWebPlatform",
+							"http://schema.org/MobileWebPlatform",
+							"android-app://YOUR_ANDROID_APP_PACKAGE_NAME",
+							"ios-app://YOUR_IOS_APP_APP_STORE_ID"
+						]
+					},
+					"expectsAcceptanceOf": {
+						"@type": "Offer",
+						"itemOffered": {
+							"@type": "MenuItem",
+							"name": "Various food items from local restaurants"
+						}
+					}
+				}
+			}
+		</script>
 		<meta charset="utf-8" />
-		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<!-- <link rel="icon" href="%sveltekit.assets%/favicon.png" /> -->
+		<link
+			rel="apple-touch-icon"
+			sizes="180x180"
+			href="%sveltekit.assets%/favicon/apple-touch-icon.png"
+		/>
+		<link
+			rel="icon"
+			type="image/png"
+			sizes="32x32"
+			href="%sveltekit.assets%/favicon/favicon-32x32.png"
+		/>
+		<link
+			rel="icon"
+			type="image/png"
+			sizes="16x16"
+			href="%sveltekit.assets%/favicon/favicon-16x16.png"
+		/>
+		<!-- <link rel="mask-icon" href="%sveltekit.assets%/favicon/safari-pinned-tab.svg" color="#f58026" /> -->
+		<meta name="msapplication-TileColor" content="#f58026" />
+		<meta name="theme-color" content="#f58026" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta http-equiv="Permissions-Policy" content="geolocation=*" />
 		%sveltekit.head%
+		<title>Azumi: Fast & Reliable Food Delivery Across Nigeria</title>
+		<meta
+			name="description"
+			content="Your go-to food delivery service in Nigeria. Get your favorite meals delivered quickly and reliably from a wide range of restaurants. Experience the convenience of Azumi today!"
+		/>
+		<meta
+			name="keywords"
+			content="food delivery Nigeria, online food order Nigeria, restaurant delivery Nigeria, fast food delivery Lagos, food delivery Abuja, best food delivery Nigeria, order food online, deliver food app Nigeria, Azumi Nigeria, Chowdeck competitor, Uber Eats competitor, Glovo competitor, local food delivery Nigeria, quick food delivery Nigeria"
+		/>
+
+		<meta
+			property="og:title"
+			content="Azumi - Your Fast & Reliable Food Delivery Partner in Nigeria"
+		/>
+		<meta
+			property="og:description"
+			content="Craving your favorite meal? Azumi delivers it fast and reliably across Nigeria. Explore a wide variety of restaurants and enjoy convenient food delivery."
+		/>
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://azumi.com.ng" />
+		<meta property="og:image" content="https://azumi.com.ng/logo.webp" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:site" content="@AzumiNigeria" />
+		<meta name="twitter:creator" content="@AzumiNigeria" />
+		<meta
+			name="twitter:title"
+			content="Azumi - Your Fast & Reliable Food Delivery Partner in Nigeria"
+		/>
+		<meta
+			name="twitter:description"
+			content="Craving your favorite meal? Azumi delivers it fast and reliably across Nigeria. Explore a wide variety of restaurants and enjoy convenient food delivery."
+		/>
+		<meta name="twitter:image" content="https://azumi.com.ng/logo.webp" />
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>

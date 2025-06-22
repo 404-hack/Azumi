@@ -1,0 +1,564 @@
+import { DurableObject } from "cloudflare:workers";
+import { calculateDistance } from "../lib/utils/geo";
+
+interface RiderLocation {
+  lat: number;
+  lng: number;
+  lastUpdate: number;
+  riderId: string;
+}
+
+interface AvailableOrder {
+  id: string;
+  shopId: string;
+  pickupLocation: {
+    lat: number;
+    lng: number;
+    address: string;
+  };
+  deliveryLocation: {
+    lat: number;
+    lng: number;
+    address: string;
+  };
+  orderValue: number;
+  deliveryFee: number;
+  estimatedDistance: number;
+  estimatedDuration: number;
+  itemCount: number;
+  createdAt: string;
+  expiresAt: string;
+}
+
+interface OrderDispatchMessage {
+  type: "new_order";
+  order: AvailableOrder;
+  riderId: string;
+}
+
+interface LocationUpdateMessage {
+  type: "location_update";
+  riderId: string;
+  lat: number;
+  lng: number;
+}
+
+interface StatusUpdateMessage {
+  type: "status_update";
+  riderId: string;
+  availabilityStatus: "AVAILABLE" | "UNAVAILABLE" | "BUSY";
+}
+
+interface RiderStatusMessage {
+  type: "heartbeat" | "location_update" | "rider_status_update";
+  data?: any;
+}
+
+interface Env {
+  DB: D1Database;
+}
+
+export class RiderDispatch extends DurableObject {
+  private riderLocations = new Map<string, RiderLocation>();
+  // private pendingOrders = new Map<string, AvailableOrder>();
+  private readonly LOCATION_CLEANUP_INTERVAL = 5 * 60 * 1000;
+  private readonly HEARTBEAT_TIMEOUT = 2 * 60 * 1000;
+  private cleanupIntervalId?: ReturnType<typeof setInterval>;
+
+  constructor(state: DurableObjectState, env: Env) {
+    super(state, env);
+
+    if (!this.cleanupIntervalId) {
+      this.cleanupIntervalId = setInterval(() => {
+        this.cleanupStaleLocations();
+      }, this.LOCATION_CLEANUP_INTERVAL);
+    }
+  }
+
+  private cleanupStaleLocations(): void {
+    const now = Date.now();
+    for (const [riderId, location] of this.riderLocations) {
+      if (now - location.lastUpdate > this.HEARTBEAT_TIMEOUT) {
+        console.log(`Removing stale location for rider: ${riderId}`);
+        this.riderLocations.delete(riderId);
+      }
+    }
+  }
+  private updateRiderLocation(riderId: string, lat: number, lng: number): void {
+    this.riderLocations.set(riderId, {
+      riderId,
+      lat,
+      lng,
+      lastUpdate: Date.now(),
+    });
+  }
+
+  private getRiderLocation(riderId: string): RiderLocation | null {
+    return this.riderLocations.get(riderId) || null;
+  }
+  private findNearbyRiders(
+    orderLat: number,
+    orderLng: number,
+    maxDistanceKm: number = 5
+  ): (RiderLocation & { distance: number })[] {
+    const nearbyRiders: (RiderLocation & { distance: number })[] = [];
+
+    for (const [riderId, location] of this.riderLocations) {
+      const distance = calculateDistance(
+        orderLat,
+        orderLng,
+        location.lat,
+        location.lng
+      );
+      if (distance <= maxDistanceKm) {
+        nearbyRiders.push({ ...location, distance });
+      }
+    }
+
+    return nearbyRiders.sort((a, b) => a.distance - b.distance);
+  }
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/connect") {
+      return this.handleWebSocketConnection(request);
+    }
+
+    if (url.pathname === "/dispatch-order" && request.method === "POST") {
+      return this.handleOrderDispatch(request);
+    }
+
+    if (url.pathname === "/rider-status" && request.method === "POST") {
+      return this.handleRiderStatusUpdate(request);
+    }
+
+    if (
+      url.pathname === "/send-order-notification" &&
+      request.method === "POST"
+    ) {
+      return this.handleOrderNotification(request);
+    }
+
+    return new Response("Not found", { status: 404 });
+  }
+  private async handleWebSocketConnection(request: Request): Promise<Response> {
+    const upgradeHeader = request.headers.get("Upgrade");
+    if (!upgradeHeader || upgradeHeader !== "websocket") {
+      return new Response("Expected websocket upgrade", { status: 426 });
+    }
+
+    const url = new URL(request.url);
+    const riderId = url.searchParams.get("riderId");
+    const lat = parseFloat(url.searchParams.get("lat") || "0");
+    const lng = parseFloat(url.searchParams.get("lng") || "0");
+
+    if (!riderId) {
+      return new Response("Missing riderId parameter", { status: 400 });
+    }
+
+    const webSocketPair = new WebSocketPair();
+    const [client, server] = Object.values(webSocketPair);
+
+    this.ctx.acceptWebSocket(server);
+
+    server.serializeAttachment({
+      riderId,
+      lat,
+      lng,
+      connectedAt: Date.now(),
+    });
+
+    this.updateRiderLocation(riderId, lat, lng);
+
+    const currentOrders = await this.getAvailableOrdersForRider(
+      riderId,
+      lat,
+      lng
+    );
+    server.send(
+      JSON.stringify({
+        type: "connection_established",
+        riderId,
+        availableOrders: currentOrders,
+      })
+    );
+
+    console.log(`Rider ${riderId} connected to dispatch system`);
+
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+    });
+  }
+  private async handleOrderDispatch(request: Request): Promise<Response> {
+    try {
+      console.log(`🔥 [DO] handleOrderDispatch called`);
+
+      const requestBody = await request.json();
+      console.log(
+        `🔥 [DO] Request body:`,
+        JSON.stringify(requestBody, null, 2)
+      );
+
+      const { order, targetRiders } = requestBody as {
+        order: AvailableOrder;
+        targetRiders?: string[];
+      };
+
+      console.log(`🔥 [DO] Dispatching order ${order.id} to riders`, {
+        targetRiders,
+      });
+
+      const connectedSockets = this.ctx.getWebSockets();
+      const connectedRiderIds = connectedSockets
+        .map((ws) => {
+          const attachment = ws.deserializeAttachment() as any;
+          return attachment?.riderId;
+        })
+        .filter(Boolean);
+
+      console.log(`🔥 [DO] Current connections:`, connectedRiderIds);
+      console.log(
+        `🔥 [DO] Current rider locations:`,
+        Array.from(this.riderLocations.keys())
+      );
+
+      const nearbyRiders = this.findNearbyRiders(
+        order.pickupLocation.lat,
+        order.pickupLocation.lng,
+        1000
+      );
+
+      console.log(
+        `🔥 [DO] Found ${nearbyRiders.length} nearby riders:`,
+        nearbyRiders.map((r) => ({ riderId: r.riderId, distance: r.distance }))
+      );
+
+      let notifiedCount = 0;
+
+      for (const riderLocation of nearbyRiders) {
+        console.log(`🔥 [DO] Processing rider ${riderLocation.riderId}`);
+
+        if (targetRiders && !targetRiders.includes(riderLocation.riderId)) {
+          console.log(
+            `🔥 [DO] Skipping rider ${riderLocation.riderId} - not in target list`
+          );
+          continue;
+        }
+
+        const riderWebSocket = connectedSockets.find((ws) => {
+          const attachment = ws.deserializeAttachment() as any;
+          return attachment?.riderId === riderLocation.riderId;
+        });
+
+        if (!riderWebSocket) {
+          console.log(
+            `🔥 [DO] No WebSocket connection found for rider ${riderLocation.riderId}`
+          );
+          continue;
+        }
+
+        try {
+          const message: OrderDispatchMessage = {
+            type: "new_order",
+            order: {
+              ...order,
+              estimatedDistance: riderLocation.distance,
+            },
+            riderId: riderLocation.riderId,
+          };
+
+          console.log(
+            `🔥 [DO] Sending message to rider ${riderLocation.riderId}:`,
+            JSON.stringify(message, null, 2)
+          );
+          riderWebSocket.send(JSON.stringify(message));
+          notifiedCount++;
+          console.log(
+            `✅ [DO] Order ${order.id} sent to rider ${riderLocation.riderId}, distance: ${riderLocation.distance}km`
+          );
+        } catch (error) {
+          console.error(
+            `❌ [DO] Failed to send order to rider ${riderLocation.riderId}:`,
+            error
+          );
+          this.riderLocations.delete(riderLocation.riderId);
+        }
+      }
+
+      const result = {
+        success: true,
+        notifiedRiders: notifiedCount,
+        orderId: order.id,
+      };
+
+      console.log(`🔥 [DO] Final result:`, result);
+
+      return new Response(JSON.stringify(result), {
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("Error dispatching order:", error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+  }
+  private async handleOrderNotification(request: Request): Promise<Response> {
+    try {
+      const requestBody = await request.json();
+      const { orderId, riderId, orderDetails, tier, timeLimit } =
+        requestBody as {
+          orderId: string;
+          riderId: string;
+          orderDetails: AvailableOrder;
+          tier: number;
+          timeLimit: number;
+        };
+
+      console.log(
+        `📨 [DO] Order notification for rider ${riderId}, order ${orderId}, tier ${tier}`
+      );
+
+      const connectedSockets = this.ctx.getWebSockets();
+      const riderWebSocket = connectedSockets.find((ws) => {
+        const attachment = ws.deserializeAttachment() as any;
+        return attachment?.riderId === riderId;
+      });
+
+      if (!riderWebSocket) {
+        console.log(
+          `⚠️ [DO] No WebSocket connection found for rider ${riderId}`
+        );
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Rider not connected",
+            riderId,
+          }),
+          {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      try {
+        const notificationMessage = {
+          type: "order_confirmation_modal",
+          orderId,
+          orderDetails,
+          tier,
+          timeLimit,
+          timestamp: Date.now(),
+        };
+
+        riderWebSocket.send(JSON.stringify(notificationMessage));
+
+        console.log(
+          `✅ [DO] Order confirmation modal sent to rider ${riderId} for order ${orderId}`
+        );
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            riderId,
+            orderId,
+            notificationSent: true,
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        console.error(
+          `❌ [DO] Failed to send notification to rider ${riderId}:`,
+          error
+        );
+        this.riderLocations.delete(riderId);
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Failed to send notification",
+            riderId,
+          }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+    } catch (error) {
+      console.error("Error handling order notification:", error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+  }
+
+  private async handleRiderStatusUpdate(request: Request): Promise<Response> {
+    try {
+      const { riderId, type, data } = (await request.json()) as {
+        riderId: string;
+        type: string;
+        data: any;
+      };
+
+      const riderLocation = this.riderLocations.get(riderId);
+      if (!riderLocation) {
+        return new Response("Rider not found", { status: 404 });
+      }
+      switch (type) {
+        case "location_update":
+          this.updateRiderLocation(riderId, data.lat, data.lng);
+          break;
+        case "availability_update":
+          break;
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+  }
+
+  private async getAvailableOrdersForRider(
+    riderId: string,
+    lat: number,
+    lng: number
+  ): Promise<AvailableOrder[]> {
+    try {
+      return [];
+    } catch (error) {
+      console.error("Error fetching available orders:", error);
+      return [];
+    }
+  }
+
+  async webSocketMessage(
+    ws: WebSocket,
+    message: string | ArrayBuffer
+  ): Promise<void> {
+    try {
+      const attachment = ws.deserializeAttachment() as any;
+      if (!attachment?.riderId) return;
+      const data = JSON.parse(message.toString()) as RiderStatusMessage;
+
+      // Only log non-heartbeat messages to reduce console noise
+      if (data.type !== "heartbeat") {
+        console.log(`Message from rider ${attachment.riderId}:`, data);
+      }
+
+      switch (data.type) {
+        case "heartbeat":
+          ws.send(
+            JSON.stringify({ type: "heartbeat_ack", timestamp: Date.now() })
+          );
+          break;
+
+        case "location_update":
+          if (data.data?.lat && data.data?.lng) {
+            const currentLocation = this.riderLocations.get(attachment.riderId);
+            this.updateRiderLocation(
+              attachment.riderId,
+              data.data.lat,
+              data.data.lng
+            );
+          }
+          break;
+
+        case "rider_status_update":
+          await this.handleRiderStatusFromWebSocket(
+            attachment.riderId,
+            data.data
+          );
+          break;
+
+        default:
+          console.log(`Unknown message type: ${data.type}`);
+      }
+    } catch (error) {
+      console.error("Error processing WebSocket message:", error);
+    }
+  }
+  async webSocketClose(
+    ws: WebSocket,
+    code: number,
+    reason: string,
+    wasClean: boolean
+  ): Promise<void> {
+    try {
+      const attachment = ws.deserializeAttachment() as any;
+      if (attachment?.riderId) {
+        this.riderLocations.delete(attachment.riderId);
+        console.log(
+          `Rider ${attachment.riderId} disconnected from dispatch system`
+        );
+      }
+    } catch (error) {
+      console.error("Error handling WebSocket close:", error);
+    }
+  }
+  private async handleRiderStatusFromWebSocket(
+    riderId: string,
+    data: any
+  ): Promise<void> {
+    const currentLocation = this.riderLocations.get(riderId);
+    if (!currentLocation) return;
+  }
+
+  async broadcastToAllRiders(message: any): Promise<number> {
+    let sentCount = 0;
+    const connectedSockets = this.ctx.getWebSockets();
+
+    for (const ws of connectedSockets) {
+      try {
+        ws.send(JSON.stringify(message));
+        sentCount++;
+      } catch (error) {
+        console.error("Error broadcasting to rider:", error);
+      }
+    }
+    return sentCount;
+  }
+  async getConnectedRiders(): Promise<
+    { riderId: string; connectedAt: number }[]
+  > {
+    const connectedSockets = this.ctx.getWebSockets();
+    return connectedSockets
+      .map((ws) => {
+        const attachment = ws.deserializeAttachment() as any;
+        return {
+          riderId: attachment?.riderId || "unknown",
+          connectedAt: attachment?.connectedAt || Date.now(),
+        };
+      })
+      .filter((rider) => rider.riderId !== "unknown");
+  }
+}

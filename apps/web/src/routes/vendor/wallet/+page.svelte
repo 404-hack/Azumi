@@ -16,45 +16,19 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { client } from '$lib/hc';
-
 	// States
 	let balance = $state(0);
 	let pendingAmount = $state(0);
+	let totalEarnings = $state(0);
+	let totalWithdrawals = $state(0);
 	let hasBankInfo = $state(false);
 	let isLoading = $state(true);
-
-	const transactions = [
-		{
-			id: 1,
-			type: 'credit',
-			amount: 234.5,
-			description: 'Order #1234',
-			date: '2024-01-30',
-			status: 'completed'
-		},
-		{
-			id: 2,
-			type: 'debit',
-			amount: 1500.0,
-			description: 'Withdrawal to Bank Account',
-			date: '2024-01-29',
-			status: 'completed'
-		},
-		{
-			id: 3,
-			type: 'credit',
-			amount: 345.75,
-			description: 'Order #1235',
-			date: '2024-01-28',
-			status: 'completed'
-		}
-	];
+	let transactions = $state([]);
 
 	// Function to check if vendor has bank information
 	async function checkBankInfo() {
 		try {
 			isLoading = true;
-			// const response = await fetch('/api/vendor/payment-methods');
 			const response = await client.vendor['payment-methods'].$get();
 			const data = await response.json();
 			console.log('🚀 ~ checkBankInfo ~ data:', data);
@@ -65,6 +39,7 @@
 			// If bank info exists, also fetch wallet balance
 			if (hasBankInfo) {
 				await fetchWalletBalance();
+				await fetchTransactionHistory();
 			}
 		} catch (error) {
 			console.error('Error checking bank information:', error);
@@ -83,9 +58,32 @@
 			if (data.success) {
 				balance = data.data.balance || 0;
 				pendingAmount = data.data.pendingAmount || 0;
+				totalEarnings = data.data.totalEarnings || 0;
+				totalWithdrawals = data.data.totalWithdrawals || 0;
 			}
 		} catch (error) {
 			console.error('Error fetching wallet balance:', error);
+		}
+	} // Fetch transaction history from API
+	async function fetchTransactionHistory() {
+		try {
+			const response = await client.vendor.transactions.$get();
+			const data = await response.json();
+
+			if (data.success) {
+				transactions = data.data.map((transaction) => ({
+					id: transaction.id,
+					type: transaction.type.toLowerCase() === 'credit' ? 'credit' : 'debit',
+					amount: transaction.amount,
+					description: transaction.description || `Transaction ${transaction.reference}`,
+					date: new Date(transaction.createdAt).toLocaleDateString(),
+					status: transaction.status.toLowerCase(),
+					orderId: transaction.orderId,
+					reference: transaction.reference
+				}));
+			}
+		} catch (error) {
+			console.error('Error fetching transaction history:', error);
 		}
 	}
 
@@ -105,7 +103,7 @@
 	{#if isLoading}
 		<div class="flex h-40 items-center justify-center">
 			<div
-				class="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"
+				class="border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent"
 			></div>
 		</div>
 	{:else if !hasBankInfo}
@@ -145,7 +143,7 @@
 		</Card.Root>
 	{:else}
 		<!-- Show Wallet if bank information is available -->
-		<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+		<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
 			<!-- Balance Card -->
 			<Card.Root>
 				<Card.Header>
@@ -156,8 +154,27 @@
 				</Card.Header>
 				<Card.Content>
 					<div class="mt-2">
-						<p class="text-3xl font-bold">${balance.toFixed(2)}</p>
-						<p class="text-sm text-muted-foreground">Available for withdrawal</p>
+						<p class="text-3xl font-bold">₦{balance.toFixed(2)}</p>
+						<p class="text-muted-foreground text-sm">Available for withdrawal</p>
+						<p class="text-muted-foreground mt-1 text-xs">
+							Payouts are processed automatically on a weekly basis.
+						</p>
+					</div>
+				</Card.Content>
+			</Card.Root>
+
+			<!-- Total Earnings Card -->
+			<Card.Root>
+				<Card.Header>
+					<Card.Title class="flex items-center">
+						<DollarSign class="mr-2 h-5 w-5" />
+						Total Earnings
+					</Card.Title>
+				</Card.Header>
+				<Card.Content>
+					<div class="mt-2">
+						<p class="text-3xl font-bold">₦{totalEarnings.toFixed(2)}</p>
+						<p class="text-muted-foreground text-sm">All-time earnings</p>
 					</div>
 				</Card.Content>
 			</Card.Root>
@@ -172,34 +189,46 @@
 				</Card.Header>
 				<Card.Content>
 					<div class="mt-2">
-						<p class="text-3xl font-bold">${pendingAmount.toFixed(2)}</p>
-						<p class="text-sm text-muted-foreground">Will be available in 2-3 business days</p>
+						<p class="text-3xl font-bold">₦{pendingAmount.toFixed(2)}</p>
+						<p class="text-muted-foreground text-sm">Scheduled for next weekly payout</p>
 					</div>
 				</Card.Content>
 			</Card.Root>
 
-			<!-- Quick Actions Card -->
-			<Card.Root class="md:col-span-2 lg:col-span-1">
+			<!-- Total Withdrawals Card -->
+			<Card.Root>
 				<Card.Header>
 					<Card.Title class="flex items-center">
-						<DollarSign class="mr-2 h-5 w-5" />
-						Quick Actions
+						<ArrowUpRight class="mr-2 h-5 w-5" />
+						Total Withdrawals
 					</Card.Title>
 				</Card.Header>
 				<Card.Content>
-					<div class="grid gap-4">
-						<Button variant="outline" class="w-full justify-start">
-							<ArrowUpRight class="mr-2 h-4 w-4" />
-							Withdraw Funds
-						</Button>
-						<Button variant="outline" class="w-full justify-start">
-							<Download class="mr-2 h-4 w-4" />
-							Download Statement
-						</Button>
+					<div class="mt-2">
+						<p class="text-3xl font-bold">₦{totalWithdrawals.toFixed(2)}</p>
+						<p class="text-muted-foreground text-sm">All-time withdrawals</p>
 					</div>
 				</Card.Content>
 			</Card.Root>
 		</div>
+
+		<!-- Quick Actions -->
+		<Card.Root>
+			<Card.Header>
+				<Card.Title class="flex items-center">
+					<DollarSign class="mr-2 h-5 w-5" />
+					Quick Actions
+				</Card.Title>
+			</Card.Header>
+			<Card.Content>
+				<div class="flex gap-4">
+					<Button variant="outline" class="justify-start">
+						<Download class="mr-2 h-4 w-4" />
+						Download Statement
+					</Button>
+				</div>
+			</Card.Content>
+		</Card.Root>
 
 		<!-- Transaction History -->
 		<Card.Root>
@@ -223,7 +252,7 @@
 								{/if}
 								<div>
 									<p class="font-medium">{transaction.description}</p>
-									<p class="text-sm text-muted-foreground">{transaction.date}</p>
+									<p class="text-muted-foreground text-sm">{transaction.date}</p>
 								</div>
 							</div>
 							<div class="text-right">
@@ -232,9 +261,9 @@
 										? 'text-green-600'
 										: 'text-red-600'}"
 								>
-									{transaction.type === 'credit' ? '+' : '-'}${transaction.amount.toFixed(2)}
+									{transaction.type === 'credit' ? '+' : '-'}₦{transaction.amount.toFixed(2)}
 								</p>
-								<p class="text-sm capitalize text-muted-foreground">{transaction.status}</p>
+								<p class="text-muted-foreground text-sm capitalize">{transaction.status}</p>
 							</div>
 						</div>
 					{/each}

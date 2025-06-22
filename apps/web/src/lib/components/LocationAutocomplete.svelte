@@ -1,54 +1,57 @@
 <script lang="ts">
+	import { Search, MapPin, Loader2, X } from 'lucide-svelte';
+	import Input from '../ui/input/input.svelte';
+	import Button from '../ui/button/button.svelte';
+	import { ScrollArea } from '../ui/scroll-area';
+	import { 
+		getLocationFromAddress, 
+		getCurrentLocationWithOptions,
+		type LocationResult, 
+		type LocationOptions,
+		NIGERIA_BOUNDS,
+		isLocationInNigeria,
+		type LocationError,
+		getLocationAccuracyMessage
+	} from '$lib/utils/location';
+	import { PUBLIC_GOOGLE_MAP_API_KEY } from '$env/static/public';
+	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
-	import mapboxgl from 'mapbox-gl';
+	import { toast } from 'svelte-sonner';
 
-	// Define types for suggestions and other data structures
-	type Coordinates = [number, number];
-	
-	interface Address {
-		street?: string;
-		house_number?: string;
-		neighborhood?: string;
-		locality?: string;
-		place?: string;
-		region?: string;
-		country?: string;
-		postcode?: string;
-		hasStreetLevel?: boolean;
-		[key: string]: any; // For other properties from API responses
-	}
-	
-	interface Suggestion {
-		id: string;
-		text: string;
-		coordinates: Coordinates;
-		type?: string;
-		relevance?: number;
-		address?: Address;
-		nominatim?: boolean;
-		raw?: any;
-	}
-	
-	interface Position {
-		coords: {
-			latitude: number;
-			longitude: number;
-			accuracy?: number;
+	interface AutocompleteResult {
+		description: string;
+		place_id: string;
+		structured_formatting?: {
+			main_text: string;
+			secondary_text: string;
 		};
+		types: string[];
 	}
-	
-	// Create event dispatcher for Svelte 5
-	const dispatch = createEventDispatcher<{
-		input: { value: string };
-		select: { suggestion: Suggestion };
-		error: { message: string };
-	}>();
 
-	// Define props with $props rune
-	let { 
-		placeholder = 'Search for a street in Nigeria',
-		value = '',
-		showCurrentLocationButton = true,
+	interface Props {
+		onLocationSelect: (location: LocationResult) => void;
+		onError?: (error: LocationError) => void;
+		locationOptions?: LocationOptions;
+		placeholder?: string;
+		disabled?: boolean;
+		class?: string;
+		maxResults?: number;
+		restrictToNigeria?: boolean;
+		showRecentSearches?: boolean;
+		showCurrentLocationButton?: boolean;
+	}
+
+	let {
+		onLocationSelect,
+		onError,
+		locationOptions = {},
+		placeholder = 'Search for an address...',
+		disabled = false,
+		class: className = '',
+		maxResults = 5,
+		restrictToNigeria = true,
+		showRecentSearches = true,
+		showCurrentLocationButton = true
 		mapboxToken = 'pk.eyJ1IjoibGF3YWwiLCJhIjoiY204NWlya2s3MTd5ZDJrcXYxMzZ4OHJ3eCJ9.IMuPhjVHygJ_-liPFD5BSA',
 		id = '',
 		name = '',

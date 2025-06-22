@@ -1,12 +1,11 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-// import { db } from "./db";
 import * as schema from "./db/schema";
-
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { Variables } from "./types";
-import { openAPI, organization, phoneNumber } from "better-auth/plugins";
+import { openAPI, organization, phoneNumber, admin } from "better-auth/plugins";
 import { env } from "cloudflare:workers";
+import { smsService } from "../services/sms.service";
 // export type Environment = {
 //   Bindings: CloudflareBindings;
 //   Variables: Variables;
@@ -120,12 +119,21 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
         },
       }),
       openAPI(),
+      admin({
+        // Replace with the actual user ID
+      }),
       phoneNumber({
-        sendOTP: ({ phoneNumber, code }, request) => {
-          console.log("🚀 ~ createAuth ~ request:", request);
-          console.log("🚀 ~ createAuth ~ code:", code);
-          console.log("🚀 ~ createAuth ~ phoneNumber:", phoneNumber);
-          // Implement sending OTP code via SMS
+        sendOTP: async ({ phoneNumber, code }, request) => {
+          console.log("🚀 ~ sendOTP: ~ code:", code);
+          try {
+            await smsService.sendOTP({
+              to: phoneNumber,
+              code: code,
+            });
+          } catch (error) {
+            console.error("Failed to send OTP via Termii:", error);
+            throw error;
+          }
         },
         signUpOnVerification: {
           getTempEmail: (phoneNumber) => {

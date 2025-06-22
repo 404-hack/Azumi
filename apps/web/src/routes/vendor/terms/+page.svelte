@@ -53,7 +53,7 @@
 
 					// Redirect to dashboard after successful acceptance
 					setTimeout(() => {
-						goto('/vendor/dashboard');
+						goto('/vendor/profile');
 					}, 1500);
 				} else {
 					// Show warning message if terms were declined
@@ -199,7 +199,7 @@
 				</div>
 			{:else}
 				<div class="flex justify-end">
-					<Button href="/vendor/dashboard">Return to Dashboard</Button>
+					<Button href="/vendor/profile">Return to profile</Button>
 				</div>
 			{/if}
 		</Card.Content>

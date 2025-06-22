@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { adminState } from '$lib/states/adminState.svelte';
 	import { Card } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
@@ -19,60 +17,10 @@
 		AlertTriangle
 	} from 'lucide-svelte';
 	import { formatCurrency, formatDate, formatTime } from '$lib/utils';
-	import type { RiderProfile } from '$lib/types/rider';
 
-	// Get rider ID from URL params
-	const riderId = $page.params.id;
+	let { data } = $props();
+	const rider = $derived(data.rider);
 
-	// Mock rider data (in real app, fetch from adminState or API)
-	const rider = {
-		id: riderId,
-		name: 'John Smith',
-		email: 'john@example.com',
-		phone: '+234 123 456 7890',
-		address: '123 Main St, Lagos',
-		status: 'available',
-		rating: 4.8,
-		totalDeliveries: 850,
-		totalEarnings: 12890.5,
-		joinedDate: new Date('2023-06-01'),
-		lastActive: new Date(),
-		vehicleType: 'motorcycle',
-		vehicleDetails: {
-			make: 'Honda',
-			model: 'CB150R',
-			year: '2022',
-			color: 'Black',
-			plateNumber: 'LAG-123-XY'
-		},
-		bankInfo: {
-			bankName: 'First Bank',
-			accountNumber: '****5678',
-			accountName: 'John Smith'
-		},
-		documents: [
-			{
-				type: 'Driver License',
-				status: 'verified',
-				number: 'DL123456',
-				expiryDate: new Date('2025-01-01')
-			},
-			{
-				type: 'Vehicle Insurance',
-				status: 'verified',
-				number: 'INS789012',
-				expiryDate: new Date('2024-12-31')
-			},
-			{
-				type: 'Vehicle Registration',
-				status: 'verified',
-				number: 'REG345678',
-				expiryDate: new Date('2024-12-31')
-			}
-		]
-	};
-
-	// Mock recent deliveries
 	const recentDeliveries = [
 		{
 			id: 'DEL-001',
@@ -95,34 +43,35 @@
 	];
 
 	let selectedTab = $state('overview');
+	function getStatusBadgeVariant(status: boolean): 'default' | 'destructive' | 'outline' {
+		return status ? 'default' : 'destructive';
+	}
 
-	function getDocumentStatusBadgeVariant(
+	function getApplicationStatusBadgeVariant(
 		status: string
 	): 'default' | 'secondary' | 'destructive' | 'outline' {
 		switch (status) {
-			case 'verified':
+			case 'APPROVED':
 				return 'default';
-			case 'pending':
+			case 'PENDING':
 				return 'secondary';
-			case 'expired':
+			case 'REJECTED':
 				return 'destructive';
 			default:
 				return 'outline';
 		}
 	}
 
-	function getRiderStatusBadgeVariant(
+	function getAvailabilityStatusBadgeVariant(
 		status: string
 	): 'default' | 'secondary' | 'destructive' | 'outline' {
 		switch (status) {
-			case 'available':
+			case 'ONLINE':
 				return 'default';
-			case 'on_delivery':
+			case 'BUSY':
 				return 'secondary';
-			case 'offline':
+			case 'OFFLINE':
 				return 'outline';
-			case 'break':
-				return 'secondary';
 			default:
 				return 'outline';
 		}
@@ -158,26 +107,33 @@
 						/>
 					</div>
 					<div class="text-center">
-						<h3 class="font-semibold">{rider.name}</h3>
+						<h3 class="font-semibold">{rider.firstName} {rider.lastName}</h3>
 						<p class="text-sm capitalize text-muted-foreground">{rider.vehicleType} Rider</p>
 					</div>
-					<Badge variant={getRiderStatusBadgeVariant(rider.status)}>
-						{rider.status === 'available'
-							? 'Online'
-							: rider.status === 'offline'
-								? 'Offline'
-								: 'On Delivery'}
-					</Badge>
+					<div class="flex flex-wrap justify-center gap-2">
+						<Badge variant={getAvailabilityStatusBadgeVariant(rider.availabilityStatus)}>
+							{rider.availabilityStatus}
+						</Badge>
+						<Badge variant={getStatusBadgeVariant(rider.active)}>
+							{rider.active ? 'Active' : 'Inactive'}
+						</Badge>
+						<Badge variant={getStatusBadgeVariant(rider.isVerified)}>
+							{rider.isVerified ? 'Verified' : 'Unverified'}
+						</Badge>
+						<Badge variant={getApplicationStatusBadgeVariant(rider.applicationStatus)}>
+							{rider.applicationStatus}
+						</Badge>
+					</div>
 				</div>
 
 				<div class="space-y-2">
 					<div class="flex items-center gap-2">
 						<MapPin class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm">{rider.address}</span>
+						<span class="text-sm">{rider.address} ({rider.addressName})</span>
 					</div>
 					<div class="flex items-center gap-2">
 						<Phone class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm">{rider.phone}</span>
+						<span class="text-sm">{rider.user?.phoneNumber}</span>
 					</div>
 					<div class="flex items-center gap-2">
 						<Mail class="h-4 w-4 text-muted-foreground" />
@@ -185,25 +141,22 @@
 					</div>
 					<div class="flex items-center gap-2">
 						<Clock class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm">Joined {formatDate(rider.joinedDate)}</span>
+						<span class="text-sm">Created at {formatDate(rider.createdAt)}</span>
 					</div>
 				</div>
-
 				<div class="space-y-2">
 					<div class="flex items-center justify-between">
 						<span class="text-sm text-muted-foreground">Rating</span>
 						<div class="flex items-center gap-1">
 							<Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
-							<span class="font-medium">{rider.rating.toFixed(1)}</span>
+							<span class="font-medium"
+								>{rider.rating.toFixed(1)} ({rider.totalRatings} ratings)</span
+							>
 						</div>
 					</div>
 					<div class="flex items-center justify-between">
-						<span class="text-sm text-muted-foreground">Total Deliveries</span>
-						<span class="font-medium">{rider.totalDeliveries}</span>
-					</div>
-					<div class="flex items-center justify-between">
-						<span class="text-sm text-muted-foreground">Total Earnings</span>
-						<span class="font-medium">{formatCurrency(rider.totalEarnings)}</span>
+						<span class="text-sm text-muted-foreground">Max Delivery Distance</span>
+						<span class="font-medium">{rider.maxDeliveryDistance}km</span>
 					</div>
 				</div>
 			</div>
@@ -224,25 +177,18 @@
 					<!-- Vehicle Information -->
 					<Card class="p-6">
 						<h3 class="mb-4 font-semibold">Vehicle Information</h3>
-						<div class="grid gap-4 sm:grid-cols-2">
+						<div class="grid gap-4">
 							<div>
-								<div class="text-sm text-muted-foreground">Make & Model</div>
-								<div class="font-medium">
-									{rider.vehicleDetails.make}
-									{rider.vehicleDetails.model}
-								</div>
+								<div class="text-sm text-muted-foreground">Vehicle Type</div>
+								<div class="font-medium">{rider.vehicleType}</div>
 							</div>
 							<div>
-								<div class="text-sm text-muted-foreground">Year</div>
-								<div class="font-medium">{rider.vehicleDetails.year}</div>
+								<div class="text-sm text-muted-foreground">Vehicle License</div>
+								<div class="font-medium">{rider.vehicleLicense}</div>
 							</div>
 							<div>
-								<div class="text-sm text-muted-foreground">Color</div>
-								<div class="font-medium">{rider.vehicleDetails.color}</div>
-							</div>
-							<div>
-								<div class="text-sm text-muted-foreground">Plate Number</div>
-								<div class="font-medium">{rider.vehicleDetails.plateNumber}</div>
+								<div class="text-sm text-muted-foreground">Max Delivery Distance</div>
+								<div class="font-medium">{rider.maxDeliveryDistance}km</div>
 							</div>
 						</div>
 					</Card>
@@ -283,45 +229,33 @@
 			{:else if selectedTab === 'documents'}
 				<Card class="p-6">
 					<h3 class="mb-4 font-semibold">Documents</h3>
-					<div class="space-y-4">
-						{#each rider.documents as doc}
-							<div class="flex items-center justify-between rounded-lg border p-4">
-								<div>
-									<div class="font-medium">{doc.type}</div>
-									<div class="text-sm text-muted-foreground">
-										Number: {doc.number}
-										<br />
-										Expires: {formatDate(doc.expiryDate)}
-									</div>
-								</div>
-								<Badge variant={getDocumentStatusBadgeVariant(doc.status)}>
-									{doc.status}
-								</Badge>
-							</div>
-						{/each}
-					</div>
 				</Card>
 			{:else if selectedTab === 'banking'}
 				<Card class="p-6">
 					<h3 class="mb-4 font-semibold">Banking Information</h3>
 					<div class="space-y-4">
-						<div class="rounded-lg border p-4">
-							<div class="mb-4 grid gap-2">
-								<div>
-									<div class="text-sm text-muted-foreground">Bank Name</div>
-									<div class="font-medium">{rider.bankInfo.bankName}</div>
-								</div>
-								<div>
-									<div class="text-sm text-muted-foreground">Account Number</div>
-									<div class="font-medium">{rider.bankInfo.accountNumber}</div>
-								</div>
-								<div>
-									<div class="text-sm text-muted-foreground">Account Name</div>
-									<div class="font-medium">{rider.bankInfo.accountName}</div>
+						{#if rider.paymentMethod}
+							<div class="rounded-lg border p-4">
+								<div class="mb-4 grid gap-2">
+									<div>
+										<div class="text-sm text-muted-foreground">Bank Name</div>
+										<div class="font-medium">{rider.paymentMethod.bankName}</div>
+									</div>
+									<div>
+										<div class="text-sm text-muted-foreground">Account Number</div>
+										<div class="font-medium">{rider.paymentMethod.accountNumber}</div>
+									</div>
+									<div>
+										<div class="text-sm text-muted-foreground">Account Name</div>
+										<div class="font-medium">{rider.paymentMethod.accountName}</div>
+									</div>
 								</div>
 							</div>
-							<Button variant="outline" class="w-full">Update Banking Information</Button>
-						</div>
+						{:else}
+							<div class="p-8 text-center text-muted-foreground">
+								<p>No banking information available</p>
+							</div>
+						{/if}
 					</div>
 				</Card>
 			{/if}

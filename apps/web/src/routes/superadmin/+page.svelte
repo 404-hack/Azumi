@@ -101,33 +101,6 @@
 	</div>
 
 	<!-- Key Metrics -->
-	<div class="grid gap-6 md:grid-cols-3">
-		{#each metrics as metric}
-			<Card class="p-6">
-				<div class="flex flex-col gap-4">
-					<div class="flex items-center justify-between">
-						<span class="text-sm font-medium text-muted-foreground">{metric.label}</span>
-						<Badge
-							variant={metric.trend === 'up' ? 'success' : 'destructive'}
-							class="flex items-center gap-1"
-						>
-							{#if metric.trend === 'up'}
-								<ArrowUpRight class="h-3 w-3" />
-							{:else}
-								<ArrowDownRight class="h-3 w-3" />
-							{/if}
-							{Math.abs(metric.change)}%
-						</Badge>
-					</div>
-					<div class="text-2xl font-bold">
-						{metric.label.includes('Revenue') || metric.label.includes('Value')
-							? formatCurrency(metric.value)
-							: metric.value}
-					</div>
-				</div>
-			</Card>
-		{/each}
-	</div>
 
 	<!-- Recent Orders -->
 	<Card class="p-6">

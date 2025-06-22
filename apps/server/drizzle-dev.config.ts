@@ -9,6 +9,6 @@ export default defineConfig({
   breakpoints: true,
   casing: "snake_case",
   dbCredentials: {
-    url: ".wrangler/state/v3/d1/miniflare-D1DatabaseObject/3437212e061cf1346ce4dd5f2802c4e1b2cda53c2c5277d81370f5d323a6c6a4.sqlite",
+    url: ".wrangler/state/v3/d1/miniflare-D1DatabaseObject/72ed3b9b80a5a675d309a239c4b086794ee5a7834ba3fb77b45caaa8b2d0f53c.sqlite",
   },
 });

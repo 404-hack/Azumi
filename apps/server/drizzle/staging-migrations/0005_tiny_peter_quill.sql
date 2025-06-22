@@ -1,1 +1,0 @@
-ALTER TABLE `cart_items` ADD `options_hash` text DEFAULT 'no-options' NOT NULL;

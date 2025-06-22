@@ -48,15 +48,10 @@
 					</div>
 					<div>
 						<div class="text-sm text-muted-foreground">Phone number</div>
-						<!-- <div>{user.email}</div> -->
+						<div>{user?.phoneNumber}</div>
 					</div>
 				</div>
-				<div class="mt-4 flex gap-4">
-					<Button variant="link" class="h-auto p-0 text-blue-500" onclick={handleEdit}>Edit</Button>
-					<Button variant="link" class="h-auto p-0 text-red-500" onclick={handleDelete}
-						>Delete</Button
-					>
-				</div>
+				
 			</div>
 		</div>
 

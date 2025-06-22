@@ -15,11 +15,6 @@
 	import ResponsiveDialog from '../ResponsiveDialog.svelte';
 	import { toast } from 'svelte-sonner';
 	import VerifyOtpModal from './VerifyOtpModal.svelte';
-
-	type Props = {
-		title?: string;
-	};
-	let { title }: Props = $props();
 	let phoneNumber = $state('');
 
 	const form = superForm(defaults(zod(loginSchema)), {
@@ -34,7 +29,7 @@
 					},
 					{
 						async onSuccess() {
-							toast.success('OTP code sent successfully');
+							// toast.success('OTP code sent successfully');
 							loginModalState.setFalse();
 							setTimeout(() => {
 								verifyOtpModalState.setTrue();
@@ -54,7 +49,7 @@
 </script>
 
 <ResponsiveDialog
-	title={title || 'Continue with phone number'}
+	title={loginModalState.title || 'Continue with phone number'}
 	description="Enter your phone number to sign in or create an account."
 	bind:open={loginModalState.value}
 >

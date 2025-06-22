@@ -200,12 +200,12 @@
 </script>
 
 <Dialog.Root bind:open>
-	<Dialog.Content class="  w-full  ">
+	<Dialog.Content class="  w-full   ">
 		<Dialog.Header class="sticky top-0 z-10 bg-background p-5">
 			<Dialog.Title class=" text-3xl">Filter</Dialog.Title>
 		</Dialog.Header>
 
-		<div class="space-y-8 p-3">
+		<div class="space-y-8 p-2.5">
 			{#each Object.entries(categorizedFacets) as [key, category]}
 				<div>
 					<h2 class="font-display mb-3 text-xl font-semibold capitalize">{category.name}</h2>

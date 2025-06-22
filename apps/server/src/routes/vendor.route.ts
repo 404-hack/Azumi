@@ -9,13 +9,16 @@ import {
   createPackSchema,
   updateShopSchema,
   updatePackSchema,
+  createPromotionSchema,
+  updatePromotionSchema,
 } from "../lib/validation/index";
+
 import {
   menuItemTable,
   menuCategoryTable,
   menuItemOptionGroups,
 } from "../lib/db/schema/menu.schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, not } from "drizzle-orm";
 import { createAuth } from "../lib/auth";
 import {
   optionGroupTable,
@@ -30,6 +33,8 @@ import {
 import { packTable } from "../lib/db/schema/pack.schema";
 import {
   orderTable,
+  promotionProducts,
+  promotions,
   shopAgreementsTable,
   shopOperatingHoursTable,
   shopPaymentMethodTable,
@@ -37,7 +42,10 @@ import {
   shopTodoTable,
 } from "../lib/db/schema";
 import { ShopTodoService } from "../services/shopTodo.service";
-import { dayScheduleSchema } from "../lib/validation/shop.validation";
+import {
+  bannerImageSchema,
+  dayScheduleSchema,
+} from "../lib/validation/shop.validation";
 import { nanoid } from "nanoid";
 import { ORDER_STATUS } from "../lib/constant";
 import vendorAuthMiddleware from "../middlewares/vendorAuth";
@@ -244,15 +252,99 @@ const vendorRoute = factory
       return c.json({ message: "Internal server error" }, 500);
     }
   })
+  // get menu by id
+  .get("/menu/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+      const menuItem = await db.query.menuItemTable.findFirst({
+        where: (table, { and, eq }) =>
+          and(eq(table.id, id), eq(table.shopId, orgId)),
+        with: {
+          category: true,
+          menuItemOptionGroups: {
+            with: {
+              optionGroup: true,
+            },
+          },
+          pack: true,
+        },
+      });
+
+      if (!menuItem) {
+        return c.json(
+          {
+            message:
+              "Menu item not found or you don't have permission to access it",
+          },
+          404
+        );
+      }
+
+      return c.json({
+        data: menuItem,
+      });
+    } catch (error) {
+      console.error("Error fetching menu item:", error);
+      return c.json({ message: "Internal server error" }, 500);
+    }
+  })
 
   // Update a menu item
-  .put("/menu/update/:id", zValidator("json", updateMenuSchema), async (c) => {
+  .put("/menu/:id", zValidator("form", updateMenuSchema), async (c) => {
     try {
-      const data = c.req.valid("json");
+      const data = c.req.valid("form");
       const db = c.get("db");
       const orgId = c.get("orgId");
       const id = c.req.param("id");
 
+      // Verify menu item exists and belongs to shop
+      const existingMenuItem = await db.query.menuItemTable.findFirst({
+        where: (table, { and, eq }) =>
+          and(eq(table.id, id), eq(table.shopId, orgId)),
+      });
+
+      if (!existingMenuItem) {
+        return c.json(
+          {
+            message:
+              "Menu item not found or you don't have permission to update it",
+          },
+          404
+        );
+      }
+
+      let imageUrl = existingMenuItem.imageUrl; // Handle image update if provided
+      if (data.image instanceof File) {
+        // Delete old image if exists
+        if (existingMenuItem.imageUrl) {
+          try {
+            const oldFilename = existingMenuItem.imageUrl.substring(
+              existingMenuItem.imageUrl.lastIndexOf("/") + 1
+            );
+            await env.BUCKET.delete(oldFilename);
+          } catch (imageError) {
+            console.error("Error deleting old image:", imageError);
+          }
+        }
+
+        // Check if data.image is a File object
+        if (data.image instanceof File) {
+          // Upload new image
+          const imageBuffer = await data.image.arrayBuffer();
+          const filename = `${orgId}-${Date.now()}-${data.image.name}`;
+          await env.BUCKET.put(filename, imageBuffer, {
+            httpMetadata: { contentType: data.image.type },
+          });
+          imageUrl = `${env.R2_PUBLIC_URL}/${filename}`;
+        } else if (typeof data.image === "string") {
+          // If it's a string URL, use it directly
+          imageUrl = data.image;
+        }
+      }
+
+      // Update menu item basic info
       const updatedMenu = await db
         .update(menuItemTable)
         .set({
@@ -262,9 +354,27 @@ const vendorRoute = factory
           priceDescription: data.priceDescription,
           inStock: data.inStock,
           categoryId: data.categoryId,
+          imageUrl: imageUrl,
+          packId: data.packId || null,
         })
         .where(and(eq(menuItemTable.id, id), eq(menuItemTable.shopId, orgId)))
-        .returning();
+        .returning()
+        .get();
+
+      // Update option groups
+      await db
+        .delete(menuItemOptionGroups)
+        .where(eq(menuItemOptionGroups.menuItemId, id));
+
+      if (data.optionGroupId && data.optionGroupId.length > 0) {
+        const optionGroupEntries = data.optionGroupId.map((groupId, index) => ({
+          menuItemId: id,
+          optionGroupId: groupId,
+          sortOrder: index,
+        }));
+
+        await db.insert(menuItemOptionGroups).values(optionGroupEntries);
+      }
 
       return c.json({
         message: "Menu item updated successfully",
@@ -972,87 +1082,129 @@ const vendorRoute = factory
     ),
     async (c) => {
       try {
-        if (c.req.header("upgrade") !== "websocket") {
-          return c.text("Not a websocket request", 426);
-        }
+        // if (c.req.header("upgrade") !== "websocket") {
+        //   return c.text("Not a websocket request", 426);
+        // }
         const db = c.get("db");
         const orgId = c.get("orgId");
         console.log("🚀 ~ orgId:", orgId);
         const { status } = c.req.valid("query");
-        const id = env.ORDER_NOTIFICATION.idFromName(orgId);
-        const stub = env.ORDER_NOTIFICATION.get(id);
-        const response = await stub.fetch(c.req.raw);
-        return new Response(null, {
-          status: response.status,
-          headers: response.headers,
-          webSocket: response.webSocket,
+        // const id = env.ORDER_NOTIFICATION.idFromName(orgId);
+        // const stub = env.ORDER_NOTIFICATION.get(id);
+        // const response = await stub.fetch(c.req.raw);
+        // return new Response(null, {
+        //   status: response.status,
+        //   headers: response.headers,
+        //   webSocket: response.webSocket,
+        // });
+        let query = db.query.orderTable.findMany({
+          where: (orders, { eq, and }) => {
+            const conditions = [eq(orders.shopId, orgId)];
+            if (status) {
+              conditions.push(eq(orders.status, status));
+            }
+            return and(...conditions);
+          },
+
+          with: {
+            customer: true,
+            shop: {
+              columns: {
+                id: true,
+                name: true,
+                commission: true,
+              },
+            },
+            items: {
+              columns: {
+                id: true,
+                menuItemId: true,
+                menuItemName: true,
+                quantity: true,
+                unitPrice: true,
+                totalPrice: true,
+                specialInstructions: true,
+              },
+              with: {
+                options: true,
+              },
+            },
+            rider: true,
+          },
         });
-        // let query = db.query.orderTable.findMany({
-        //   where: (orders, { eq, and }) => {
-        //     const conditions = [eq(orders.shopId, orgId)];
-        //     if (status) {
-        //       conditions.push(eq(orders.status, status));
-        //     }
-        //     return and(...conditions);
-        //   },
-        //   columns: {
-        //     id: true,
-        //     code: true,
-        //     status: true,
-        //     customerId: true,
-        //     riderId: true,
-        //     riderConfirmationCode: true,
-        //     cartId: true,
-        //     contactPhone: true,
-        //     paymentMethod: true,
-        //     paymentStatus: true,
-        //     paymentTransactionId: true,
-        //     subtotal: true,
-        //     deliveryFee: true,
-        //     serviceFee: true,
-        //     discount: true,
-        //     total: true,
-        //     acceptedAt: true,
-        //     preparedAt: true,
-        //     pickedUpAt: true,
-        //     deliveredAt: true,
-        //     canceledAt: true,
-        //     cancelReason: true,
-        //     createdAt: true,
-        //     updatedAt: true,
-        //   },
-        //   with: {
-        //     customer: true,
-        //     items: {
-        //       columns: {
-        //         id: true,
-        //         menuItemId: true,
-        //         menuItemName: true,
-        //         quantity: true,
-        //         unitPrice: true,
-        //         totalPrice: true,
-        //         specialInstructions: true,
-        //       },
-        //       with: {
-        //         options: true,
-        //       },
-        //     },
-        //     rider: true,
-        //   },
-        // });
 
-        // const orders = await query;
+        const orders = await query;
 
-        // return c.json({
-        //   message: "success",
-        //   data: orders,
-        // });
+        return c.json({
+          message: "success",
+          data: orders,
+        });
       } catch (error) {
         console.error("Error fetching orders:", error);
         return c.json({ message: "Internal server error" }, 500);
       }
     }
   )
+
+  // Get single order by ID
+  .get("/order/:id", async (c) => {
+    try {
+      const { id } = c.req.param();
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+      const order = await db.query.orderTable.findFirst({
+        where: (orders, { and, eq }) =>
+          and(eq(orders.id, id), eq(orders.shopId, orgId)),
+        with: {
+          customer: true,
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              commission: true,
+            },
+          },
+          items: {
+            columns: {
+              id: true,
+              menuItemId: true,
+              menuItemName: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              specialInstructions: true,
+            },
+            with: {
+              options: true,
+              menuItem: {
+                columns: {
+                  imageUrl: true,
+                },
+              },
+            },
+          },
+          rider: {
+            with: {
+              user: true,
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        return c.json({ message: "Order not found" }, 404);
+      }
+
+      return c.json({
+        message: "success",
+        data: order,
+      });
+    } catch (error) {
+      console.error("Error fetching order:", error);
+      return c.json({ message: "Internal server error" }, 500);
+    }
+  })
+
   // Operating hours
   .patch("/", zValidator("json", updateShopSchema), async (c) => {
     try {
@@ -1460,61 +1612,23 @@ const vendorRoute = factory
       );
     }
   })
-
   // Get vendor wallet balance
   .get("/wallet", async (c) => {
     try {
-      const db = c.get("db");
-      const orgId = c.get("orgId");
       const user = c.get("user");
+      const { VendorPaymentService } = await import(
+        "../services/vendorPayment.service"
+      );
+      const vendorPaymentService = new VendorPaymentService();
 
-      // Calculate total vendor earnings from completed order payouts
-      const completedOrdersResult = await db
-        .select({
-          total: sql`SUM(o.subtotal - (o.subtotal * 0.15))`.mapWith(Number), // Assuming 15% commission
-        })
-        .from(orderTable)
-        .where(
-          and(
-            eq(orderTable.shopId, orgId),
-            eq(orderTable.paymentStatus, "COMPLETED"),
-            eq(orderTable.status, "COMPLETED")
-          )
-        )
-        .get();
-
-      // Calculate pending amount - orders that are paid but not yet transferred to vendor
-      const pendingAmountResult = await db
-        .select({
-          total: sql`SUM(o.subtotal - (o.subtotal * 0.15))`.mapWith(Number), // Assuming 15% commission
-        })
-        .from(orderTable)
-        .where(
-          and(
-            eq(orderTable.shopId, orgId),
-            eq(orderTable.paymentStatus, "COMPLETED"),
-            eq(orderTable.status, "PAYMENT_CONFIRMED")
-          )
-        )
-        .get();
-
-      const totalEarnings = completedOrdersResult?.total || 0;
-      const pendingAmount = pendingAmountResult?.total || 0;
-
-      // In a real app, you would also track transfers to vendors and subtract them
-      const totalWithdrawals = 0; // Implement this based on your transfer records
-
-      // Calculate available balance
-      const balance = totalEarnings - totalWithdrawals;
+      const walletData = await vendorPaymentService.getVendorWalletBalance(
+        user.id,
+        c.get("db")
+      );
 
       return c.json({
         success: true,
-        data: {
-          balance,
-          pendingAmount,
-          totalEarnings,
-          totalWithdrawals,
-        },
+        data: walletData,
       });
     } catch (error) {
       console.error("Error fetching wallet balance:", error);
@@ -1687,6 +1801,540 @@ const vendorRoute = factory
         );
       }
     }
-  );
+  )
+  .post("/request-activation", async (c) => {
+    try {
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+      const user = c.get("user");
+
+      if (!user) {
+        return c.json(
+          {
+            success: false,
+            message: "User not authenticated",
+          },
+          401
+        );
+      }
+
+      // Use ShopTodoService to dynamically check completion status
+      const todoService = new ShopTodoService();
+      const todoStatus = await todoService.getComputedTodos(orgId, db);
+
+      if (!todoStatus) {
+        return c.json(
+          {
+            success: false,
+            message: "Shop not found",
+          },
+          404
+        );
+      }
+
+      const { todo } = todoStatus;
+      const allTasksComplete =
+        todo.storeInformationComplete &&
+        todo.uploadAtLeastOneMenu &&
+        todo.setUpPaymentMethod &&
+        todo.reviewTermsAndConditions &&
+        todo.setUpOperatingHours;
+
+      if (!allTasksComplete) {
+        return c.json(
+          {
+            success: false,
+            message:
+              "Please complete all setup tasks before requesting activation.",
+            data: todo,
+          },
+          400
+        );
+      }
+
+      // Get current shop status
+      const currentShop = await db.query.shopTable.findFirst({
+        where: (table, { eq }) => eq(table.id, orgId),
+        columns: { status: true },
+      });
+
+      if (!currentShop) {
+        return c.json(
+          {
+            success: false,
+            message: "Shop not found",
+          },
+          404
+        );
+      }
+
+      if (currentShop.status === "APPROVED") {
+        return c.json({
+          success: true,
+          message: "Shop is already approved and active.",
+        });
+      }
+
+      // Update shop status to PENDING for review
+      await db
+        .update(shopTable)
+        .set({ status: "PENDING" })
+        .where(eq(shopTable.id, orgId));
+
+      return c.json({
+        success: true,
+        message:
+          "Activation request submitted successfully. Your shop is now pending review.",
+      });
+    } catch (error) {
+      console.error("Error requesting activation:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to request shop activation.",
+        },
+        500
+      );
+    }
+  })
+  .post("/cover-image", zValidator("form", bannerImageSchema), async (c) => {
+    try {
+      const { file } = c.req.valid("form");
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+
+      // Delete existing banner image if it exists
+      const shop = await db.query.shopTable.findFirst({
+        where: (shops) => eq(shops.id, orgId),
+      });
+
+      if (shop?.coverImage) {
+        try {
+          const oldFilename = shop.coverImage.substring(
+            shop.coverImage.lastIndexOf("/") + 1
+          );
+          await env.BUCKET.delete(oldFilename);
+        } catch (error) {
+          console.error("Error deleting old banner:", error);
+        }
+      }
+
+      // Upload new banner image
+      const imageBuffer = await file.arrayBuffer();
+      const filename = `${orgId}-banner-${Date.now()}-${file.name}`;
+      await env.BUCKET.put(filename, imageBuffer, {
+        httpMetadata: { contentType: file.type },
+      });
+
+      const imageUrl = `${env.R2_PUBLIC_URL}/${filename}`;
+
+      // Update shop record with new banner URL
+      const updatedShop = await db
+        .update(shopTable)
+        .set({ coverImage: imageUrl })
+        .where(eq(shopTable.id, orgId))
+        .returning()
+        .get();
+
+      return c.json({
+        success: true,
+        message: "Banner uploaded successfully",
+        data: { url: imageUrl },
+      });
+    } catch (error) {
+      console.error("Error uploading banner:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to upload banner image",
+        },
+        500
+      );
+    }
+  })
+  .delete("/cover-image", async (c) => {
+    try {
+      const db = c.get("db");
+      const orgId = c.get("orgId");
+
+      // Get current shop record
+      const shop = await db.query.shopTable.findFirst({
+        where: (table, { eq }) => eq(table.id, orgId),
+      });
+
+      if (!shop?.coverImage) {
+        return c.json(
+          {
+            success: false,
+            message: "No banner image found",
+          },
+          404
+        );
+      }
+
+      try {
+        // Extract filename from the full URL
+        const filename = shop.coverImage.substring(
+          shop.coverImage.lastIndexOf("/") + 1
+        );
+        // Delete from R2 bucket
+        await env.BUCKET.delete(filename);
+      } catch (error) {
+        console.error("Error deleting banner from bucket:", error);
+      }
+
+      // Update shop record to remove banner URL
+      const updatedShop = await db
+        .update(shopTable)
+        .set({ coverImage: null })
+        .where(eq(shopTable.id, orgId))
+        .returning()
+        .get();
+
+      return c.json({
+        success: true,
+        message: "Banner deleted successfully",
+        data: updatedShop,
+      });
+    } catch (error) {
+      console.error("Error deleting banner:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to delete banner image",
+        },
+        500
+      );
+    }
+  })
+  // Get vendor transaction history
+  .get("/transactions", async (c) => {
+    try {
+      const user = c.get("user");
+      const limit = parseInt(c.req.query("limit") || "50");
+      const { VendorPaymentService } = await import(
+        "../services/vendorPayment.service"
+      );
+      const vendorPaymentService = new VendorPaymentService();
+
+      const transactions =
+        await vendorPaymentService.getVendorTransactionHistory(
+          user.id,
+          c.get("db"),
+          limit
+        );
+
+      return c.json({
+        success: true,
+        data: transactions,
+      });
+    } catch (error) {
+      console.error("Error fetching transaction history:", error);
+      return c.json(
+        {
+          success: false,
+          message: "Failed to fetch transaction history",
+        },
+        500
+      );
+    }
+  });
+
+// || Promotion routes
+// List all promotions for the vendor's shop
+// .get("/", async (c) => {
+//   try {
+//     const db = c.get("db");
+//     const session = c.get("session");
+
+//     if (!session?.activeOrganizationId) {
+//       return c.json({ error: "Unauthorized" }, 401);
+//     }
+
+//     // Pagination parameters
+//     const limit = Number(c.req.query("limit")) || 20;
+//     const page = Number(c.req.query("page")) || 1;
+//     const offset = (page - 1) * limit;
+
+//     // Get promotions for the active shop
+//     const shopPromotions = await db.query.promotions.findMany({
+//       where: eq(promotions.shopId, session.activeOrganizationId),
+//       orderBy: (promotions) => [promotions.createdAt],
+//       limit,
+//       offset,
+//     });
+
+//     // Get total count for pagination
+//     const countResult = await db
+//       .select({ count: sql`count(*)` })
+//       .from(promotions)
+//       .where(eq(promotions.shopId, session.activeOrganizationId));
+
+//     const totalCount = Number(countResult[0]?.count || 0);
+
+//     return c.json({
+//       data: shopPromotions,
+//       pagination: {
+//         total: totalCount,
+//         page,
+//         limit,
+//         pages: Math.ceil(totalCount / limit),
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error fetching promotions:", error);
+//     return c.json({ error: "Internal server error" }, 500);
+//   }
+// })
+
+// // Get a single promotion by ID
+// .get("/:id", async (c) => {
+//   try {
+//     const { id } = c.req.param();
+//     const db = c.get("db");
+//     const session = c.get("session");
+
+//     if (!session?.activeOrganizationId) {
+//       return c.json({ error: "Unauthorized" }, 401);
+//     }
+
+//     // Get the promotion
+//     const promotion = await db.query.promotions.findFirst({
+//       where: and(
+//         eq(promotions.id, id),
+//         eq(promotions.shopId, session.activeOrganizationId)
+//       ),
+//       with: {
+//         products: true,
+//       },
+//     });
+
+//     if (!promotion) {
+//       return c.json({ error: "Promotion not found" }, 404);
+//     }
+
+//     return c.json({ data: promotion });
+//   } catch (error) {
+//     console.error("Error fetching promotion:", error);
+//     return c.json({ error: "Internal server error" }, 500);
+//   }
+// })
+
+// // Create a new promotion
+// .post("/", zValidator("json", createPromotionSchema), async (c) => {
+//   try {
+//     const data = c.req.valid("json");
+//     const db = c.get("db");
+//     const user = c.get("user");
+//     const session = c.get("session");
+//     const auth = await createAuth(db);
+
+//     if (!user || !session?.activeOrganizationId) {
+//       return c.json({ error: "Unauthorized" }, 401);
+//     }
+
+//     // Check organization membership and role
+//     const member = await auth.api.getActiveMember();
+//     if (!member || member.role !== "admin") {
+//       return c.json({ error: "Only admins can create promotions" }, 403);
+//     }
+
+//     // Check if code is already in use
+//     const existingPromotion = await db.query.promotions.findFirst({
+//       where: and(
+//         eq(promotions.code, data.code),
+//         eq(promotions.shopId, session.activeOrganizationId)
+//       ),
+//     });
+
+//     if (existingPromotion) {
+//       return c.json({ error: "This coupon code is already in use" }, 400);
+//     }
+
+//     // Extract product IDs if provided
+//     const { productIds, ...promotionData } = data;
+
+//     // Create the promotion
+//     const promotionId = nanoid();
+//     const now = new Date();
+
+//     const newPromotion = await db
+//       .insert(promotions)
+//       .values({
+//         id: promotionId,
+//         shopId: session.activeOrganizationId,
+//         ...promotionData,
+//         startDate: new Date(promotionData.startDate),
+//         endDate: new Date(promotionData.endDate),
+//         usageCount: 0,
+//         createdAt: now,
+//         updatedAt: now,
+//       })
+//       .returning()
+//       .get();
+
+//     // Link products if specified
+//     if (productIds && productIds.length > 0) {
+//       await db.insert(promotionProducts).values(
+//         productIds.map((productId) => ({
+//           id: nanoid(),
+//           promotionId: promotionId,
+//           productId: productId,
+//           createdAt: now,
+//         }))
+//       );
+//     }
+
+//     return c.json({ data: newPromotion }, 201);
+//   } catch (error) {
+//     console.error("Error creating promotion:", error);
+//     return c.json({ error: "Internal server error" }, 500);
+//   }
+// })
+
+// // Update an existing promotion
+// .patch("/:id", zValidator("json", updatePromotionSchema), async (c) => {
+//   try {
+//     const { id } = c.req.param();
+//     const data = c.req.valid("json");
+//     const db = c.get("db");
+//     const user = c.get("user");
+//     const session = c.get("session");
+//     const auth = await createAuth(db);
+
+//     if (!user || !session?.activeOrganizationId) {
+//       return c.json({ error: "Unauthorized" }, 401);
+//     }
+
+//     // Check organization membership and role
+//     const member = await auth.api.getActiveMember();
+//     if (!member || member.role !== "admin") {
+//       return c.json({ error: "Only admins can update promotions" }, 403);
+//     }
+
+//     // Check if promotion exists
+//     const existingPromotion = await db.query.promotions.findFirst({
+//       where: and(
+//         eq(promotions.id, id),
+//         eq(promotions.shopId, session.activeOrganizationId)
+//       ),
+//     });
+
+//     if (!existingPromotion) {
+//       return c.json({ error: "Promotion not found" }, 404);
+//     }
+
+//     // If updating code, check if it's unique
+//     if (data.code && data.code !== existingPromotion.code) {
+//       const codeExists = await db.query.promotions.findFirst({
+//         where: and(
+//           eq(promotions.code, data.code),
+//           eq(promotions.shopId, session.activeOrganizationId),
+//           not(eq(promotions.id, id))
+//         ),
+//       });
+
+//       if (codeExists) {
+//         return c.json({ error: "This coupon code is already in use" }, 400);
+//       }
+//     }
+
+//     // Extract product IDs if provided
+//     const { productIds, ...promotionData } = data;
+
+//     // Prepare update data
+//     const updateData: any = {
+//       ...promotionData,
+//       updatedAt: new Date(),
+//     };
+
+//     // Convert date strings to Date objects
+//     if (promotionData.startDate) {
+//       updateData.startDate = new Date(promotionData.startDate);
+//     }
+//     if (promotionData.endDate) {
+//       updateData.endDate = new Date(promotionData.endDate);
+//     }
+
+//     // Update the promotion
+//     const updatedPromotion = await db
+//       .update(promotions)
+//       .set(updateData)
+//       .where(eq(promotions.id, id))
+//       .returning()
+//       .get();
+
+//     // Update product links if specified
+//     if (productIds !== undefined) {
+//       // Remove existing product links
+//       await db
+//         .delete(promotionProducts)
+//         .where(eq(promotionProducts.promotionId, id));
+
+//       // Add new product links
+//       if (productIds.length > 0) {
+//         await db.insert(promotionProducts).values(
+//           productIds.map((productId) => ({
+//             id: nanoid(),
+//             promotionId: id,
+//             productId: productId,
+//             createdAt: new Date(),
+
+//           }))
+//         );
+//       }
+//     }
+
+//     return c.json({ data: updatedPromotion });
+//   } catch (error) {
+//     console.error("Error updating promotion:", error);
+//     return c.json({ error: "Internal server error" }, 500);
+//   }
+// })
+
+// // Delete a promotion
+// .delete("/:id", async (c) => {
+//   try {
+//     const { id } = c.req.param();
+//     const db = c.get("db");
+//     const user = c.get("user");
+//     const session = c.get("session");
+//     const auth = await createAuth(db);
+
+//     if (!user || !session?.activeOrganizationId) {
+//       return c.json({ error: "Unauthorized" }, 401);
+//     }
+
+//     // Check organization membership and role
+//     const member = await auth.api.getActiveMember();
+//     if (!member || member.role !== "admin") {
+//       return c.json({ error: "Only admins can delete promotions" }, 403);
+//     }
+
+//     // Check if promotion exists
+//     const existingPromotion = await db.query.promotions.findFirst({
+//       where: and(
+//         eq(promotions.id, id),
+//         eq(promotions.shopId, session.activeOrganizationId)
+//       ),
+//     });
+
+//     if (!existingPromotion) {
+//       return c.json({ error: "Promotion not found" }, 404);
+//     }
+
+//     // Delete product links first
+//     await db
+//       .delete(promotionProducts)
+//       .where(eq(promotionProducts.promotionId, id));
+
+//     // Delete the promotion
+//     await db.delete(promotions).where(eq(promotions.id, id));
+//     return c.json({ success: true });
+//   } catch (error) {
+//     console.error("Error deleting promotion:", error);
+//     return c.json({ error: "Internal server error" }, 500);
+//   }
+// })
 
 export default vendorRoute;

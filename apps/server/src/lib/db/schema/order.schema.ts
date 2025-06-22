@@ -2,13 +2,19 @@ import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 import { timestamps } from "./utils.schema";
 import { userTable } from "./auth.schema";
-import { ORDER_STATUS, PAYMENT_STATUS, PAYMENT_METHODS } from "../../constant";
+import {
+  ORDER_STATUS,
+  PAYMENT_STATUS,
+  PAYMENT_METHODS,
+  REFUND_STATUS,
+} from "../../constant";
 import { menuItemTable } from "./menu.schema";
 import { relations } from "drizzle-orm";
 import { shopTable } from "./shop.schema";
 import { addressesTable } from "./address.schema";
 import { cartTable, cartItems, cartItemOptions } from "./cart.schema";
 import { optionTable, optionGroupTable } from "./option.schema";
+import { riderTable } from "./rider.schema";
 
 export const orderTable = sqliteTable("order", {
   id: text("id")
@@ -36,7 +42,6 @@ export const orderTable = sqliteTable("order", {
   // ),
   deliveryNotes: text("delivery_notes"),
   vendorNotes: text("vendor_notes"),
-  contactPhone: text("contact_phone").notNull(),
 
   // Payment information
   paymentMethod: text("payment_method", { enum: PAYMENT_METHODS })
@@ -50,19 +55,20 @@ export const orderTable = sqliteTable("order", {
   deliveryFee: real("delivery_fee").default(0),
   serviceFee: real("service_fee").default(0),
   discount: real("discount").default(0),
-  total: real("total").notNull(),
-
-  // Timestamps for order progress
+  total: real("total").notNull(), // Timestamps for order progress
+  paymentConfirmedAt: text("payment_confirmed_at"),
   acceptedAt: text("accepted_at"),
   preparedAt: text("prepared_at"),
+  riderAssignedAt: text("rider_assigned_at"),
   pickedUpAt: text("picked_up_at"),
   deliveredAt: text("delivered_at"),
   canceledAt: text("canceled_at"),
-  cancelReason: text("cancel_reason"),
-
-  // Refund information
+  cancelReason: text("cancel_reason"), // Refund information
   refundAmount: real("refund_amount").default(0),
   refundReason: text("refund_reason"),
+  refundStatus: text("refund_status", { enum: REFUND_STATUS }),
+  refundReference: text("refund_reference"),
+  refundedAt: text("refunded_at"),
 
   ...timestamps,
 });
@@ -111,9 +117,9 @@ export const orderRelations = relations(orderTable, ({ one, many }) => ({
     fields: [orderTable.customerId],
     references: [userTable.id],
   }),
-  rider: one(userTable, {
+  rider: one(riderTable, {
     fields: [orderTable.riderId],
-    references: [userTable.id],
+    references: [riderTable.userId],
   }),
   shop: one(shopTable, {
     fields: [orderTable.shopId],

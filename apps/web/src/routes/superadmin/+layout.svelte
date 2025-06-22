@@ -18,6 +18,7 @@
 	} from 'lucide-svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Badge } from '$lib/components/ui/badge';
+	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
 
 	let isSidebarOpen = $state(false);
 	let currentPath = $derived($page.url.pathname);
@@ -64,6 +65,18 @@
 			href: '/superadmin/settings',
 			icon: Settings,
 			isActive: (path: string) => path.startsWith('/superadmin/settings')
+		},
+		{
+			name: 'Reports',
+			href: '/superadmin/reports',
+			icon: FileText,
+			isActive: (path: string) => path.startsWith('/superadmin/reports')
+		},
+		{
+			name: 'Promotions',
+			href: '/superadmin/promotions',
+			icon: Bell,
+			isActive: (path: string) => path.startsWith('/superadmin/promotions')
 		}
 	];
 
@@ -83,6 +96,7 @@
 		console.log('Logging out...');
 	}
 </script>
+	<NotificationPermissionBanner context="admin" />
 
 <div class="flex h-screen">
 	<!-- Mobile sidebar backdrop -->

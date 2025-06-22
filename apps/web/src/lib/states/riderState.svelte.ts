@@ -1,7 +1,8 @@
-import type { RiderStatus, DeliveryStatus, Delivery } from '$lib/types/rider';
+import type { RiderStatus, DeliveryStatus, Delivery, AvailabilityStatus } from '$lib/types/rider';
+import { client } from '$lib/hc';
 
 class RiderState {
-	isOnline = $state(false);
+	isActive = $state(false);
 	currentLocation = $state<{ lat: number; lng: number } | null>(null);
 	currentDelivery = $state<Delivery | null>(null);
 	deliveryHistory = $state<Delivery[]>([]);
@@ -11,30 +12,77 @@ class RiderState {
 		month: 0
 	});
 	status = $state<RiderStatus>('offline');
+	availabilityStatus = $state<AvailabilityStatus>('unavailable');
+	toggleActive() {
+		this.isActive = !this.isActive;
 
-	toggleOnline() {
-		this.isOnline = !this.isOnline;
-		this.status = this.isOnline ? 'available' : 'offline';
+		if (this.isActive) {
+			this.status = 'idle';
+			this.availabilityStatus = 'available';
+		} else {
+			this.status = 'offline';
+			this.availabilityStatus = 'unavailable';
+		}
+
+		this.updateActiveStatus();
+	}
+	async updateActiveStatus() {
+		try {
+			const response = await client.rider.profile.$patch({
+				json: {
+					active: this.isActive
+				}
+			});
+
+			if (!response.ok) {
+				// Reset to previous state if API call fails
+				this.isActive = !this.isActive;
+				console.error('Failed to update active status');
+			}
+		} catch (error) {
+			// Reset to previous state if API call fails
+			this.isActive = !this.isActive;
+			console.error('Error updating active status:', error);
+		}
 	}
 
 	updateLocation(lat: number, lng: number) {
 		this.currentLocation = { lat, lng };
 	}
-
 	acceptDelivery(delivery: Delivery) {
 		this.currentDelivery = delivery;
-		this.status = 'on_delivery';
+		this.status = 'picking_up';
+		this.availabilityStatus = 'busy';
+	}
+
+	startDelivery() {
+		if (this.currentDelivery) {
+			this.status = 'delivering';
+			this.currentDelivery = {
+				...this.currentDelivery,
+				status: 'picked_up',
+				pickedUpAt: new Date()
+			};
+		}
 	}
 
 	completeDelivery() {
 		if (this.currentDelivery) {
 			this.deliveryHistory = [
 				...this.deliveryHistory,
-				{ ...this.currentDelivery, status: 'completed' }
+				{ ...this.currentDelivery, status: 'completed', completedAt: new Date() }
 			];
 			this.currentDelivery = null;
-			this.status = 'available';
+			this.status = 'idle';
 			this.updateEarnings();
+		}
+	}
+
+	setBreakStatus(onBreak: boolean) {
+		if (onBreak) {
+			this.status = 'on_break';
+		} else {
+			this.status = this.currentDelivery ? 'delivering' : 'idle';
 		}
 	}
 

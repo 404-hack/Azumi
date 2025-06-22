@@ -9,52 +9,49 @@
 	import { Search, Ticket, Calendar, MoreVertical } from 'lucide-svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { formatCurrency, formatDate } from '$lib/utils';
-
+	import { page } from '$app/stores';
+	import { client } from '$lib/hc';
+	import { goto } from '$app/navigation';
+	
 	let searchQuery = $state('');
 	let selectedTab = $state('all');
-
-	// Mock data for coupons
-	const coupons = [
-		{
-			id: 'COUP-001',
-			code: 'WELCOME50',
-			type: 'percentage',
-			value: 50,
-			minOrderValue: 1000,
-			maxDiscount: 500,
-			usageLimit: 1000,
-			usedCount: 450,
-			startDate: new Date('2024-02-01'),
-			endDate: new Date('2024-03-01'),
-			status: 'active',
-			description: 'Welcome offer for new customers'
-		},
-		{
-			id: 'COUP-002',
-			code: 'FLAT100',
-			type: 'fixed',
-			value: 100,
-			minOrderValue: 500,
-			maxDiscount: 100,
-			usageLimit: 500,
-			usedCount: 200,
-			startDate: new Date('2024-02-01'),
-			endDate: new Date('2024-02-15'),
-			status: 'active',
-			description: 'Flat discount on all orders'
+	let coupons = $state([]);
+	let pagination = $state({ page: 1, limit: 10, total: 0, pages: 1 });
+	
+	// Function to handle pagination navigation
+	function navigateToPage(pageNum) {
+		const url = new URL(window.location.href);
+		url.searchParams.set('page', pageNum.toString());
+		goto(url.toString());
+	}
+	
+	// Initialize data from load function
+	$effect(() => {
+		if ($page.data.coupons) {
+			coupons = $page.data.coupons;
 		}
-	];
-
+		
+		if ($page.data.pagination) {
+			pagination = $page.data.pagination;
+		}
+	});
+	
+	// Filter coupons based on search and tab selection
 	let filteredCoupons = $derived(
 		coupons.filter((coupon) => {
-			const matchesSearch =
-				coupon.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				coupon.description.toLowerCase().includes(searchQuery.toLowerCase());
+			const matchesSearch = searchQuery === '' || 
+				(coupon.code && coupon.code.toLowerCase().includes(searchQuery.toLowerCase())) ||
+				(coupon.description && coupon.description.toLowerCase().includes(searchQuery.toLowerCase()));
+			
+			const now = new Date();
+			const startDate = new Date(coupon.startDate);
+			const endDate = new Date(coupon.endDate);
+			
 			const matchesTab =
 				selectedTab === 'all' ||
-				(selectedTab === 'active' && coupon.status === 'active') ||
-				(selectedTab === 'expired' && new Date(coupon.endDate) < new Date()) ||
-				(selectedTab === 'upcoming' && new Date(coupon.startDate) > new Date());
+				(selectedTab === 'active' && startDate <= now && endDate > now) ||
+				(selectedTab === 'expired' && endDate < now) ||
+				(selectedTab === 'upcoming' && startDate > now);
 			return matchesSearch && matchesTab;
 		})
 	);
@@ -71,15 +68,47 @@
 
 	function getStatusLabel(coupon: (typeof coupons)[0]): string {
 		const now = new Date();
-		if (new Date(coupon.endDate) < now) return 'Expired';
-		if (new Date(coupon.startDate) > now) return 'Upcoming';
+		if (new Date(coupon.endDate) < now) return 'Expired';		if (new Date(coupon.startDate) > now) return 'Upcoming';
 		if (coupon.status === 'active') return 'Active';
 		return 'Inactive';
 	}
-
-	function handleCouponAction(couponId: string, action: 'deactivate' | 'delete') {
-		// In real app, call adminState.handleCouponAction
-		console.log(`Coupon action: ${action} for ${couponId}`);
+	
+	async function handleCouponAction(couponId: string, action: 'deactivate' | 'delete') {
+		try {
+			if (action === 'delete') {
+				if (!confirm('Are you sure you want to delete this coupon?')) {
+					return;
+				}
+				
+				const res = await client.admin.promotions.coupons[couponId].$delete();
+				
+				if (res.ok) {
+					// Remove the coupon from the list
+					coupons = coupons.filter(c => c.id !== couponId);
+				} else {
+					alert('Failed to delete coupon');
+				}			} else if (action === 'deactivate') {
+				const res = await client.admin.promotions.coupons[couponId].$patch({
+					json: {
+						status: 'inactive'
+					}
+				});
+				
+				if (res.ok) {
+					// Update the coupon status
+					coupons = coupons.map(c => 
+						c.id === couponId 
+							? { ...c, status: 'inactive' } 
+							: c
+					);
+				} else {
+					alert('Failed to deactivate coupon');
+				}
+			}
+		} catch (error) {
+			console.error(`Error during ${action} action:`, error);
+			alert(`Failed to ${action} coupon`);
+		}
 	}
 </script>
 
@@ -208,10 +237,43 @@
 									</DropdownMenu.Root>
 								</Table.Cell>
 							</Table.Row>
-						{/each}
-					</Table.Body>
+						{/each}					</Table.Body>
 				</Table.Root>
 			</div>
+			
+			{#if pagination.pages > 1}
+				<div class="mt-6 flex justify-center">
+					<div class="flex items-center gap-2">
+						<Button 
+							variant="outline" 
+							size="sm"
+							disabled={pagination.page <= 1}
+							onclick={() => navigateToPage(pagination.page - 1)}
+						>
+							Previous
+						</Button>
+						
+						{#each Array.from({ length: pagination.pages }, (_, i) => i + 1) as pageNum}
+							<Button 
+								variant={pagination.page === pageNum ? 'default' : 'outline'} 
+								size="sm"
+								onclick={() => navigateToPage(pageNum)}
+							>
+								{pageNum}
+							</Button>
+						{/each}
+						
+						<Button 
+							variant="outline" 
+							size="sm"
+							disabled={pagination.page >= pagination.pages}
+							onclick={() => navigateToPage(pagination.page + 1)}
+						>
+							Next
+						</Button>
+					</div>
+				</div>
+			{/if}
 		</div>
 	</Card>
 </div>

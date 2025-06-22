@@ -1,89 +1,47 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { adminState } from '$lib/states/adminState.svelte';
 	import { Card } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
-	import {
-		Store,
-		MapPin,
-		Phone,
-		Mail,
-		Clock,
-		Star,
-		ShoppingBag,
-		DollarSign,
-		AlertTriangle
-	} from 'lucide-svelte';
+	import { Store, MapPin, Phone, Mail, Clock, Star } from 'lucide-svelte';
 	import { formatCurrency, formatDate, formatTime } from '$lib/utils';
+	import { client } from '$lib/hc';
+	import { invalidateAll } from '$app/navigation';
 
-	// Get vendor ID from URL params
-	const vendorId = $page.params.id;
-
-	// Mock vendor data (in real app, fetch from adminState or API)
-	const vendor = {
-		id: vendorId,
-		name: 'Restaurant ABC',
-		description: 'Authentic African cuisine with a modern twist',
-		email: 'contact@restaurantabc.com',
-		phone: '+234 123 456 7890',
-		address: '123 Main St, Lagos',
-		category: 'Restaurant',
-		rating: 4.5,
-		totalOrders: 1250,
-		totalRevenue: 45890.5,
-		isActive: true,
-		joinedDate: new Date('2023-01-01'),
-		lastActive: new Date(),
-		operatingHours: {
-			monday: { open: '09:00', close: '22:00' },
-			tuesday: { open: '09:00', close: '22:00' },
-			wednesday: { open: '09:00', close: '22:00' },
-			thursday: { open: '09:00', close: '22:00' },
-			friday: { open: '09:00', close: '23:00' },
-			saturday: { open: '10:00', close: '23:00' },
-			sunday: { open: '10:00', close: '22:00' }
-		},
-		bankInfo: {
-			bankName: 'First Bank',
-			accountNumber: '****1234',
-			accountName: 'Restaurant ABC Ltd'
-		},
-		documents: [
-			{
-				type: 'Business Registration',
-				status: 'verified',
-				expiryDate: new Date('2025-01-01')
-			},
-			{
-				type: 'Food Safety Certificate',
-				status: 'verified',
-				expiryDate: new Date('2024-12-31')
-			}
-		]
-	};
-
-	// Mock recent orders
-	const recentOrders = [
-		{
-			id: 'ORD-001',
-			customerName: 'John Doe',
-			total: 45.99,
-			status: 'completed',
-			createdAt: new Date('2024-02-01T10:00:00')
-		},
-		{
-			id: 'ORD-002',
-			customerName: 'Jane Smith',
-			total: 32.5,
-			status: 'preparing',
-			createdAt: new Date('2024-02-01T11:00:00')
-		}
-	];
-
+	let { data } = $props();
 	let selectedTab = $state('overview');
+	let vendor = $derived(data.vendor);
+	let loading = $state(false);
+
+	async function handleVendorAction(action: 'suspend' | 'activate' | 'approve' | 'reject') {
+		try {
+			loading = true;
+			const newStatus =
+				action === 'suspend'
+					? 'SUSPENDED'
+					: action === 'approve'
+						? 'APPROVED'
+						: action === 'reject'
+							? 'REJECTED'
+							: 'APPROVED'; // fallback for activate
+
+			await client.admin.vendors[':id'].status.$patch({
+				param: {
+					id: vendor.id
+				},
+				json: {
+					status: newStatus,
+					active: action === 'activate' || action === 'approve'
+				}
+			});
+			await invalidateAll();
+		} catch (error) {
+			console.error(`Failed to ${action} vendor:`, error);
+		} finally {
+			loading = false;
+		}
+	}
 
 	function getDocumentStatusBadgeVariant(
 		status: string
@@ -109,15 +67,70 @@
 		</div>
 		<div class="flex items-center gap-4">
 			<Button variant="outline" onclick={() => history.back()}>Back</Button>
-			{#if vendor.isActive}
-				<Button variant="destructive">Suspend Vendor</Button>
-			{:else}
-				<Button variant="default">Activate Vendor</Button>
-			{/if}
+			<div class="flex items-center gap-2">
+				{#if vendor.status === 'APPROVED'}
+					<Button
+						variant="destructive"
+						onclick={() => handleVendorAction('suspend')}
+						disabled={loading}
+					>
+						{loading ? 'Suspending...' : 'Suspend Vendor'}
+					</Button>
+				{:else if vendor.status === 'SUSPENDED'}
+					<Button
+						variant="default"
+						onclick={() => handleVendorAction('activate')}
+						disabled={loading}
+					>
+						{loading ? 'Activating...' : 'Reactivate Vendor'}
+					</Button>
+				{:else if vendor.status === 'PENDING'}
+					<Button
+						variant="default"
+						onclick={() => handleVendorAction('approve')}
+						disabled={loading}
+					>
+						{loading ? 'Approving...' : 'Approve Vendor'}
+					</Button>
+					<Button
+						variant="destructive"
+						onclick={() => handleVendorAction('reject')}
+						disabled={loading}
+					>
+						{loading ? 'Rejecting...' : 'Reject Vendor'}
+					</Button>
+				{:else if vendor.status === 'DRAFT'}
+					<Button
+						variant="default"
+						onclick={() => handleVendorAction('approve')}
+						disabled={loading}
+					>
+						{loading ? 'Approving...' : 'Approve Draft'}
+					</Button>
+					<Button
+						variant="destructive"
+						onclick={() => handleVendorAction('reject')}
+						disabled={loading}
+					>
+						{loading ? 'Rejecting...' : 'Reject Draft'}
+					</Button>
+				{:else if vendor.status === 'REJECTED'}
+					<Button
+						variant="default"
+						onclick={() => handleVendorAction('approve')}
+						disabled={loading}
+					>
+						{loading ? 'Approving...' : 'Approve Vendor'}
+					</Button>
+				{:else}
+					<Button variant="outline" disabled>
+						{vendor.status?.charAt(0) + vendor.status?.slice(1).toLowerCase() || 'Unknown'}
+					</Button>
+				{/if}
+			</div>
 		</div>
 	</div>
 
-	<!-- Vendor Overview -->
 	<div class="grid gap-6 md:grid-cols-[300px_1fr]">
 		<Card class="p-6">
 			<div class="space-y-6">
@@ -125,12 +138,42 @@
 					<div class="flex h-20 w-20 items-center justify-center rounded-lg bg-primary/10">
 						<Store class="h-10 w-10 text-primary" />
 					</div>
-					<div class="text-center">
+					<div class="w-full text-center">
 						<h3 class="font-semibold">{vendor.name}</h3>
-						<p class="text-sm text-muted-foreground">{vendor.category}</p>
+						<p class="text-sm text-muted-foreground">{vendor.shopType}</p>
 					</div>
-					<Badge variant={vendor.isActive ? 'default' : 'secondary'}>
-						{vendor.isActive ? 'Active' : 'Inactive'}
+					{#if vendor.owner}
+						<div class="mt-2 flex w-full flex-col items-center rounded-lg border bg-muted/50 p-4">
+							<div class="flex items-center gap-3">
+								<div
+									class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary"
+								>
+									{vendor.owner.name
+										?.split(' ')
+										.map((n) => n[0])
+										.join('')
+										.toUpperCase()}
+								</div>
+								<div>
+									<div class="text-base font-semibold">{vendor.owner.name}</div>
+									<div class="text-xs text-muted-foreground">{vendor.owner.email}</div>
+									<a
+										class="text-xs text-primary underline"
+										href={vendor.owner.id ? `/superadmin/users/${vendor.owner.id}` : '#'}
+										>View Owner Profile</a
+									>
+								</div>
+							</div>
+						</div>
+					{/if}
+					<Badge
+						variant={vendor.status === 'APPROVED'
+							? 'default'
+							: vendor.status === 'SUSPENDED'
+								? 'secondary'
+								: 'outline'}
+					>
+						{vendor.status?.charAt(0) + vendor.status?.slice(1).toLowerCase() || 'Unknown'}
 					</Badge>
 				</div>
 
@@ -141,7 +184,7 @@
 					</div>
 					<div class="flex items-center gap-2">
 						<Phone class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm">{vendor.phone}</span>
+						<span class="text-sm">{vendor.phoneNumber}</span>
 					</div>
 					<div class="flex items-center gap-2">
 						<Mail class="h-4 w-4 text-muted-foreground" />
@@ -149,25 +192,18 @@
 					</div>
 					<div class="flex items-center gap-2">
 						<Clock class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm">Joined {formatDate(vendor.joinedDate)}</span>
+						<span class="text-sm">Joined {formatDate(vendor.createdAt)}</span>
 					</div>
 				</div>
 
 				<div class="space-y-2">
 					<div class="flex items-center justify-between">
-						<span class="text-sm text-muted-foreground">Rating</span>
-						<div class="flex items-center gap-1">
-							<Star class="h-4 w-4 fill-yellow-400 text-yellow-400" />
-							<span class="font-medium">{vendor.rating.toFixed(1)}</span>
-						</div>
+						<span class="text-sm text-muted-foreground">Commission</span>
+						<span class="font-medium">{vendor.commission}%</span>
 					</div>
 					<div class="flex items-center justify-between">
-						<span class="text-sm text-muted-foreground">Total Orders</span>
-						<span class="font-medium">{vendor.totalOrders}</span>
-					</div>
-					<div class="flex items-center justify-between">
-						<span class="text-sm text-muted-foreground">Total Revenue</span>
-						<span class="font-medium">{formatCurrency(vendor.totalRevenue)}</span>
+						<span class="text-sm text-muted-foreground">Website</span>
+						<span class="font-medium">{vendor.website}</span>
 					</div>
 				</div>
 			</div>
@@ -177,108 +213,109 @@
 			<Tabs.Root value={selectedTab} onValueChange={(v) => (selectedTab = v)}>
 				<Tabs.List>
 					<Tabs.Trigger value="overview">Overview</Tabs.Trigger>
-					<Tabs.Trigger value="orders">Orders</Tabs.Trigger>
 					<Tabs.Trigger value="documents">Documents</Tabs.Trigger>
 					<Tabs.Trigger value="banking">Banking</Tabs.Trigger>
+					<Tabs.Trigger value="orders">Orders</Tabs.Trigger>
 				</Tabs.List>
-			</Tabs.Root>
 
-			{#if selectedTab === 'overview'}
-				<div class="grid gap-6">
-					<!-- Operating Hours -->
-					<Card class="p-6">
-						<h3 class="mb-4 font-semibold">Operating Hours</h3>
-						<div class="grid gap-2">
-							{#each Object.entries(vendor.operatingHours) as [day, hours]}
-								<div class="flex items-center justify-between">
-									<span class="capitalize">{day}</span>
-									<span class="text-sm">
-										{hours.open} - {hours.close}
-									</span>
-								</div>
-							{/each}
-						</div>
-					</Card>
-
-					<!-- Recent Orders -->
-					<Card class="p-6">
-						<div class="mb-4 flex items-center justify-between">
-							<h3 class="font-semibold">Recent Orders</h3>
-							<Button variant="ghost" size="sm">View All</Button>
-						</div>
-						<div class="rounded-lg border">
-							<Table.Root>
-								<Table.Header>
-									<Table.Row>
-										<Table.Head>Order ID</Table.Head>
-										<Table.Head>Customer</Table.Head>
-										<Table.Head>Status</Table.Head>
-										<Table.Head>Time</Table.Head>
-										<Table.Head class="text-right">Total</Table.Head>
-									</Table.Row>
-								</Table.Header>
-								<Table.Body>
-									{#each recentOrders as order}
-										<Table.Row>
-											<Table.Cell class="font-medium">{order.id}</Table.Cell>
-											<Table.Cell>{order.customerName}</Table.Cell>
-											<Table.Cell>
-												<Badge variant={order.status === 'completed' ? 'default' : 'secondary'}>
-													{order.status}
-												</Badge>
-											</Table.Cell>
-											<Table.Cell>{formatTime(order.createdAt)}</Table.Cell>
-											<Table.Cell class="text-right">{formatCurrency(order.total)}</Table.Cell>
-										</Table.Row>
+				{#if selectedTab === 'overview'}
+					<div class="grid gap-6">
+						<Card class="p-6">
+							<h3 class="mb-4 font-semibold">Operating Hours</h3>
+							{#if vendor.operatingHours && vendor.operatingHours.length > 0}
+								<div class="grid gap-2">
+									{#each vendor.operatingHours as hours}
+										<div class="flex items-center justify-between">
+											<span class="capitalize">{hours.day}</span>
+											<span class="text-sm">
+												{#if hours.isOpen}
+													{formatTime(hours.openTime)} - {formatTime(hours.closeTime)}
+												{:else}
+													<span class="text-muted-foreground">Closed</span>
+												{/if}
+											</span>
+										</div>
 									{/each}
-								</Table.Body>
-							</Table.Root>
-						</div>
-					</Card>
-				</div>
-			{:else if selectedTab === 'documents'}
-				<Card class="p-6">
-					<h3 class="mb-4 font-semibold">Business Documents</h3>
-					<div class="space-y-4">
-						{#each vendor.documents as doc}
-							<div class="flex items-center justify-between rounded-lg border p-4">
-								<div>
-									<div class="font-medium">{doc.type}</div>
-									<div class="text-sm text-muted-foreground">
-										Expires: {formatDate(doc.expiryDate)}
+								</div>
+							{:else}
+								<div class="text-sm text-muted-foreground">No operating hours set</div>
+							{/if}
+						</Card>
+					</div>
+				{:else if selectedTab === 'documents'}
+					<Card class="p-6">
+						<h3 class="mb-4 font-semibold">Business Documents</h3>
+						{#if vendor.documents && vendor.documents.length > 0}
+							<div class="space-y-4">
+								{#each vendor.documents as doc}
+									<div class="flex items-center justify-between rounded-lg border p-4">
+										<div>
+											<div class="font-medium">{doc.type}</div>
+											<div class="text-sm text-muted-foreground">
+												Expires: {formatDate(doc.expiryDate)}
+											</div>
+										</div>
+										<Badge variant={getDocumentStatusBadgeVariant(doc.status)}>
+											{doc.status}
+										</Badge>
 									</div>
-								</div>
-								<Badge variant={getDocumentStatusBadgeVariant(doc.status)}>
-									{doc.status}
-								</Badge>
+								{/each}
 							</div>
-						{/each}
-					</div>
-				</Card>
-			{:else if selectedTab === 'banking'}
-				<Card class="p-6">
-					<h3 class="mb-4 font-semibold">Banking Information</h3>
-					<div class="space-y-4">
-						<div class="rounded-lg border p-4">
-							<div class="mb-4 grid gap-2">
-								<div>
-									<div class="text-sm text-muted-foreground">Bank Name</div>
-									<div class="font-medium">{vendor.bankInfo.bankName}</div>
-								</div>
-								<div>
-									<div class="text-sm text-muted-foreground">Account Number</div>
-									<div class="font-medium">{vendor.bankInfo.accountNumber}</div>
-								</div>
-								<div>
-									<div class="text-sm text-muted-foreground">Account Name</div>
-									<div class="font-medium">{vendor.bankInfo.accountName}</div>
-								</div>
+						{:else}
+							<div class="text-sm text-muted-foreground">No documents uploaded</div>
+						{/if}
+					</Card>
+				{:else if selectedTab === 'banking'}
+					<Card class="p-6">
+						<h3 class="mb-4 font-semibold">Banking Information</h3>
+						{#if vendor.paymentMethods && vendor.paymentMethods.length > 0}
+							<div class="space-y-4">
+								{#each vendor.paymentMethods as paymentMethod}
+									<div class="rounded-lg border p-4">
+										<div class="mb-4 grid gap-2">
+											<div>
+												<div class="text-sm text-muted-foreground">Payment Type</div>
+												<div class="font-medium">{paymentMethod.type}</div>
+											</div>
+											{#if paymentMethod.bankName}
+												<div>
+													<div class="text-sm text-muted-foreground">Bank Name</div>
+													<div class="font-medium">{paymentMethod.bankName}</div>
+												</div>
+											{/if}
+											{#if paymentMethod.accountNumber}
+												<div>
+													<div class="text-sm text-muted-foreground">Account Number</div>
+													<div class="font-medium">{paymentMethod.accountNumber}</div>
+												</div>
+											{/if}
+											{#if paymentMethod.accountName}
+												<div>
+													<div class="text-sm text-muted-foreground">Account Name</div>
+													<div class="font-medium">{paymentMethod.accountName}</div>
+												</div>
+											{/if}
+											{#if paymentMethod.bankCode}
+												<div>
+													<div class="text-sm text-muted-foreground">Bank Code</div>
+													<div class="font-medium">{paymentMethod.bankCode}</div>
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/each}
 							</div>
-							<Button variant="outline" class="w-full">Update Banking Information</Button>
-						</div>
-					</div>
-				</Card>
-			{/if}
+						{:else}
+							<div class="text-sm text-muted-foreground">No banking information available</div>
+						{/if}
+					</Card>
+				{:else if selectedTab === 'orders'}
+					<Card class="p-6">
+						<h3 class="mb-4 font-semibold">Orders</h3>
+						<div class="text-sm text-muted-foreground">No orders available</div>
+					</Card>
+				{/if}
+			</Tabs.Root>
 		</div>
 	</div>
 </div>

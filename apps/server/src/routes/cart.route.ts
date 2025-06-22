@@ -24,10 +24,10 @@ import {
 } from "../lib/db/schema"; // Assuming these are correctly exported from schema index
 import {
   calculateDeliveryFee,
-  calculateHaversineDistance,
   estimateTravelTime,
   isShopCurrentlyOpen,
-} from "../lib/utils/shop.utils"; // Import shop utilities
+} from "../lib/utils/shop.utils";
+import { calculateDistance } from "../lib/utils/geo";
 
 // Helper function to calculate totals
 const calculateCartTotals = (
@@ -123,7 +123,7 @@ const cartRoute = factory
                   id: true,
                   name: true,
                   price: true,
-                  image: true,
+                  imageUrl: true,
                   description: true,
                   priceDescription: true,
                 },
@@ -149,6 +149,7 @@ const cartRoute = factory
               logo: true,
               slug: true,
               coverImage: true,
+              minimumOrderAmount: true,
             },
           },
         },
@@ -168,6 +169,7 @@ const cartRoute = factory
               slug: cart.shop.slug,
               logo: cart.shop.logo,
               coverImage: cart.shop.coverImage,
+              minimumOrderAmount: cart.shop.minimumOrderAmount || 0,
             }
           : {
               id: "unknown",
@@ -207,7 +209,7 @@ const cartRoute = factory
               id: item.menuItem.id,
               name: item.menuItem.name,
               price: Number(item.menuItem.price) || 0,
-              image: item.menuItem.image,
+              imageUrl: item.menuItem.imageUrl,
             },
             selectedOptions,
           };
@@ -296,7 +298,7 @@ const cartRoute = factory
                     id: true,
                     name: true,
                     price: true,
-                    image: true,
+                    imageUrl: true,
                     description: true,
                     priceDescription: true,
                   },
@@ -326,6 +328,8 @@ const cartRoute = factory
                 longitude: true,
                 addressName: true,
                 address: true,
+                active: true,
+                minimumOrderAmount: true,
               },
               with: {
                 operatingHours: true, // Fetch operating hours
@@ -372,12 +376,13 @@ const cartRoute = factory
         };
         const currentDayString =
           dayMapping[currentDay as keyof typeof dayMapping];
-
-        const isOpen = isShopCurrentlyOpen(
-          cartData.shop.operatingHours,
-          currentDayString,
-          currentTimeMinutes
-        );
+        const isOpen = cartData.shop.active
+          ? isShopCurrentlyOpen(
+              cartData.shop.operatingHours,
+              currentDayString,
+              currentTimeMinutes
+            )
+          : false;
 
         let distance: number | undefined = undefined;
         let deliveryFee: number | undefined = undefined;
@@ -395,12 +400,7 @@ const cartRoute = factory
           shopLng !== undefined
         ) {
           distance = parseFloat(
-            calculateHaversineDistance(
-              userLat,
-              userLng,
-              shopLat,
-              shopLng
-            ).toFixed(2)
+            calculateDistance(userLat, userLng, shopLat, shopLng).toFixed(2)
           );
           deliveryFee = calculateDeliveryFee(distance);
           estimatedTime = estimateTravelTime(distance);
@@ -493,7 +493,7 @@ const cartRoute = factory
                   id: "unknown",
                   name: "Unknown Item",
                   price: 0,
-                  image: null,
+                  imageUrl: null,
                 },
                 selectedOptions: [],
                 availableOptionGroups: [],
@@ -754,7 +754,7 @@ const cartRoute = factory
                   id: true,
                   name: true,
                   price: true,
-                  image: true,
+                  imageUrl: true,
                 },
               },
               options: {
@@ -778,6 +778,7 @@ const cartRoute = factory
               logo: true,
               slug: true,
               coverImage: true,
+              minimumOrderAmount: true,
             },
           },
         },
@@ -882,6 +883,7 @@ const cartRoute = factory
           slug: finalCartState.shop.slug,
           logo: finalCartState.shop.logo,
           coverImage: finalCartState.shop.coverImage,
+          minimumOrderAmount: finalCartState.shop.minimumOrderAmount || 0, // Ensure default value
         },
         items: finalCartState.items.map((item) => {
           if (!item.menuItem) {
@@ -897,7 +899,7 @@ const cartRoute = factory
                 id: "unknown",
                 name: "Unknown Item",
                 price: 0,
-                image: null,
+                imageUrl: null,
               },
               selectedOptions: [],
               availableOptionGroups: [],
@@ -917,7 +919,7 @@ const cartRoute = factory
               id: item.menuItem.id,
               name: item.menuItem.name,
               price: Number(item.menuItem.price) || 0,
-              image: item.menuItem.image,
+              imageUrl: item.menuItem.imageUrl,
             },
             selectedOptions,
             availableOptionGroups:
@@ -1051,7 +1053,7 @@ const cartRoute = factory
                     id: true,
                     name: true,
                     price: true,
-                    image: true,
+                    imageUrl: true,
                   },
                 },
                 options: {
@@ -1075,6 +1077,7 @@ const cartRoute = factory
                 logo: true,
                 slug: true,
                 coverImage: true,
+                minimumOrderAmount: true,
               },
             },
           },
@@ -1181,6 +1184,7 @@ const cartRoute = factory
             slug: finalCartState.shop.slug,
             logo: finalCartState.shop.logo,
             coverImage: finalCartState.shop.coverImage,
+            minimumOrderAmount: finalCartState.shop.minimumOrderAmount || 0,
           },
           items: finalCartState.items.map((item) => {
             if (!item.menuItem) {
@@ -1196,7 +1200,7 @@ const cartRoute = factory
                   id: "unknown",
                   name: "Unknown Item",
                   price: 0,
-                  image: null,
+                  imageUrl: null,
                 },
                 selectedOptions: [],
                 availableOptionGroups: [],
@@ -1216,7 +1220,7 @@ const cartRoute = factory
                 id: item.menuItem.id,
                 name: item.menuItem.name,
                 price: Number(item.menuItem.price) || 0,
-                image: item.menuItem.image,
+                imageUrl: item.menuItem.imageUrl,
               },
               selectedOptions,
               availableOptionGroups:
@@ -1306,7 +1310,7 @@ const cartRoute = factory
                     id: true,
                     name: true,
                     price: true,
-                    image: true,
+                    imageUrl: true,
                   },
                 },
                 options: {
@@ -1330,6 +1334,7 @@ const cartRoute = factory
                 logo: true,
                 slug: true,
                 coverImage: true,
+                minimumOrderAmount: true,
               },
             },
           },
@@ -1450,7 +1455,7 @@ const cartRoute = factory
                   id: "unknown",
                   name: "Unknown Item",
                   price: 0,
-                  image: null,
+                  imageUrl: null,
                 },
                 selectedOptions: [],
                 availableOptionGroups: [],
@@ -1470,7 +1475,7 @@ const cartRoute = factory
                 id: item.menuItem.id,
                 name: item.menuItem.name,
                 price: Number(item.menuItem.price) || 0,
-                image: item.menuItem.image,
+                imageUrl: item.menuItem.imageUrl,
               },
               selectedOptions,
               availableOptionGroups:

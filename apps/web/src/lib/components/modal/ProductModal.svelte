@@ -12,7 +12,7 @@
 		type OptionGroup,
 		type OptionItem
 	} from '$lib/states/modalState.svelte';
-	import { Minus, Plus, Star } from 'lucide-svelte';
+	import { Minus, Plus, Star, ChevronDown, ChevronUp } from 'lucide-svelte';
 	import Button from '../ui/button/button.svelte';
 	import { blur } from 'svelte/transition';
 	import { Separator } from '$lib/components/ui/separator';
@@ -27,10 +27,20 @@
 	import { toast } from 'svelte-sonner';
 	import { invalidateAll } from '$app/navigation';
 	import type { Cart } from '$lib/types/cart';
+	import { authClient } from '$lib/auth-client';
+	import { loginModalState } from '$lib/states/modalState.svelte';
+
 	const isDesktop = new MediaQuery('(min-width: 768px)');
 	let quantity = $state(1);
 	let isLoading = $state(false);
 	let specialInstructions = $state('');
+	let isDescriptionExpanded = $state(false);
+	const MAX_DESCRIPTION_LENGTH = 80;
+
+	// Auth session
+	const session = authClient.useSession();
+	console.log('🚀 ~ session:', $session);
+
 	// Props
 	let { cart = null } = $props();
 
@@ -158,6 +168,7 @@
 			quantity = editContext?.initialQuantity ?? 1;
 			specialInstructions = editContext?.initialSpecialInstructions ?? '';
 			optionGroupErrors = {}; // Clear errors
+			isDescriptionExpanded = false; // Reset description expansion state
 
 			// Initialize selectedOptions from editContext or defaults
 			const initialSelections: Record<string, { id: string; quantity: number }[]> = {};
@@ -191,9 +202,22 @@
 	let productName = $derived(product?.name ?? 'no name');
 	// Ensure productDescription uses the description from productData
 	let productDescription = $derived(product?.description ?? 'No description available');
-	let productImage = $derived(product?.image ?? '/hero-1.png');
+	let productImage = $derived(product?.imageUrl ?? '/hero-1.png');
 	// Updated to use direct optionGroups array from the mapped data structure
 	let optionGroups = $derived(product?.optionGroups ?? []);
+
+	// Derived values for truncated description
+	const isDescriptionTruncatable = $derived(productDescription.length > MAX_DESCRIPTION_LENGTH);
+	const truncatedDescription = $derived(
+		isDescriptionTruncatable && !isDescriptionExpanded
+			? productDescription.substring(0, MAX_DESCRIPTION_LENGTH) + '...'
+			: productDescription
+	);
+
+	// Function to toggle description expansion
+	function toggleDescriptionExpansion(): void {
+		isDescriptionExpanded = !isDescriptionExpanded;
+	}
 
 	// Track validation state for option groups
 	let optionGroupErrors = $state<Record<string, string>>({});
@@ -451,10 +475,20 @@
 				optionGroupErrors = updatedErrors;
 			}
 		}
-	}
-
-	// Handle add/update cart - only validate on submission
+	} // Handle add/update cart - only validate on submission
 	async function handleAddToCart() {
+		// Check authentication first based on the actual session structure
+		if ($session.isPending) {
+			// Session is still loading, show a loading toast and don't proceed
+			toast.loading('Checking your session...');
+			return;
+		} else if (!$session.data?.user) {
+			// User is not authenticated or doesn't have user data
+			productModalState.close();
+			loginModalState.open('Sign in to add items to your cart');
+			return;
+		}
+
 		// Ensure product and product.id are available
 		if (!product?.id) {
 			toast.error('Product information is missing. Cannot add to cart.');
@@ -463,41 +497,45 @@
 
 		// Clear any previous errors first
 		optionGroupErrors = {};
-		
+
 		// Run validation at submission time
 		if (!validateAllOptionGroups()) {
 			// Show error message or handle invalid state
 			toast.error('Please check required options.');
-			
+
 			// Improved scroll to error functionality
 			// Wait for the DOM to update with the error
 			setTimeout(() => {
 				// Find the first group with an error
-				const firstErrorGroupId = Object.keys(optionGroupErrors).find(id => !!optionGroupErrors[id]);
-				
+				const firstErrorGroupId = Object.keys(optionGroupErrors).find(
+					(id) => !!optionGroupErrors[id]
+				);
+
 				if (firstErrorGroupId) {
 					// Try to find and scroll to the group with the error
-					const errorGroupElement = document.querySelector(`[data-group-id="${firstErrorGroupId}"]`);
-					
+					const errorGroupElement = document.querySelector(
+						`[data-group-id="${firstErrorGroupId}"]`
+					);
+
 					if (errorGroupElement) {
 						// Scroll the group into view
-						errorGroupElement.scrollIntoView({ 
-							behavior: 'smooth', 
+						errorGroupElement.scrollIntoView({
+							behavior: 'smooth',
 							block: 'center'
 						});
 					} else {
 						// Fallback to alert element if group can't be found
 						const alertElement = document.querySelector('.alert-destructive');
 						if (alertElement) {
-							alertElement.scrollIntoView({ 
-								behavior: 'smooth', 
-								block: 'center' 
+							alertElement.scrollIntoView({
+								behavior: 'smooth',
+								block: 'center'
 							});
 						}
 					}
 				}
 			}, 100);
-			
+
 			return;
 		}
 
@@ -603,12 +641,26 @@
 			<div class="flex-shrink-0 p-4">
 				<Dialog.Title class="text-lg font-semibold capitalize">{productName}</Dialog.Title>
 				{#if productDescription}
-					<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-						{productDescription}
+					<Dialog.Description class="text-muted-foreground mt-1 text-sm">
+						{truncatedDescription}
+						{#if isDescriptionTruncatable}
+							<button
+								class="text-primary ml-1 inline-flex items-center text-xs font-medium hover:underline focus:outline-none"
+								onclick={toggleDescriptionExpansion}
+								type="button"
+							>
+								{isDescriptionExpanded ? 'See less' : 'See more'}
+								{#if isDescriptionExpanded}
+									<ChevronUp class="ml-0.5 h-3 w-3" />
+								{:else}
+									<ChevronDown class="ml-0.5 h-3 w-3" />
+								{/if}
+							</button>
+						{/if}
 					</Dialog.Description>
 				{/if}
 				<div class="mt-2 flex items-center gap-2">
-					<p class="font-semibold text-primary">{formatCurrency(basePrice)}</p>
+					<p class="text-primary font-semibold">{formatCurrency(basePrice)}</p>
 					{#if product.priceDescription}
 						<Badge variant="outline">{product.priceDescription}</Badge>
 					{/if}
@@ -629,13 +681,13 @@
 									<Badge variant="secondary" class="text-xs">Optional</Badge>
 								{/if}
 							</div>
-							<p class="text-xs text-muted-foreground">
+							<p class="text-muted-foreground text-xs">
 								Select {#if group.minSelections > 0}at least {group.minSelections}{/if}
 								{#if group.maxSelections && group.maxSelections > 0}
 									up to {group.maxSelections}{/if}
 								option{#if group.maxSelections !== 1}s{/if}.
 								{#if getRemainingSelections(group) !== null}
-									<span class="font-medium text-primary">
+									<span class="text-primary font-medium">
 										({getRemainingSelections(group)} remaining)
 									</span>
 								{/if}
@@ -677,7 +729,7 @@
 												/>
 												<span class="text-sm">{option.name}</span>
 												{#if isOutOfStock}
-													<Badge variant="outline" class="text-xs text-destructive"
+													<Badge variant="outline" class="text-destructive text-xs"
 														>Out of Stock</Badge
 													>
 												{/if}
@@ -761,13 +813,13 @@
 												<div class="flex items-center gap-2">
 													<!-- Custom radio button with visual indicator -->
 													<div
-														class="flex h-4 w-4 items-center justify-center rounded-full border border-primary text-primary ring-offset-background
+														class="border-primary text-primary ring-offset-background flex h-4 w-4 items-center justify-center rounded-full border
 														{isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background'}"
 														role="radio"
 														aria-checked={isSelected}
 													>
 														{#if isSelected}
-															<div class="h-2 w-2 rounded-full bg-primary-foreground"></div>
+															<div class="bg-primary-foreground h-2 w-2 rounded-full"></div>
 														{/if}
 													</div>
 													<span class="text-sm">{option.name}</span>
@@ -799,7 +851,7 @@
 			</div>
 
 			<!-- Footer: Quantity and Add to Cart -->
-			<Dialog.Footer class="sticky bottom-0 mt-auto flex-shrink-0 border-t bg-background p-4">
+			<Dialog.Footer class="bg-background sticky bottom-0 mt-auto flex-shrink-0 border-t p-4">
 				<div class="flex w-full items-center justify-between gap-4">
 					<div class="flex items-center gap-2">
 						<Button
