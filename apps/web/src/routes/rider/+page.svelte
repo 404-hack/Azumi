@@ -8,7 +8,8 @@
 		Navigation,
 		CheckCircle,
 		Clock,
-		RefreshCw
+		RefreshCw,
+		Eye
 	} from 'lucide-svelte';
 	import { formatCurrency } from '$lib/utils';
 	import { riderOrderService } from '$lib/services/riderOrderService';
@@ -219,11 +220,24 @@
 										<MapPin class="h-4 w-4 text-green-600" />
 									</div>
 									<div class="flex-1">
-										<p class="text-sm font-medium">Deliver to Customer</p>
+										<p class="text-sm font-medium">
+											Deliver to {order.customer?.name || 'Customer'}
+										</p>
 										<p class="text-sm text-gray-600">
-											Delivery Address: {order.latitude}, {order.longitude}
+											{order.addressName || `${order.latitude}, ${order.longitude}`}
 										</p>
 										<div class="mt-2 flex items-center gap-2">
+											{#if order.customer?.phoneNumber}
+												<Button
+													variant="outline"
+													size="sm"
+													class="h-8"
+													onclick={() => window.open(`tel:${order.customer?.phoneNumber}`)}
+												>
+													<Phone class="mr-1 h-3 w-3" />
+													Call Customer
+												</Button>
+											{/if}
 											<Button
 												variant="outline"
 												size="sm"
@@ -241,6 +255,14 @@
 								</div>
 							</div>
 							<div class="space-y-2">
+								<Button
+									href="/rider/orders/{order.id}"
+									variant="outline"
+									class="h-10 w-full rounded-xl border-blue-200 text-blue-600 hover:bg-blue-50"
+								>
+									<Eye class="mr-2 h-4 w-4" />
+									View Details
+								</Button>
 								{#if order.status === 'RIDER_ASSIGNED'}
 									<Button
 										onclick={() => markAsPickedUp(order.id)}

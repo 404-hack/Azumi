@@ -1,12 +1,11 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-// import { db } from "./db";
 import * as schema from "./db/schema";
-
 import { DrizzleD1Database } from "drizzle-orm/d1";
 import { Variables } from "./types";
 import { openAPI, organization, phoneNumber, admin } from "better-auth/plugins";
 import { env } from "cloudflare:workers";
+import { smsService } from "../services/sms.service";
 // export type Environment = {
 //   Bindings: CloudflareBindings;
 //   Variables: Variables;
@@ -125,27 +124,16 @@ export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
       }),
       phoneNumber({
         sendOTP: async ({ phoneNumber, code }, request) => {
-          // i am using sendchamp for sending the sms
-          const url = `${env.SENDCHAMP_LIVE_URL}/sms/send`;
-          const headers = {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${env.SENDCHAMP_API_KEY}`,
-          };
-          const body = {
-            to: phoneNumber.startsWith("0")
-              ? `234${phoneNumber.slice(1)}`
-              : phoneNumber,
-            sender_name: "Schamp",
-            message: `Your azumi otp code is ${code}. expires in 5 minutes. Thank you.`,
-            route: "dnd",
-          };
-          const result = await fetch(url, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(body),
-          });
-
-          console.log("SMS send result:", await result.json());
+          console.log("🚀 ~ sendOTP: ~ code:", code);
+          try {
+            await smsService.sendOTP({
+              to: phoneNumber,
+              code: code,
+            });
+          } catch (error) {
+            console.error("Failed to send OTP via Termii:", error);
+            throw error;
+          }
         },
         signUpOnVerification: {
           getTempEmail: (phoneNumber) => {

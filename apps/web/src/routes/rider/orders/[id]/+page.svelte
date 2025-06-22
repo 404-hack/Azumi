@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import {
@@ -8,100 +7,26 @@
 		Clock,
 		DollarSign,
 		Package,
-		Star,
 		Phone,
 		Navigation,
 		User,
 		Store,
 		Receipt,
-		Calendar
+		CheckCircle,
+		Truck
 	} from 'lucide-svelte';
 	import { formatCurrency, formatDate, formatTime, formatDateTime } from '$lib/utils';
+	import type { OrderDetails } from '$lib/services/riderOrderService';
+	import { toast } from 'svelte-sonner';
+	import { goto } from '$app/navigation';
+	import { client } from '$lib/hc';
 
-	// Get order ID from URL params
-	const orderId = page.params.id;
+	const { data } = $props();
+	const order: OrderDetails = data.order;
 
-	// Static order data - in real app this would come from API
-	const orderDetails = {
-		id: 'order-001',
-		code: 'ORD-2024-001',
-		status: 'COMPLETED',
-		totalAmount: 4500,
-		subtotal: 4000,
-		deliveryFee: 500,
-		earnings: 675, // 15% commission
-		completedAt: '2024-12-20T18:30:00Z',
-		createdAt: '2024-12-20T17:45:00Z',
-		riderAssignedAt: '2024-12-20T17:50:00Z',
-		pickedUpAt: '2024-12-20T18:05:00Z',
-		deliveredAt: '2024-12-20T18:30:00Z',
-		pickupLocation: {
-			name: 'KFC Victoria Island',
-			address: '12 Ahmadu Bello Way, Victoria Island, Lagos',
-			phone: '+234 813 456 7890',
-			coordinates: { lat: 6.4281, lng: 3.4219 }
-		},
-		deliveryLocation: {
-			name: 'Sarah Johnson',
-			address: '15 Banana Island Road, Ikoyi, Lagos',
-			phone: '+234 901 234 5678',
-			coordinates: { lat: 6.4474, lng: 3.4553 }
-		},
-		customer: {
-			name: 'Sarah Johnson',
-			phone: '+234 901 234 5678',
-			email: 'sarah.johnson@email.com'
-		},
-		distance: '3.2 km',
-		duration: '25 mins',
-		rating: 5,
-		customerFeedback: 'Excellent service! Food arrived hot and on time. Very professional rider.',
-		items: [
-			{
-				id: 1,
-				name: 'Zinger Burger Meal',
-				description: 'Spicy chicken burger with fries and drink',
-				quantity: 2,
-				unitPrice: 1100,
-				totalPrice: 2200,
-				image: 'https://placehold.co/80x80?text=Burger',
-				options: [
-					{ name: 'Extra Spicy', price: 0 },
-					{ name: 'Large Fries', price: 100 }
-				]
-			},
-			{
-				id: 2,
-				name: 'Hot Wings (6pcs)',
-				description: 'Crispy chicken wings with special sauce',
-				quantity: 1,
-				unitPrice: 1500,
-				totalPrice: 1500,
-				image: 'https://placehold.co/80x80?text=Wings',
-				options: []
-			},
-			{
-				id: 3,
-				name: 'Coca Cola 50cl',
-				description: 'Chilled soft drink',
-				quantity: 2,
-				unitPrice: 400,
-				totalPrice: 800,
-				image: 'https://placehold.co/80x80?text=Coke',
-				options: []
-			}
-		],
-		timeline: [
-			{ time: '2024-12-20T17:45:00Z', event: 'Order placed', status: 'PENDING' },
-			{ time: '2024-12-20T17:48:00Z', event: 'Payment confirmed', status: 'PAYMENT_CONFIRMED' },
-			{ time: '2024-12-20T17:49:00Z', event: 'Order confirmed by restaurant', status: 'CONFIRMED' },
-			{ time: '2024-12-20T17:50:00Z', event: 'Rider assigned', status: 'RIDER_ASSIGNED' },
-			{ time: '2024-12-20T18:00:00Z', event: 'Food ready for pickup', status: 'READY' },
-			{ time: '2024-12-20T18:05:00Z', event: 'Order picked up', status: 'IN_TRANSIT' },
-			{ time: '2024-12-20T18:30:00Z', event: 'Order delivered', status: 'DELIVERED' },
-			{ time: '2024-12-20T18:32:00Z', event: 'Order completed', status: 'COMPLETED' }
-		]
-	};
+	let isUpdatingStatus = $state(false);
+	let confirmationCode = $state('');
+	let showDeliveryDialog = $state(false);
 
 	function getStatusColor(status: string) {
 		switch (status) {
@@ -113,22 +38,98 @@
 				return 'bg-orange-100 text-orange-800';
 			case 'RIDER_ASSIGNED':
 				return 'bg-purple-100 text-purple-800';
+			case 'READY':
+				return 'bg-yellow-100 text-yellow-800';
 			default:
 				return 'bg-gray-100 text-gray-800';
 		}
 	}
 
-	function getRatingStars(rating: number) {
-		return Array.from({ length: 5 }, (_, i) => i < rating);
-	}
-
-	function openMaps(address: string) {
-		const mapsUrl = `https://maps.google.com?q=${encodeURIComponent(address)}`;
+	function openMaps(lat: number, lng: number, address?: string) {
+		const query = address ? encodeURIComponent(address) : `${lat},${lng}`;
+		const mapsUrl = `https://maps.google.com?q=${query}`;
 		window.open(mapsUrl, '_blank');
 	}
 
 	function callNumber(phone: string) {
-		window.location.href = `tel:${phone}`;
+		if (phone) {
+			window.location.href = `tel:${phone}`;
+		}
+	}
+	async function markAsPickedUp() {
+		if (isUpdatingStatus) return;
+
+		try {
+			isUpdatingStatus = true;
+			const response = await client.rider.orders[':id'].pickup.$post({
+				param: { id: order.id }
+			});
+
+			if (response.ok) {
+				toast.success('Order marked as picked up!');
+			} else {
+				const error = await response.json();
+				toast.error(error.error || 'Failed to mark order as picked up');
+			}
+		} catch (error) {
+			console.error('Error marking order as picked up:', error);
+			toast.error('Failed to mark order as picked up');
+		} finally {
+			isUpdatingStatus = false;
+		}
+	}
+
+	function openDeliveryDialog() {
+		showDeliveryDialog = true;
+	}
+	async function confirmDelivery() {
+		if (isUpdatingStatus || !confirmationCode) return;
+
+		try {
+			isUpdatingStatus = true;
+			const response = await client.rider.orders[':id'].deliver.$post({
+				param: { id: order.id },
+				json: {
+					confirmationCode: parseInt(confirmationCode)
+				}
+			});
+
+			if (response.ok) {
+				toast.success('Order delivered successfully!');
+				showDeliveryDialog = false;
+			} else {
+				const error = await response.json();
+				toast.error(error.error || 'Failed to mark order as delivered');
+			}
+		} catch (error) {
+			console.error('Error marking order as delivered:', error);
+			toast.error('Failed to mark order as delivered');
+		} finally {
+			isUpdatingStatus = false;
+		}
+	}
+
+	const statusAction = $derived(getStatusAction());
+
+	function getStatusAction() {
+		switch (order.status) {
+			case 'RIDER_ASSIGNED':
+				return {
+					label: 'Mark as Picked Up',
+					action: markAsPickedUp,
+					icon: Package,
+					variant: 'default' as const
+				};
+			case 'IN_TRANSIT':
+				return {
+					label: 'Mark as Delivered',
+					action: openDeliveryDialog,
+					icon: CheckCircle,
+					variant: 'default' as const
+				};
+			default:
+				return null;
+		}
 	}
 </script>
 
@@ -140,7 +141,7 @@
 		</Button>
 		<div>
 			<h1 class="text-2xl font-bold text-gray-900">Order Details</h1>
-			<p class="text-gray-600">{orderDetails.code}</p>
+			<p class="text-gray-600">{order.code || `Order #${order.id.slice(-6)}`}</p>
 		</div>
 	</div>
 
@@ -151,8 +152,8 @@
 			<div class="rounded-lg bg-white p-6 shadow-sm">
 				<div class="mb-4 flex items-center justify-between">
 					<h2 class="text-lg font-semibold text-gray-900">Order Status</h2>
-					<Badge class={getStatusColor(orderDetails.status)}>
-						{orderDetails.status}
+					<Badge class={getStatusColor(order.status)}>
+						{order.status}
 					</Badge>
 				</div>
 
@@ -160,105 +161,172 @@
 					<div>
 						<p class="text-sm text-gray-600">Total Amount</p>
 						<p class="text-xl font-bold text-gray-900">
-							{formatCurrency(orderDetails.totalAmount)}
+							{formatCurrency(order.total)}
 						</p>
 					</div>
 					<div>
-						<p class="text-sm text-gray-600">Your Earnings</p>
-						<p class="text-xl font-bold text-green-600">{formatCurrency(orderDetails.earnings)}</p>
+						<p class="text-sm text-gray-600">Delivery Fee</p>
+						<p class="text-xl font-bold text-green-600">{formatCurrency(order.deliveryFee || 0)}</p>
 					</div>
-					<div>
-						<p class="text-sm text-gray-600">Distance</p>
-						<p class="font-medium text-gray-900">{orderDetails.distance}</p>
+					{#if order.estimatedDistance}
+						<div>
+							<p class="text-sm text-gray-600">Distance</p>
+							<p class="font-medium text-gray-900">{order.estimatedDistance.toFixed(1)} km</p>
+						</div>
+					{/if}
+					{#if order.estimatedDuration}
+						<div>
+							<p class="text-sm text-gray-600">Estimated Duration</p>
+							<p class="font-medium text-gray-900">
+								{Math.round(order.estimatedDuration / 60)} mins
+							</p>
+						</div>
+					{/if}
+				</div>
+				{#if statusAction}
+					<div class="mt-6 border-t pt-4">
+						<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<div>
+								<p class="text-sm text-gray-600">Next Action</p>
+								<p class="text-sm font-medium text-gray-900">
+									{statusAction.label}
+								</p>
+							</div>
+							<Button
+								variant={statusAction.variant}
+								size="lg"
+								onclick={statusAction.action}
+								disabled={isUpdatingStatus}
+								class="w-full sm:w-auto"
+							>
+								{@const IconComponent = statusAction.icon}
+								<IconComponent class="mr-2 h-4 w-4" />
+								{isUpdatingStatus ? 'Updating...' : statusAction.label}
+							</Button>
+						</div>
 					</div>
-					<div>
-						<p class="text-sm text-gray-600">Duration</p>
-						<p class="font-medium text-gray-900">{orderDetails.duration}</p>
+				{/if}
+			</div>
+			<!-- Order Summary -->
+			<div class="rounded-lg bg-white p-6 shadow-sm">
+				<h2 class="mb-4 text-lg font-semibold text-gray-900">Order Summary</h2>
+				<div class="space-y-4">
+					<div class="flex items-center justify-between">
+						<span class="text-gray-600">Order Total</span>
+						<span class="font-medium text-gray-900">{formatCurrency(order.total)}</span>
 					</div>
+					{#if order.deliveryFee}
+						<div class="flex items-center justify-between">
+							<span class="text-gray-600">Delivery Fee</span>
+							<span class="font-medium text-gray-900">{formatCurrency(order.deliveryFee)}</span>
+						</div>
+					{/if}
+					{#if order.specialInstructions}
+						<div class="border-t pt-4">
+							<p class="mb-2 text-sm text-gray-600">Special Instructions</p>
+							<p class="rounded-lg bg-gray-50 p-3 text-gray-900">{order.specialInstructions}</p>
+						</div>
+					{/if}
 				</div>
 			</div>
 
 			<!-- Order Items -->
-			<div class="rounded-lg bg-white p-6 shadow-sm">
-				<h2 class="mb-4 text-lg font-semibold text-gray-900">Order Items</h2>
-				<div class="space-y-4">
-					{#each orderDetails.items as item}
-						<div class="flex gap-4 border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
-							<div class="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100">
-								<img src={item.image} alt={item.name} class="h-full w-full object-cover" />
-							</div>
-							<div class="flex-1">
-								<div class="flex items-start justify-between">
-									<div>
-										<h3 class="font-medium text-gray-900">{item.name}</h3>
-										<p class="text-sm text-gray-600">{item.description}</p>
-										{#if item.options.length > 0}
-											<div class="mt-1 space-y-1">
-												{#each item.options as option}
-													<p class="text-xs text-gray-500">
-														+ {option.name}
-														{option.price > 0 ? `(${formatCurrency(option.price)})` : ''}
+			{#if order.items && order.items.length > 0}
+				<div class="rounded-lg bg-white p-6 shadow-sm">
+					<h2 class="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
+						<Receipt class="h-5 w-5" />
+						Order Items
+					</h2>
+					<div class="space-y-4">
+						{#each order.items as item}
+							<div class="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
+								<div class="flex items-start gap-4">
+									{#if item.menuItem?.imageUrl}
+										<img
+											src={item.menuItem.imageUrl}
+											alt={item.menuItemName}
+											class="h-16 w-16 rounded-lg object-cover"
+										/>
+									{:else}
+										<div class="flex h-16 w-16 items-center justify-center rounded-lg bg-gray-100">
+											<Package class="h-6 w-6 text-gray-400" />
+										</div>
+									{/if}
+									<div class="min-w-0 flex-1">
+										<div class="flex items-start justify-between">
+											<div class="flex-1">
+												<h3 class="truncate font-medium text-gray-900">
+													{item.menuItem?.name || item.menuItemName}
+												</h3>
+												{#if item.menuItem?.description}
+													<p class="mt-1 line-clamp-2 text-sm text-gray-600">
+														{item.menuItem.description}
 													</p>
-												{/each}
+												{/if}
+												<div class="mt-2 flex items-center gap-4">
+													<span class="text-sm text-gray-600">
+														Qty: {item.quantity}
+													</span>
+													<span class="text-sm font-medium text-gray-900">
+														{formatCurrency(item.totalPrice)}
+													</span>
+												</div>
+											</div>
+										</div>
+
+										<!-- Item Options -->
+										{#if item.options && item.options.length > 0}
+											<div class="mt-3 space-y-2">
+												<p class="text-sm font-medium text-gray-700">Options:</p>
+												<div class="grid gap-2">
+													{#each item.options as option}
+														<div class="flex items-center justify-between text-sm">
+															<div class="flex items-center gap-2">
+																<span class="text-gray-600">
+																	{option.optionGroup?.name || 'Option'}:
+																</span>
+																<span class="text-gray-900">
+																	{option.option?.name || option.optionName}
+																</span>
+																{#if option.quantity && option.quantity > 1}
+																	<span class="text-gray-500">
+																		(×{option.quantity})
+																	</span>
+																{/if}
+															</div>
+															<span class="font-medium text-gray-700">
+																+{formatCurrency(option.price * (option.quantity || 1))}
+															</span>
+														</div>
+													{/each}
+												</div>
+											</div>
+										{/if}
+
+										<!-- Item Special Instructions -->
+										{#if item.specialInstructions}
+											<div class="mt-3">
+												<p class="mb-1 text-sm font-medium text-gray-700">Special Instructions:</p>
+												<p
+													class="rounded border border-amber-200 bg-amber-50 p-2 text-sm text-gray-600"
+												>
+													{item.specialInstructions}
+												</p>
 											</div>
 										{/if}
 									</div>
-									<div class="text-right">
-										<p class="font-medium text-gray-900">{formatCurrency(item.totalPrice)}</p>
-										<p class="text-sm text-gray-600">Qty: {item.quantity}</p>
-									</div>
 								</div>
 							</div>
-						</div>
-					{/each}
-				</div>
-
-				<!-- Order Summary -->
-				<div class="mt-6 border-t pt-4">
-					<div class="space-y-2">
-						<div class="flex justify-between text-sm">
-							<span class="text-gray-600">Subtotal</span>
-							<span class="text-gray-900">{formatCurrency(orderDetails.subtotal)}</span>
-						</div>
-						<div class="flex justify-between text-sm">
-							<span class="text-gray-600">Delivery Fee</span>
-							<span class="text-gray-900">{formatCurrency(orderDetails.deliveryFee)}</span>
-						</div>
-						<div class="flex justify-between border-t pt-2 font-medium">
-							<span class="text-gray-900">Total</span>
-							<span class="text-gray-900">{formatCurrency(orderDetails.totalAmount)}</span>
-						</div>
+						{/each}
 					</div>
-				</div>
-			</div>
-
-			<!-- Customer Rating & Feedback -->
-			{#if orderDetails.rating}
-				<div class="rounded-lg bg-white p-6 shadow-sm">
-					<h2 class="mb-4 text-lg font-semibold text-gray-900">Customer Rating</h2>
-					<div class="mb-4 flex items-center gap-3">
-						<div class="flex items-center gap-1">
-							{#each getRatingStars(orderDetails.rating) as filled}
-								<Star
-									class="h-5 w-5 {filled ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}"
-								/>
-							{/each}
-						</div>
-						<span class="text-lg font-medium text-gray-900">{orderDetails.rating}.0</span>
-					</div>
-					{#if orderDetails.customerFeedback}
-						<div class="rounded-lg bg-gray-50 p-4">
-							<p class="text-gray-700">{orderDetails.customerFeedback}</p>
-						</div>
-					{/if}
 				</div>
 			{/if}
 
-			<!-- Timeline -->
+			<!-- Basic Timeline -->
 			<div class="rounded-lg bg-white p-6 shadow-sm">
-				<h2 class="mb-4 text-lg font-semibold text-gray-900">Order Timeline</h2>
+				<h2 class="mb-4 text-lg font-semibold text-gray-900">Order Information</h2>
 				<div class="space-y-4">
-					{#each orderDetails.timeline as event}
+					{#if order.createdAt}
 						<div class="flex items-start gap-3">
 							<div
 								class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100"
@@ -266,11 +334,22 @@
 								<div class="h-2 w-2 rounded-full bg-blue-600"></div>
 							</div>
 							<div class="flex-1">
-								<p class="text-sm font-medium text-gray-900">{event.event}</p>
-								<p class="text-xs text-gray-600">{formatDateTime(event.time)}</p>
+								<p class="text-sm font-medium text-gray-900">Order Created</p>
+								<p class="text-xs text-gray-600">{formatDateTime(order.createdAt)}</p>
 							</div>
 						</div>
-					{/each}
+					{/if}
+					<div class="flex items-start gap-3">
+						<div
+							class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-green-100"
+						>
+							<div class="h-2 w-2 rounded-full bg-green-600"></div>
+						</div>
+						<div class="flex-1">
+							<p class="text-sm font-medium text-gray-900">Current Status</p>
+							<p class="text-xs text-gray-600">{order.status}</p>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -285,54 +364,67 @@
 				</div>
 				<div class="space-y-3">
 					<div>
-						<p class="font-medium text-gray-900">{orderDetails.pickupLocation.name}</p>
-						<p class="text-sm text-gray-600">{orderDetails.pickupLocation.address}</p>
+						<p class="font-medium text-gray-900">{order.shop.name}</p>
+						<p class="text-sm text-gray-600">{order.shop.address || 'Address not available'}</p>
 					</div>
 					<div class="flex gap-2">
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={() => callNumber(orderDetails.pickupLocation.phone)}
-						>
-							<Phone class="mr-1 h-3 w-3" />
-							Call
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={() => openMaps(orderDetails.pickupLocation.address)}
-						>
-							<Navigation class="mr-1 h-3 w-3" />
-							Maps
-						</Button>
+						{#if order.shop.phoneNumber}
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() => callNumber(order.shop.phoneNumber || '')}
+							>
+								<Phone class="mr-1 h-3 w-3" />
+								Call
+							</Button>
+						{/if}
+						{#if order.shop.latitude && order.shop.longitude}
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() =>
+									openMaps(
+										order.shop.latitude || 0,
+										order.shop.longitude || 0,
+										order.shop.address || ''
+									)}
+							>
+								<Navigation class="mr-1 h-3 w-3" />
+								Maps
+							</Button>
+						{/if}
 					</div>
 				</div>
 			</div>
-
 			<!-- Delivery Location -->
 			<div class="rounded-lg bg-white p-6 shadow-sm">
 				<div class="mb-4 flex items-center gap-2">
 					<User class="h-5 w-5 text-green-600" />
-					<h3 class="font-semibold text-gray-900">Customer</h3>
+					<h3 class="font-semibold text-gray-900">Delivery Location</h3>
 				</div>
 				<div class="space-y-3">
 					<div>
-						<p class="font-medium text-gray-900">{orderDetails.customer.name}</p>
-						<p class="text-sm text-gray-600">{orderDetails.deliveryLocation.address}</p>
+						<p class="font-medium text-gray-900">{order.customer?.name || 'Customer'}</p>
+						<p class="text-sm text-gray-600">
+							{order.addressName || `${order.latitude.toFixed(6)}, ${order.longitude.toFixed(6)}`}
+						</p>
 					</div>
 					<div class="flex gap-2">
+						{#if order.customer?.phoneNumber}
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={() => callNumber(order.customer?.phoneNumber || '')}
+							>
+								<Phone class="mr-1 h-3 w-3" />
+								Call
+							</Button>
+						{/if}
 						<Button
 							variant="outline"
 							size="sm"
-							onclick={() => callNumber(orderDetails.customer.phone)}
-						>
-							<Phone class="mr-1 h-3 w-3" />
-							Call
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={() => openMaps(orderDetails.deliveryLocation.address)}
+							onclick={() =>
+								openMaps(order.latitude, order.longitude, order.addressName || undefined)}
 						>
 							<Navigation class="mr-1 h-3 w-3" />
 							Maps
@@ -341,51 +433,45 @@
 				</div>
 			</div>
 
-			<!-- Delivery Info -->
+			<!-- Order Info -->
 			<div class="rounded-lg bg-white p-6 shadow-sm">
 				<div class="mb-4 flex items-center gap-2">
 					<Clock class="h-5 w-5 text-blue-600" />
-					<h3 class="font-semibold text-gray-900">Delivery Info</h3>
+					<h3 class="font-semibold text-gray-900">Order Info</h3>
 				</div>
 				<div class="space-y-3">
 					<div class="flex justify-between text-sm">
-						<span class="text-gray-600">Order Created:</span>
-						<span class="text-gray-900">{formatTime(orderDetails.createdAt)}</span>
+						<span class="text-gray-600">Order ID:</span>
+						<span class="font-mono text-xs text-gray-900">{order.id.slice(-8)}</span>
 					</div>
-					<div class="flex justify-between text-sm">
-						<span class="text-gray-600">Assigned:</span>
-						<span class="text-gray-900">{formatTime(orderDetails.riderAssignedAt)}</span>
-					</div>
-					<div class="flex justify-between text-sm">
-						<span class="text-gray-600">Picked Up:</span>
-						<span class="text-gray-900">{formatTime(orderDetails.pickedUpAt)}</span>
-					</div>
-					<div class="flex justify-between text-sm">
-						<span class="text-gray-600">Delivered:</span>
-						<span class="text-gray-900">{formatTime(orderDetails.deliveredAt)}</span>
-					</div>
+					{#if order.createdAt}
+						<div class="flex justify-between text-sm">
+							<span class="text-gray-600">Created:</span>
+							<span class="text-gray-900">{formatTime(order.createdAt)}</span>
+						</div>
+					{/if}
 				</div>
 			</div>
 
-			<!-- Earnings Breakdown -->
+			<!-- Payment Info -->
 			<div class="rounded-lg bg-white p-6 shadow-sm">
 				<div class="mb-4 flex items-center gap-2">
 					<Receipt class="h-5 w-5 text-green-600" />
-					<h3 class="font-semibold text-gray-900">Earnings</h3>
+					<h3 class="font-semibold text-gray-900">Payment</h3>
 				</div>
 				<div class="space-y-3">
 					<div class="flex justify-between text-sm">
 						<span class="text-gray-600">Order Value:</span>
-						<span class="text-gray-900">{formatCurrency(orderDetails.totalAmount)}</span>
+						<span class="text-gray-900">{formatCurrency(order.total)}</span>
 					</div>
 					<div class="flex justify-between text-sm">
-						<span class="text-gray-600">Commission (15%):</span>
-						<span class="text-green-600">{formatCurrency(orderDetails.earnings)}</span>
+						<span class="text-gray-600">Delivery Fee:</span>
+						<span class="text-green-600">{formatCurrency(order.deliveryFee || 0)}</span>
 					</div>
 					<div class="border-t pt-3">
 						<div class="flex justify-between font-medium">
-							<span class="text-gray-900">You Earned:</span>
-							<span class="text-green-600">{formatCurrency(orderDetails.earnings)}</span>
+							<span class="text-gray-900">Total Amount:</span>
+							<span class="text-green-600">{formatCurrency(order.total)}</span>
 						</div>
 					</div>
 				</div>
@@ -393,3 +479,48 @@
 		</div>
 	</div>
 </div>
+
+<!-- Delivery Confirmation Dialog -->
+{#if showDeliveryDialog}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+		<div class="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+			<h3 class="mb-4 text-lg font-semibold text-gray-900">Confirm Delivery</h3>
+			<p class="mb-4 text-sm text-gray-600">
+				Enter the confirmation code provided by the customer to complete the delivery.
+			</p>
+			<div class="mb-4">
+				<label for="confirmationCode" class="mb-2 block text-sm font-medium text-gray-700">
+					Confirmation Code
+				</label>
+				<input
+					id="confirmationCode"
+					type="number"
+					bind:value={confirmationCode}
+					placeholder="Enter 4-digit code"
+					class="w-full rounded-md border border-gray-300 px-3 py-2 text-center font-mono text-lg focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+					maxlength="4"
+				/>
+			</div>
+			<div class="flex gap-3">
+				<Button
+					variant="outline"
+					onclick={() => {
+						showDeliveryDialog = false;
+						confirmationCode = '';
+					}}
+					class="flex-1"
+					disabled={isUpdatingStatus}
+				>
+					Cancel
+				</Button>
+				<Button
+					onclick={confirmDelivery}
+					class="flex-1"
+					disabled={isUpdatingStatus || !confirmationCode}
+				>
+					{isUpdatingStatus ? 'Confirming...' : 'Confirm Delivery'}
+				</Button>
+			</div>
+		</div>
+	</div>
+{/if}

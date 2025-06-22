@@ -142,4 +142,4 @@
 
 <!-- Debug Panel - Remove in production -->
 
-<DebugPanel />
+<!-- <DebugPanel /> -->

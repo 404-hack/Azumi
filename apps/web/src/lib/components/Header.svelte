@@ -35,6 +35,7 @@
 	import { activeLocation } from '$lib/states/locationState.svelte';
 
 	let user = $derived(page.data.user);
+	console.log('🚀 ~ user:', user);
 	const organizations = authClient.useListOrganizations();
 	let isAdmin = $derived(user?.role === 'admin' || user?.role === 'super_admin');
 </script>

@@ -177,7 +177,6 @@ const riderRoute = factory
   )
 
   // WORKFLOW: Rider order management endpoints
-
   // Get active orders assigned to rider
   .get("/orders", async (c) => {
     try {
@@ -186,11 +185,10 @@ const riderRoute = factory
 
       // Get assigned orders for this rider
       const orders = await db.query.orderTable.findMany({
-        where: (order) =>
-          and(
-            eq(order.riderId, userId),
-            inArray(order.status, ["RIDER_ASSIGNED", "IN_TRANSIT"])
-          ),
+        where: and(
+          eq(orderTable.riderId, userId),
+          inArray(orderTable.status, ["RIDER_ASSIGNED", "IN_TRANSIT"])
+        ),
         with: {
           shop: {
             columns: {
@@ -202,12 +200,154 @@ const riderRoute = factory
               phoneNumber: true,
             },
           },
+          customer: {
+            columns: {
+              id: true,
+              name: true,
+              phoneNumber: true,
+            },
+          },
         },
       });
 
       return c.json({ data: orders });
     } catch (error) {
       console.error("Error fetching rider orders:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
+  // Get all orders ever assigned to this rider (for history page)
+  .get("/orders/all", async (c) => {
+    try {
+      const db = c.get("db");
+      const userId = c.get("userId");
+
+      const orders = await db.query.orderTable.findMany({
+        where: (order) => eq(order.riderId, userId),
+        with: {
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              phoneNumber: true,
+            },
+          },
+          customer: {
+            columns: {
+              id: true,
+              name: true,
+              phoneNumber: true,
+            },
+          },
+          items: {
+            columns: {
+              id: true,
+              menuItemId: true,
+              menuItemName: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              specialInstructions: true,
+            },
+          },
+        },
+        orderBy: (order, { desc }) => [desc(order.createdAt)],
+        limit: 100,
+      });
+
+      return c.json({ data: orders });
+    } catch (error) {
+      console.error("Error fetching rider order history:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  })
+
+  // Get single order details by ID
+  .get("/orders/:id", async (c) => {
+    try {
+      const db = c.get("db");
+      const userId = c.get("userId");
+      const { id } = c.req.param();
+
+      // Get order details for this specific order assigned to this rider
+      const order = await db.query.orderTable.findFirst({
+        where: (order) => and(eq(order.id, id), eq(order.riderId, userId)),
+        with: {
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              phoneNumber: true,
+            },
+          },
+          customer: {
+            columns: {
+              id: true,
+              name: true,
+              phoneNumber: true,
+            },
+          },
+          items: {
+            columns: {
+              id: true,
+              menuItemId: true,
+              menuItemName: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              specialInstructions: true,
+            },
+            with: {
+              menuItem: {
+                columns: {
+                  id: true,
+                  name: true,
+                  imageUrl: true,
+                  description: true,
+                },
+              },
+              options: {
+                columns: {
+                  id: true,
+                  optionId: true,
+                  optionGroupId: true,
+                  optionName: true,
+                  quantity: true,
+                  price: true,
+                },
+                with: {
+                  option: {
+                    columns: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                  optionGroup: {
+                    columns: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        return c.json({ error: "Order not found or not assigned to you" }, 404);
+      }
+      return c.json({ data: order });
+    } catch (error) {
+      console.error("Error fetching order details:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
   })
@@ -638,7 +778,6 @@ const riderRoute = factory
       if (!rider) {
         return c.json({ error: "Rider not found" }, 404);
       }
-
       const currentOrder = await db.query.orderTable.findFirst({
         where: and(
           eq(orderTable.riderId, rider.userId),
@@ -658,7 +797,7 @@ const riderRoute = factory
       const formattedOrder = {
         id: currentOrder.id,
         status: currentOrder.status,
-        totalAmount: currentOrder.totalAmount,
+        total: currentOrder.total,
         createdAt: currentOrder.createdAt,
         shop: {
           id: currentOrder.shop?.id || "",
@@ -811,8 +950,7 @@ const riderRoute = factory
             },
           }
         );
-
-        const data = await response.json();
+        const data = (await response.json()) as any;
 
         if (data.status) {
           return c.json({
@@ -901,8 +1039,7 @@ const riderRoute = factory
               }),
             }
           );
-
-          const paystackData = await response.json();
+          const paystackData = (await response.json()) as any;
           if (!paystackData.status || !paystackData.data?.recipient_code) {
             return c.json(
               {
@@ -1012,7 +1149,7 @@ const riderRoute = factory
       const userId = c.get("userId"); // Check if payment method exists and belongs to this rider
       const rider = c.get("rider");
       const existingMethod = await db.query.riderPaymentMethodTable.findFirst({
-        where: eq(riderPaymentMethodTable.riderId, rider.id),
+        where: eq(riderPaymentMethodTable.riderId, rider?.id || ""),
       });
 
       if (!existingMethod) {
@@ -1021,7 +1158,7 @@ const riderRoute = factory
 
       await db
         .delete(riderPaymentMethodTable)
-        .where(eq(riderPaymentMethodTable.riderId, rider.id)); // Use riderId to delete
+        .where(eq(riderPaymentMethodTable.riderId, rider?.id || "")); // Use riderId to delete
 
       return c.json({
         success: true,

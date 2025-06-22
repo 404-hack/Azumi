@@ -51,6 +51,7 @@ export interface OrderDetails {
 	riderConfirmationCode?: number | null;
 	latitude: number;
 	longitude: number;
+	addressName?: string | null;
 	specialInstructions?: string | null;
 	shop: {
 		id: string;
@@ -60,6 +61,42 @@ export interface OrderDetails {
 		latitude: number | null;
 		longitude: number | null;
 	};
+	customer?: {
+		id: string;
+		name: string | null;
+		phoneNumber: string | null;
+	};
+	items?: {
+		id: string;
+		menuItemId: string | null;
+		menuItemName: string;
+		quantity: number;
+		unitPrice: number;
+		totalPrice: number;
+		specialInstructions: string | null;
+		menuItem?: {
+			id: string;
+			name: string;
+			imageUrl: string | null;
+			description: string | null;
+		} | null;
+		options?: {
+			id: string;
+			optionId: string | null;
+			optionGroupId: string | null;
+			optionName: string;
+			quantity: number | null;
+			price: number;
+			option?: {
+				id: string;
+				name: string;
+			} | null;
+			optionGroup?: {
+				id: string;
+				name: string;
+			} | null;
+		}[];
+	}[];
 	estimatedDistance?: number;
 	estimatedDuration?: number;
 }
@@ -74,7 +111,9 @@ export interface AcceptedOrder {
 export class RiderOrderService {
 	async getOrderDetails(orderId: string): Promise<OrderDetails | null> {
 		try {
-			const response = await client.rider.orders.$get();
+			const response = await client.rider.orders[':id'].$get({
+				param: { id: orderId }
+			});
 
 			if (!response.ok) {
 				console.error('Failed to fetch order details');
@@ -82,8 +121,7 @@ export class RiderOrderService {
 			}
 
 			const data = await response.json();
-			const order = data.data?.find((o: { id: string }) => o.id === orderId);
-			return (order as OrderDetails) || null;
+			return (data.data as OrderDetails) || null;
 		} catch (error) {
 			console.error('Error fetching order details:', error);
 			return null;
@@ -91,9 +129,8 @@ export class RiderOrderService {
 	}
 	async acceptOrder(orderId: string): Promise<AcceptedOrder | null> {
 		try {
-			const response = await fetch(`/api/rider/orders/${orderId}/accept`, {
-				method: 'POST',
-				credentials: 'include'
+			const response = await client.rider.orders[':id'].accept.$post({
+				param: { id: orderId }
 			});
 
 			if (!response.ok) {
@@ -101,19 +138,17 @@ export class RiderOrderService {
 				return null;
 			}
 
-			const data = (await response.json()) as { data?: AcceptedOrder };
-			return data.data || null;
+			const data = await response.json();
+			return (data.data as AcceptedOrder) || null;
 		} catch (error) {
 			console.error('Error accepting order:', error);
 			return null;
 		}
 	}
-
 	async markOrderPickedUp(orderId: string): Promise<boolean> {
 		try {
-			const response = await fetch(`/api/rider/orders/${orderId}/pickup`, {
-				method: 'POST',
-				credentials: 'include'
+			const response = await client.rider.orders[':id'].pickup.$post({
+				param: { id: orderId }
 			});
 
 			return response.ok;
@@ -122,16 +157,11 @@ export class RiderOrderService {
 			return false;
 		}
 	}
-
 	async markOrderDelivered(orderId: string, confirmationCode?: number): Promise<boolean> {
 		try {
-			const response = await fetch(`/api/rider/orders/${orderId}/deliver`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ confirmationCode }),
-				credentials: 'include'
+			const response = await client.rider.orders[':id'].deliver.$post({
+				param: { id: orderId },
+				json: { confirmationCode: confirmationCode || 0 }
 			});
 
 			return response.ok;
@@ -176,10 +206,9 @@ export class RiderOrderService {
 			return null;
 		}
 	}
-
 	async getOrderHistory(limit = 20): Promise<OrderDetails[]> {
 		try {
-			const response = await client.rider.orders.$get();
+			const response = await client.rider.orders.all.$get();
 
 			if (!response.ok) {
 				console.error('Failed to fetch order history');
@@ -187,16 +216,7 @@ export class RiderOrderService {
 			}
 
 			const data = await response.json();
-			const deliveredOrders =
-				data.data
-					?.filter(
-						(order: ApiOrder) =>
-							order.status === 'DELIVERED' ||
-							order.status === 'COMPLETED' ||
-							order.status === 'CANCELLED'
-					)
-					.slice(0, limit) || [];
-			return deliveredOrders as OrderDetails[];
+			return (data.data || []) as OrderDetails[];
 		} catch (error) {
 			console.error('Error fetching order history:', error);
 			return [];
