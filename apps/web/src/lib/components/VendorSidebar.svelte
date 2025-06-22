@@ -21,7 +21,7 @@
 
 	let isCollapsed = $state(false);
 	let isStoreOpen = $state(true);
-	let pendingOrders = 3;
+	let pendingOrders = 0;
 	let data = page.data;
 	const sidebarItems = [
 		{
@@ -78,13 +78,13 @@
 	const organizations = authClient.useListOrganizations();
 </script>
 
-<Sidebar.Root class="border-r bg-background">
+<Sidebar.Root class="bg-background border-r">
 	<div class="space-y-4 py-4">
 		<div class="px-3 py-2">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-2">
 					<div
-						class="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground"
+						class="bg-primary text-primary-foreground flex h-10 w-10 items-center justify-center rounded-full"
 					>
 						{initials($activeOrganization.data?.name)}
 					</div>

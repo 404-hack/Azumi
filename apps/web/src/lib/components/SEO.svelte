@@ -15,7 +15,7 @@
 		title,
 		description,
 		keywords = '',
-		ogImage = 'https://azumi.com.ng/logo.png',
+		ogImage = 'https://azumi.com.ng/logo.webp',
 		ogType = 'website',
 		path = '',
 		jsonLd

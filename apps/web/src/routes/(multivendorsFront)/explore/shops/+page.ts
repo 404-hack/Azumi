@@ -25,7 +25,7 @@ export const load: PageLoad = async ({ url }) => {
 		latitude: activeLocation.current.lat.toString(),
 		longitude: activeLocation.current.lng.toString(),
 		shopType: category,
-		distance: '30'
+		distance: '50'
 	} as Record<string, string>;
 
 	// Add filter parameters if they exist

@@ -17,7 +17,7 @@ export const createMenuSchema = z.object({
     (val) => (typeof val === "string" ? parseFloat(val) : val),
     z.number().min(0, { message: "Price must be a positive number" })
   ),
-  priceDescription: z.string().optional(),
+  priceDescription: z.string(),
   // inStock: z.boolean().default(true),
   inStock: z.preprocess(
     (val) => (typeof val === "string" ? val === "true" : val),

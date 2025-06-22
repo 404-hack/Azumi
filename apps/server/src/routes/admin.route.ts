@@ -1,16 +1,29 @@
 import { factory } from "../lib/factory";
 import { shopTable, member } from "../lib/db/schema";
-import { eq, like, and, or, not as dbNot, sql, inArray } from "drizzle-orm";
+import {
+  eq,
+  like,
+  and,
+  or,
+  not as dbNot,
+  sql,
+  inArray,
+  desc,
+  gte,
+  lte,
+} from "drizzle-orm";
 import adminAuthMiddleware from "../middlewares/adminAuth";
 import {
   SHOP_STATUS,
   RIDER_APPLICATION_STATUS,
   RIDER_AVAILABILITY_STATUS,
+  ORDER_STATUS,
 } from "../lib/constant";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { userTable } from "../lib/db/schema/auth.schema";
 import { riderTable } from "../lib/db/schema/rider.schema";
+import { orderTable } from "../lib/db/schema/order.schema";
 import {
   promotions,
   promotionProducts,
@@ -21,6 +34,9 @@ import {
   updatePromotionSchema,
 } from "../lib/validation/index";
 import { nanoid } from "nanoid";
+import { PushNotificationService } from "../services/push-notification.service";
+import { calculateDistance } from "../lib/utils/geo";
+import { env } from "cloudflare:workers";
 
 const adminRoute = factory
   .createApp()
@@ -257,14 +273,15 @@ const adminRoute = factory
             )
           );
         }
-
         if (applicationStatus) {
           whereConditions.push(
             eq(riderTable.applicationStatus, applicationStatus)
           );
         }
         if (isVerified !== undefined) {
-          whereConditions.push(eq(riderTable.verified, isVerified === "true"));
+          // Map isVerified boolean to applicationStatus
+          const targetStatus = isVerified === "true" ? "APPROVED" : "DRAFT";
+          whereConditions.push(eq(riderTable.applicationStatus, targetStatus));
         }
 
         if (availabilityStatus) {
@@ -383,7 +400,6 @@ const adminRoute = factory
       }
     }
   )
-
   // Delete rider
   .delete("/riders/:id", async (c) => {
     try {
@@ -412,7 +428,892 @@ const adminRoute = factory
     }
   })
 
-  // PROMOTION ROUTES  // List all promotions (admin)
+  // ORDER ROUTES
+  // Get all orders with admin-level filtering
+  .get(
+    "/orders",
+    zValidator(
+      "query",
+      z.object({
+        search: z.string().optional(),
+        status: z.enum(ORDER_STATUS).optional(),
+        paymentStatus: z
+          .enum([
+            "PENDING",
+            "COMPLETED",
+            "FAILED",
+            "REFUNDED",
+            "DISPUTED",
+            "REVERSED",
+          ])
+          .optional(),
+        shopId: z.string().optional(),
+        customerId: z.string().optional(),
+        riderId: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        page: z.string().optional(),
+        limit: z.string().optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        const db = c.get("db");
+        const {
+          search,
+          status,
+          paymentStatus,
+          shopId,
+          customerId,
+          riderId,
+          startDate,
+          endDate,
+          page,
+          limit,
+        } = c.req.valid("query");
+
+        // Pagination
+        const pageNum = parseInt(page || "1");
+        const limitNum = parseInt(limit || "20");
+        const offset = (pageNum - 1) * limitNum;
+
+        const whereConditions = [];
+
+        // Search across order fields
+        if (search) {
+          whereConditions.push(
+            or(
+              like(orderTable.id, `%${search}%`),
+              like(orderTable.code, `%${search}%`),
+              like(orderTable.addressName, `%${search}%`)
+            )
+          );
+        }
+
+        // Filter by status
+        if (status) {
+          whereConditions.push(eq(orderTable.status, status));
+        }
+
+        // Filter by payment status
+        if (paymentStatus) {
+          whereConditions.push(eq(orderTable.paymentStatus, paymentStatus));
+        }
+
+        // Filter by shop
+        if (shopId) {
+          whereConditions.push(eq(orderTable.shopId, shopId));
+        }
+
+        // Filter by customer
+        if (customerId) {
+          whereConditions.push(eq(orderTable.customerId, customerId));
+        }
+
+        // Filter by rider
+        if (riderId) {
+          whereConditions.push(eq(orderTable.riderId, riderId));
+        }
+
+        // Filter by date range
+        if (startDate) {
+          whereConditions.push(gte(orderTable.createdAt, new Date(startDate)));
+        }
+
+        if (endDate) {
+          whereConditions.push(lte(orderTable.createdAt, new Date(endDate)));
+        }
+
+        const finalWhereCondition =
+          whereConditions.length > 0 ? and(...whereConditions) : undefined; // Get orders with all related data
+        const orders = await db.query.orderTable.findMany({
+          where: finalWhereCondition,
+          with: {
+            items: {
+              with: {
+                menuItem: {
+                  columns: {
+                    id: true,
+                    name: true,
+                    imageUrl: true,
+                    price: true,
+                  },
+                },
+                options: {
+                  with: {
+                    optionGroup: true,
+                  },
+                },
+              },
+            },
+            shop: {
+              columns: {
+                id: true,
+                name: true,
+                email: true,
+                phoneNumber: true,
+                address: true,
+                latitude: true,
+                longitude: true,
+              },
+            },
+            customer: {
+              columns: {
+                id: true,
+                name: true,
+                email: true,
+                phoneNumber: true,
+              },
+            },
+            rider: {
+              columns: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                availabilityStatus: true,
+                rating: true,
+              },
+              with: {
+                user: {
+                  columns: {
+                    phoneNumber: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [desc(orderTable.createdAt)],
+          limit: limitNum,
+          offset: offset,
+        });
+
+        // Get total count for pagination
+        const totalCountResult = await db
+          .select({ count: sql`count(*)` })
+          .from(orderTable)
+          .where(finalWhereCondition);
+
+        const totalCount = Number(totalCountResult[0]?.count || 0);
+
+        return c.json({
+          success: true,
+          data: orders,
+          pagination: {
+            total: totalCount,
+            page: pageNum,
+            limit: limitNum,
+            pages: Math.ceil(totalCount / limitNum),
+          },
+        });
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        return c.json(
+          {
+            success: false,
+            message: "Failed to fetch orders",
+          },
+          500
+        );
+      }
+    }
+  )
+
+  // Get specific order details with full information
+  .get("/orders/:id", async (c) => {
+    try {
+      const db = c.get("db");
+      const { id } = c.req.param();
+      const order = await db.query.orderTable.findFirst({
+        where: eq(orderTable.id, id),
+        with: {
+          items: {
+            with: {
+              menuItem: {
+                columns: {
+                  id: true,
+                  name: true,
+                  imageUrl: true,
+                  price: true,
+                },
+              },
+              options: {
+                with: {
+                  optionGroup: true,
+                },
+              },
+            },
+          },
+          shop: {
+            with: {
+              operatingHours: true,
+              paymentMethods: true,
+            },
+          },
+          customer: true,
+          rider: {
+            with: {
+              user: true,
+              paymentMethod: true,
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        return c.json({ error: "Order not found" }, 404);
+      }
+
+      return c.json({
+        success: true,
+        data: order,
+      });
+    } catch (error) {
+      console.error("Error fetching order:", error);
+      return c.json({ error: "Failed to fetch order" }, 500);
+    }
+  })
+  // Enhanced admin order status management with full workflow integration
+  .patch(
+    "/orders/:id/status",
+    zValidator(
+      "json",
+      z.object({
+        status: z.enum(ORDER_STATUS),
+        paymentStatus: z
+          .enum(["PENDING", "PAID", "FAILED", "REFUNDED"])
+          .optional(),
+        adminNotes: z.string().optional(),
+        cancelReason: z.string().optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        const db = c.get("db");
+        const { id } = c.req.param();
+        const { status, paymentStatus, adminNotes, cancelReason } =
+          c.req.valid("json");
+        const user = c.get("user");
+        const env = c.env;
+
+        // Check if order exists
+        const order = await db.query.orderTable.findFirst({
+          where: eq(orderTable.id, id),
+          with: {
+            shop: {
+              columns: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        });
+
+        if (!order) {
+          return c.json({ error: "Order not found" }, 404);
+        }
+
+        // Validate status transitions
+        const validTransitions: Record<string, string[]> = {
+          PAYMENT_CONFIRMED: ["CONFIRMED", "CANCELLED"],
+          CONFIRMED: ["READY", "CANCELLED"],
+          READY: ["RIDER_ASSIGNED", "CANCELLED"],
+          RIDER_ASSIGNED: ["IN_TRANSIT", "CANCELLED"],
+          IN_TRANSIT: ["DELIVERED"],
+          DELIVERED: ["COMPLETED"],
+        };
+
+        if (
+          validTransitions[order.status] &&
+          !validTransitions[order.status].includes(status)
+        ) {
+          return c.json(
+            {
+              error: `Invalid status transition from ${order.status} to ${status}`,
+              validTransitions: validTransitions[order.status],
+            },
+            400
+          );
+        }
+
+        // Prepare update data with proper timestamps
+        const nowISO = new Date().toISOString();
+        const updateData: any = {
+          status,
+          updatedAt: new Date(),
+        };
+
+        // Set specific timestamps based on status
+        switch (status) {
+          case "CONFIRMED":
+            updateData.acceptedAt = nowISO;
+            break;
+          case "READY":
+            updateData.readyAt = nowISO;
+            break;
+          case "CANCELLED":
+            updateData.canceledAt = nowISO;
+            updateData.cancelReason =
+              cancelReason || adminNotes || "Admin cancelled order";
+            break;
+        }
+
+        if (paymentStatus) {
+          updateData.paymentStatus = paymentStatus;
+        }
+
+        if (adminNotes) {
+          updateData.vendorNotes = adminNotes;
+        }
+
+        // Update order in database
+        const updatedOrder = await db
+          .update(orderTable)
+          .set(updateData)
+          .where(eq(orderTable.id, id))
+          .returning({
+            id: orderTable.id,
+            status: orderTable.status,
+            shopId: orderTable.shopId,
+          })
+          .get();
+
+        if (!updatedOrder) {
+          return c.json({ error: "Failed to update order" }, 500);
+        } // Enhanced workflow integration - matches vendor functionality exactly
+        try {
+          const workflowInstance = await env.ORDER_WORKFLOW.get(id);
+
+          if (workflowInstance) {
+            let eventType = "";
+            let eventPayload: {
+              orderId: string;
+              status: string;
+              timestamp: string;
+              [key: string]: any;
+            } = {
+              orderId: id,
+              status,
+              timestamp: nowISO,
+            };
+
+            switch (status) {
+              case "CONFIRMED":
+                eventType = "vendor_order_response";
+                eventPayload = {
+                  ...eventPayload,
+                  vendorId: order.shopId,
+                  accepted: true,
+                  adminOverride: true,
+                  adminId: user?.id || "unknown",
+                  adminEmail: user?.email || "unknown",
+                };
+                break;
+              case "READY":
+                eventType = "order_ready";
+                eventPayload = {
+                  ...eventPayload,
+                  adminOverride: true,
+                  adminId: user?.id || "unknown",
+                  adminEmail: user?.email || "unknown",
+                };
+                break;
+              case "CANCELLED":
+                eventType = "vendor_order_response";
+                eventPayload = {
+                  ...eventPayload,
+                  vendorId: order.shopId,
+                  accepted: false,
+                  reason: cancelReason || adminNotes || "Admin cancelled order",
+                  cancelledBy: user?.id || "unknown",
+                  adminOverride: true,
+                  adminId: user?.id || "unknown",
+                  adminEmail: user?.email || "unknown",
+                };
+                break;
+            }
+
+            if (eventType) {
+              await workflowInstance.sendEvent({
+                type: eventType,
+                payload: eventPayload,
+              });
+              console.log(
+                `✅ [ADMIN-STATUS] Sent ${eventType} event to workflow for order ${id} by admin ${user?.email}`
+              );
+            }
+          } else {
+            console.warn(
+              `⚠️ [ADMIN-STATUS] Workflow instance not found for order ${id}`
+            );
+          }
+        } catch (workflowError) {
+          console.error(
+            `⚠️ [ADMIN-STATUS] Failed to notify workflow about admin status change for order ${id}:`,
+            workflowError
+          );
+          // Continue execution - don't fail the status update if workflow notification fails
+        }
+
+        // Log admin action for audit trail
+        console.log(
+          `✅ [ADMIN-STATUS] Admin ${user?.email} (${user?.id}) updated order ${id} status from ${order.status} to ${status}${
+            order.shop?.name ? ` for shop "${order.shop.name}"` : ""
+          }`
+        );
+
+        // Send notifications to relevant parties
+        try {
+          const { PushNotificationService } = await import(
+            "../services/push-notification.service"
+          );
+          const pushNotificationService = new PushNotificationService();
+
+          // Notify shop about admin status override
+          if (
+            order.shopId &&
+            ["CONFIRMED", "READY", "CANCELLED"].includes(status)
+          ) {
+            const shopNotification = {
+              title: `🛡️ Admin Status Update`,
+              body: `Order #${id.slice(-6)} status updated to ${status} by admin${
+                adminNotes ? `: ${adminNotes}` : ""
+              }`,
+              data: {
+                type: "admin_status_override",
+                orderId: id,
+                newStatus: status,
+                adminId: user?.id || "unknown",
+                adminEmail: user?.email || "unknown",
+                action: "view_order",
+                link: `/vendor/orders/${id}`,
+                category: "vendor",
+                urgency: status === "CANCELLED" ? "high" : "medium",
+              },
+            };
+
+            c.executionCtx.waitUntil(
+              pushNotificationService.sendNotificationToShop(
+                order.shopId,
+                shopNotification
+              )
+            );
+          }
+        } catch (notificationError) {
+          console.error(
+            `⚠️ [ADMIN-STATUS] Failed to send notifications for order ${id}:`,
+            notificationError
+          );
+        }
+
+        return c.json({
+          success: true,
+          data: updatedOrder,
+          message: `Order status updated to ${status} successfully`,
+          adminAction: {
+            adminId: user?.id,
+            adminEmail: user?.email,
+            timestamp: nowISO,
+            previousStatus: order.status,
+            newStatus: status,
+            notes: adminNotes,
+          },
+        });
+      } catch (error) {
+        console.error(`❌ [ADMIN-STATUS] Error updating order status:`, error);
+        return c.json({ error: "Failed to update order status" }, 500);
+      }
+    }
+  )
+
+  // Get available riders for manual assignment
+  .get("/orders/:id/available-riders", async (c) => {
+    try {
+      const db = c.get("db");
+      const { id } = c.req.param();
+
+      // Check if order exists and is in correct status
+      const order = await db.query.orderTable.findFirst({
+        where: eq(orderTable.id, id),
+        with: {
+          shop: {
+            columns: {
+              latitude: true,
+              longitude: true,
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        return c.json({ error: "Order not found" }, 404);
+      }
+      if (!order.shop) {
+        return c.json({ error: "Shop information not available" }, 404);
+      }
+
+      const shopLat = order.shop.latitude;
+      const shopLng = order.shop.longitude;
+
+      if (!shopLat || !shopLng) {
+        return c.json({ error: "Shop location not available" }, 404);
+      }
+
+      // Find ALL active riders - no distance or availability filtering
+      const allActiveRiders = await db.query.riderTable.findMany({
+        where: and(
+          eq(riderTable.active, true),
+          eq(riderTable.applicationStatus, "APPROVED")
+        ),
+        columns: {
+          id: true,
+          userId: true,
+          firstName: true,
+          lastName: true,
+          latitude: true,
+          longitude: true,
+          vehicleType: true,
+          rating: true,
+          availabilityStatus: true,
+        },
+      });
+
+      // Calculate distances for all riders (for sorting purposes only)
+      const ridersWithMetrics = allActiveRiders
+        .map((rider) => {
+          const pickupDistanceKm = calculateDistance(
+            rider.latitude || 0,
+            rider.longitude || 0,
+            shopLat,
+            shopLng
+          );
+
+          const deliveryDistanceKm = calculateDistance(
+            shopLat,
+            shopLng,
+            order.latitude || 0,
+            order.longitude || 0
+          );
+
+          const estimatedPickupMinutes = Math.round(
+            (pickupDistanceKm / 15) * 60
+          ); // 15 km/h average speed
+          const estimatedDeliveryMinutes = Math.round(
+            (deliveryDistanceKm / 15) * 60
+          );
+
+          return {
+            rider,
+            metrics: {
+              pickupDistanceKm,
+              deliveryDistanceKm,
+              totalDistanceKm: pickupDistanceKm + deliveryDistanceKm,
+              estimatedPickupMinutes,
+              estimatedDeliveryMinutes,
+              estimatedTotalMinutes:
+                estimatedPickupMinutes + estimatedDeliveryMinutes,
+            },
+          };
+        })
+        .sort((a, b) => {
+          // Sort by distance (closest first) then by rating (highest first)
+          const distanceDiff =
+            a.metrics.totalDistanceKm - b.metrics.totalDistanceKm;
+          if (distanceDiff !== 0) return distanceDiff;
+          return (b.rider.rating || 0) - (a.rider.rating || 0);
+        });
+
+      // Format the response for admin UI
+      const formattedRiders = ridersWithMetrics.map((riderInfo) => ({
+        id: riderInfo.rider.id,
+        name: `${riderInfo.rider.firstName || ""} ${riderInfo.rider.lastName || ""}`.trim(),
+        email: riderInfo.rider.userId,
+        vehicleType: riderInfo.rider.vehicleType,
+        rating: riderInfo.rider.rating || 0,
+        availabilityStatus: riderInfo.rider.availabilityStatus,
+        distanceFromPickup: riderInfo.metrics.pickupDistanceKm,
+        estimatedArrival: riderInfo.metrics.estimatedPickupMinutes,
+        totalDistance: riderInfo.metrics.totalDistanceKm,
+        estimatedDeliveryTime: riderInfo.metrics.estimatedDeliveryMinutes,
+      }));
+
+      return c.json({
+        success: true,
+        data: {
+          order: {
+            id: order.id,
+            status: order.status,
+            pickupLocation: {
+              latitude: order.shop.latitude,
+              longitude: order.shop.longitude,
+            },
+            deliveryLocation: {
+              latitude: order.latitude,
+              longitude: order.longitude,
+            },
+          },
+          availableRiders: formattedRiders,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching available riders:", error);
+      return c.json({ error: "Failed to fetch available riders" }, 500);
+    }
+  })
+
+  // Manually assign rider to order
+  .post(
+    "/orders/:id/assign-rider",
+    zValidator(
+      "json",
+      z.object({
+        riderId: z.string(),
+        adminNotes: z.string().optional(),
+      })
+    ),
+    async (c) => {
+      try {
+        const db = c.get("db");
+        const { id } = c.req.param();
+        const { riderId, adminNotes } = c.req.valid("json");
+        const user = c.get("user");
+
+        // Check if order exists and is assignable
+        const order = await db.query.orderTable.findFirst({
+          where: eq(orderTable.id, id),
+        });
+
+        if (!order) {
+          return c.json({ error: "Order not found" }, 404);
+        }
+        if (order.status !== "READY") {
+          return c.json(
+            { error: "Order must be in READY status to assign rider" },
+            400
+          );
+        } // Verify rider exists and is approved (no availability check needed)
+        const rider = await db.query.riderTable.findFirst({
+          where: and(
+            eq(riderTable.id, riderId),
+            eq(riderTable.active, true),
+            eq(riderTable.applicationStatus, "APPROVED")
+          ),
+        });
+
+        if (!rider) {
+          return c.json({ error: "Rider not found or not approved" }, 400);
+        } // Update order with rider assignment (no rider status change needed)
+        await db
+          .update(orderTable)
+          .set({
+            riderId: rider.userId,
+            status: "RIDER_ASSIGNED",
+            riderAssignedAt: new Date().toISOString(),
+            updatedAt: new Date(),
+          })
+          .where(eq(orderTable.id, id));
+
+        // Add admin notes if provided
+        if (adminNotes) {
+          await db
+            .update(orderTable)
+            .set({
+              vendorNotes: adminNotes,
+              updatedAt: new Date(),
+            })
+            .where(eq(orderTable.id, id));
+        } // Notify workflow about the assignment
+        try {
+          const workflowInstance = await env.ORDER_WORKFLOW.get(id);
+          await workflowInstance.sendEvent({
+            type: "admin_rider_assigned",
+            payload: {
+              orderId: id,
+              riderId: rider.userId,
+              adminId: user?.id || "unknown",
+              timestamp: new Date().toISOString(),
+              riderName:
+                `${rider.firstName || ""} ${rider.lastName || ""}`.trim(),
+            },
+          });
+          console.log(
+            `✅ Notified workflow about admin rider assignment for order ${id}`
+          );
+        } catch (workflowError) {
+          console.error(
+            `⚠️ Failed to notify workflow about admin rider assignment:`,
+            workflowError
+          );
+        }
+
+        console.log(
+          `Admin ${user?.email} manually assigned rider ${riderId} to order ${id}`
+        );
+        return c.json({
+          success: true,
+          message: "Rider assigned successfully",
+          data: {
+            orderId: id,
+            riderId: rider.userId,
+            riderName:
+              `${rider.firstName || ""} ${rider.lastName || ""}`.trim(),
+          },
+        });
+      } catch (error) {
+        console.error("Error assigning rider:", error);
+        return c.json({ error: "Failed to assign rider" }, 500);
+      }
+    }
+  )
+
+  // Auto-assign closest available rider
+  .post("/orders/:id/auto-assign-rider", async (c) => {
+    try {
+      const db = c.get("db");
+      const { id } = c.req.param();
+      const user = c.get("user");
+
+      // Check if order exists
+      const order = await db.query.orderTable.findFirst({
+        where: eq(orderTable.id, id),
+      });
+
+      if (!order) {
+        return c.json({ error: "Order not found" }, 404);
+      }
+      if (order.status !== "READY") {
+        return c.json(
+          { error: "Order must be in READY status to assign rider" },
+          400
+        );
+      }
+
+      // Get order details including shop location
+      const orderWithShop = await db.query.orderTable.findFirst({
+        where: eq(orderTable.id, id),
+        with: {
+          shop: {
+            columns: {
+              latitude: true,
+              longitude: true,
+            },
+          },
+        },
+      });
+      if (!orderWithShop?.shop?.latitude || !orderWithShop?.shop?.longitude) {
+        return c.json({ error: "Shop location not available" }, 400);
+      }
+
+      const shopLat = orderWithShop.shop.latitude;
+      const shopLng = orderWithShop.shop.longitude;
+
+      // Find ALL active approved riders - no filtering
+      const allActiveRiders = await db.query.riderTable.findMany({
+        where: and(
+          eq(riderTable.active, true),
+          eq(riderTable.applicationStatus, "APPROVED")
+        ),
+        columns: {
+          id: true,
+          userId: true,
+          firstName: true,
+          lastName: true,
+          latitude: true,
+          longitude: true,
+          vehicleType: true,
+          rating: true,
+        },
+      });
+
+      if (allActiveRiders.length === 0) {
+        return c.json({ error: "No active riders found" }, 400);
+      }
+
+      // Calculate distances and find the closest rider
+      const ridersWithDistance = allActiveRiders
+        .map((rider) => {
+          const pickupDistanceKm = calculateDistance(
+            rider.latitude || 0,
+            rider.longitude || 0,
+            shopLat,
+            shopLng
+          );
+
+          const deliveryDistanceKm = calculateDistance(
+            shopLat,
+            shopLng,
+            orderWithShop.latitude || 0,
+            orderWithShop.longitude || 0
+          );
+
+          return {
+            rider,
+            pickupDistanceKm,
+            deliveryDistanceKm,
+            totalDistanceKm: pickupDistanceKm + deliveryDistanceKm,
+          };
+        })
+        .sort((a, b) => {
+          // Sort by total distance (closest first) then by rating (highest first)
+          const distanceDiff = a.totalDistanceKm - b.totalDistanceKm;
+          if (distanceDiff !== 0) return distanceDiff;
+          return (b.rider.rating || 0) - (a.rider.rating || 0);
+        });
+
+      const closestRider = ridersWithDistance[0].rider;
+      const shortestDistance = ridersWithDistance[0].pickupDistanceKm; // Assign the closest rider (no rider status change needed)
+      await db
+        .update(orderTable)
+        .set({
+          riderId: closestRider.userId,
+          status: "RIDER_ASSIGNED",
+          riderAssignedAt: new Date().toISOString(),
+          updatedAt: new Date(),
+        })
+        .where(eq(orderTable.id, id)); // Notify workflow about the assignment
+      try {
+        const workflowInstance = await env.ORDER_WORKFLOW.get(id);
+        await workflowInstance.sendEvent({
+          type: "admin_rider_assigned",
+          payload: {
+            orderId: id,
+            riderId: closestRider.userId,
+            adminId: user?.id || "unknown",
+            timestamp: new Date().toISOString(),
+            riderName:
+              `${closestRider.firstName || ""} ${closestRider.lastName || ""}`.trim(),
+          },
+        });
+        console.log(
+          `✅ Notified workflow about admin auto-assignment for order ${id}`
+        );
+      } catch (workflowError) {
+        console.error(
+          `⚠️ Failed to notify workflow about admin auto-assignment:`,
+          workflowError
+        );
+      }
+
+      console.log(`Admin ${user?.email} auto-assigned rider to order ${id}`);
+
+      return c.json({
+        success: true,
+        message: "Rider auto-assigned successfully",
+        data: {
+          orderId: id,
+          riderId: closestRider.userId,
+          riderName:
+            `${closestRider.firstName || ""} ${closestRider.lastName || ""}`.trim(),
+          distance: shortestDistance,
+        },
+      });
+    } catch (error) {
+      console.error("Error auto-assigning rider:", error);
+      return c.json({ error: "Failed to auto-assign rider" }, 500);
+    }
+  })
+
+  // PROMOTION ROUTES// List all promotions (admin)
   .get("/promotions", async (c) => {
     try {
       const db = c.get("db");
@@ -691,7 +1592,13 @@ const adminRoute = factory
         }
 
         // Extract fields for processing
-        const { productIds, shopIds, ...promotionData } = data;
+        const { productIds, shopIds, startDate, endDate, ...promotionData } =
+          data;
+
+        // Convert date strings to Date objects if provided
+        const dateFields: { startDate?: Date; endDate?: Date } = {};
+        if (startDate) dateFields.startDate = new Date(startDate);
+        if (endDate) dateFields.endDate = new Date(endDate);
 
         // Update the promotion
         const now = new Date();
@@ -699,6 +1606,7 @@ const adminRoute = factory
           .update(promotions)
           .set({
             ...promotionData,
+            ...dateFields,
             updatedAt: now,
           })
           .where(eq(promotions.id, id))

@@ -12,7 +12,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { createMenuSchema } from '@repo/server/validations';
 	import AddCategoryModal from '$lib/components/modal/AddCategoryModal.svelte';
-	import { toast } from "svelte-sonner"
+	import { toast } from 'svelte-sonner';
 	import {
 		addCategoryModalState,
 		addOptionGroupModalState,
@@ -109,8 +109,8 @@
 					if (form.data.name) formData.append('name', form.data.name);
 					if (form.data.description) formData.append('description', form.data.description);
 					if (form.data.price !== undefined) formData.append('price', form.data.price.toString());
-					if (form.data.priceDescription)
-						formData.append('priceDescription', form.data.priceDescription);
+					// if (form.data.priceDescription)
+					// 	formData.append('priceDescription', form.data.priceDescription);
 					if (form.data.inStock !== undefined)
 						formData.append('inStock', form.data.inStock.toString());
 					if (form.data.categoryId) formData.append('categoryId', form.data.categoryId);
@@ -128,7 +128,6 @@
 					const res = await client.vendor.menu.$post({
 						form: form.data
 					});
-					
 
 					if (res.ok) {
 						const data = await res.json();
@@ -136,10 +135,8 @@
 						goto('/vendor/menu/');
 						// Show toast here
 						toast.success('Menu Item Created', {
-							description: 'Your menu item has been created successfully.',
-
+							description: 'Your menu item has been created successfully.'
 						});
-
 					}
 				} catch (error) {
 					console.error('Failed to create menu item', error);
@@ -360,7 +357,7 @@
 											class="relative"
 											onclick={(e) => {
 												e.preventDefault();
-												 fileInput.click();
+												fileInput.click();
 											}}
 										>
 											<Upload class="mr-2 h-4 w-4" />
@@ -425,7 +422,7 @@
 											<Button
 												variant="link"
 												onclick={() => addOptionGroupModalState.setTrue()}
-												class="h-auto p-0 text-primary">+ Quick Add Group</Button
+												class="text-primary h-auto p-0">+ Quick Add Group</Button
 											>
 										</div>
 									</div>

@@ -165,7 +165,6 @@
 			console.error('Error:', error);
 		}
 	}
-
 	async function testVendorOrderNotification() {
 		try {
 			console.log('🚨 Testing vendor order notification with siren...');
@@ -178,6 +177,22 @@
 			}
 		} catch (error) {
 			toast.error('Error sending vendor order notification');
+			console.error('Error:', error);
+		}
+	}
+
+	async function testAdminAlertNotification() {
+		try {
+			console.log('🔊 Testing admin alert notification with alert sound...');
+			const success = await fcmStore.sendAdminAlertDemo();
+
+			if (success) {
+				toast.success('Admin alert notification sent! Check for alert sound.');
+			} else {
+				toast.error('Failed to send admin alert notification');
+			}
+		} catch (error) {
+			toast.error('Error sending admin alert notification');
 			console.error('Error:', error);
 		}
 	}
@@ -331,9 +346,12 @@
 							Test Service Worker Notification
 						</Button>
 					</div>
-
 					<Button onclick={testVendorOrderNotification} variant="destructive" class="w-full">
 						🚨 Test Vendor Order Siren
+					</Button>
+
+					<Button onclick={testAdminAlertNotification} variant="secondary" class="w-full">
+						🔊 Test Admin Alert Sound
 					</Button>
 				</div>
 			</CardContent>

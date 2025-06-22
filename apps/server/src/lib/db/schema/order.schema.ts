@@ -14,6 +14,7 @@ import { shopTable } from "./shop.schema";
 import { addressesTable } from "./address.schema";
 import { cartTable, cartItems, cartItemOptions } from "./cart.schema";
 import { optionTable, optionGroupTable } from "./option.schema";
+import { riderTable } from "./rider.schema";
 
 export const orderTable = sqliteTable("order", {
   id: text("id")
@@ -116,9 +117,9 @@ export const orderRelations = relations(orderTable, ({ one, many }) => ({
     fields: [orderTable.customerId],
     references: [userTable.id],
   }),
-  rider: one(userTable, {
+  rider: one(riderTable, {
     fields: [orderTable.riderId],
-    references: [userTable.id],
+    references: [riderTable.userId],
   }),
   shop: one(shopTable, {
     fields: [orderTable.shopId],

@@ -129,6 +129,9 @@ export interface FirebaseMessage {
     fcm_options?: {
       link?: string;
     };
+    headers?: {
+      TTL?: string;
+    };
   };
   android?: {
     notification?: {
@@ -136,6 +139,12 @@ export interface FirebaseMessage {
       body?: string;
       icon?: string;
       click_action?: string;
+    };
+    ttl?: string;
+  };
+  apns?: {
+    headers?: {
+      "apns-expiration"?: string;
     };
   };
   token?: string;

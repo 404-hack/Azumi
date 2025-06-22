@@ -8,6 +8,13 @@
       "when": 1748764892978,
       "tag": "0000_greedy_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1750088035902,
+      "tag": "0001_faithful_dark_beast",
+      "breakpoints": true
     }
   ]
 }

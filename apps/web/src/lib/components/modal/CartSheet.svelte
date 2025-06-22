@@ -14,7 +14,7 @@
 	const cartItemCount = $derived(shopCart?.totalItems || 0);
 
 	// Optimistic updates tracking
-	let optimisticTotals = $state({
+	let optimisticTotals = $derived({
 		items: shopCart?.totalItems || 0,
 		subtotal: shopCart?.subtotal || 0
 	});
@@ -83,7 +83,7 @@
 						</span>
 					</div>
 
-					<Sheet.Close>
+					<Sheet.Close class="w-full">
 						<Button class="w-full" href="/checkout/{shopCart.shop.id}">Proceed to Checkout</Button>
 					</Sheet.Close>
 				</div>

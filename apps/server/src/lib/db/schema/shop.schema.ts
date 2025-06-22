@@ -46,7 +46,7 @@ export const shopTable = sqliteTable(
     metadata: text("metadata", { mode: "json" }),
     phoneNumber: text("phone_number"),
     address: text("address"),
-    commission: integer("commission").default(10),
+    commission: integer("commission").default(0),
     minimumOrderAmount: integer("minimum_order_amount").default(500),
     active: integer("active", { mode: "boolean" }).default(false),
     status: text("status", { enum: SHOP_STATUS }).default("DRAFT"),

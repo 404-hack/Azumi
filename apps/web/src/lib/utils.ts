@@ -25,6 +25,20 @@ export function formatDate(date: string | number | Date | null | undefined) {
 	}
 }
 
+export function formatDateTime(date: string | number | Date | null | undefined) {
+	if (!date) return '';
+	try {
+		const dateObject = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+		return new Intl.DateTimeFormat('en-US', {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		}).format(dateObject);
+	} catch (_error) {
+		console.error('Error formatting date time:', _error);
+		return '';
+	}
+}
+
 // Updated formatTime to accept "HH:MM" string
 export function formatTime(timeString: string | null | undefined): string {
 	if (!timeString) return '';

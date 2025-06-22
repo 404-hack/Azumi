@@ -3,7 +3,10 @@ import { error } from '@sveltejs/kit';
 
 export const load = async () => {
 	try {
-		const profileRes = await client.rider.profile.$get();
+		const [profileRes, ordersRes] = await Promise.all([
+			client.rider.profile.$get(),
+			client.rider.orders.$get()
+		]);
 
 		if (!profileRes.ok) {
 			const data = await profileRes.json();
@@ -11,9 +14,11 @@ export const load = async () => {
 		}
 
 		const profile = await profileRes.json();
+		const orders = ordersRes.ok ? await ordersRes.json() : { data: [] };
 
 		return {
-			profile: profile.data
+			profile: profile.data,
+			orders: orders.data || []
 		};
 	} catch (err) {
 		console.error('Error loading rider data:', err);

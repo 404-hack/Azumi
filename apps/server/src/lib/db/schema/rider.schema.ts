@@ -46,9 +46,6 @@ export const riderTable = sqliteTable("riders", {
   maxDeliveryDistance: integer("max_delivery_distance").default(10),
   currentLat: real("current_lat"),
   currentLng: real("current_lng"),
-  currentOrderId: text("current_order_id").references(() => orderTable.id, {
-    onDelete: "cascade",
-  }),
   ...timestamps,
 });
 
@@ -78,6 +75,7 @@ export const riderRelations = relations(riderTable, ({ one, many }) => ({
     fields: [riderTable.id],
     references: [riderPaymentMethodTable.riderId],
   }),
+  orders: many(orderTable),
 }));
 
 export const riderPaymentMethodRelations = relations(

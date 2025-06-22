@@ -1,217 +1,333 @@
 <script lang="ts">
-	import { riderState } from '$lib/states/riderState.svelte';
-	import { riderDispatchState } from '$lib/states/riderDispatchState.svelte';
-	import { Card } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
+	import { Input } from '$lib/components/ui/input';
 	import {
 		MapPin,
 		Phone,
-		Clock,
 		DollarSign,
-		Package,
-		Star,
 		Navigation,
-		Power,
-		Bell,
-		Wifi,
-		WifiOff,
-		AlertCircle,
-		CheckCircle
+		CheckCircle,
+		Clock,
+		RefreshCw,
+		Eye
 	} from 'lucide-svelte';
 	import { formatCurrency } from '$lib/utils';
-	import { onMount } from 'svelte';
-
-	import LocationTracker from '$lib/components/rider/LocationTracker.svelte';
-	import NotificationPermissionBanner from '$lib/components/NotificationPermissionBanner.svelte';
+	import { riderOrderService } from '$lib/services/riderOrderService';
+	import { client } from '$lib/hc';
+	import type { OrderDetails } from '$lib/services/riderOrderService';
 
 	const { data } = $props();
-
-	const stats = {
-		rating: 4.8,
-		totalDeliveries: 128,
-		completionRate: '98%'
-	};
-	onMount(() => {
-		console.log('Rider page data:', data);
-		console.log('Profile:', data?.profile);
-
-		if (data?.profile?.id) {
-			console.log('Initializing with rider ID:', data.profile.id);
-			riderDispatchState.initialize(data.profile.id);
-		} else {
-			console.log('No rider ID found, initializing without ID');
-			riderDispatchState.initialize();
-		}
-		return () => riderDispatchState.cleanup();
-	});
+	let orders = $state<any[]>(data.orders || []);
+	let selectedOrderId = $state<string | null>(null);
+	let isLoading = $state(false);
+	let confirmationCode = $state('');
+	let showConfirmationDialog = $state(false);
+	let orderToDeliver = $state<string | null>(null);
 
 	$effect(() => {
-		if (data?.profile?.id) {
-			console.log('Setting rider ID via effect:', data.profile.id);
-			riderDispatchState.setRiderId(data.profile.id);
+		if (orders.length > 0 && !selectedOrderId) {
+			selectedOrderId = orders[0].id;
 		}
 	});
+	const activeOrders = $derived(
+		orders.filter((order) => order.status === 'RIDER_ASSIGNED' || order.status === 'IN_TRANSIT')
+	);
+	async function refreshOrders() {
+		isLoading = true;
+		try {
+			const response = await client.rider.orders.$get();
+			if (response.ok) {
+				const result = await response.json();
+				orders = result.data || [];
+				if (orders.length > 0 && !selectedOrderId) {
+					selectedOrderId = orders[0].id;
+				}
+			}
+		} catch (error) {
+			console.error('Error refreshing orders:', error);
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	async function markAsPickedUp(orderId: string) {
+		isLoading = true;
+		try {
+			const success = await riderOrderService.markOrderPickedUp(orderId);
+			if (success) {
+				await refreshOrders();
+			}
+		} catch (error) {
+			console.error('Error marking order as picked up:', error);
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	async function handleMarkAsDelivered(orderId: string) {
+		orderToDeliver = orderId;
+		showConfirmationDialog = true;
+	}
+
+	async function confirmDelivery() {
+		if (!orderToDeliver) return;
+
+		isLoading = true;
+		try {
+			const code = confirmationCode ? parseInt(confirmationCode) : undefined;
+			const success = await riderOrderService.markOrderDelivered(orderToDeliver, code);
+			if (success) {
+				await refreshOrders();
+				showConfirmationDialog = false;
+				confirmationCode = '';
+				orderToDeliver = null;
+			}
+		} catch (error) {
+			console.error('Error marking order as delivered:', error);
+		} finally {
+			isLoading = false;
+		}
+	}
+	function getStatusColor(status: string) {
+		switch (status) {
+			case 'RIDER_ASSIGNED':
+				return 'bg-blue-500';
+			case 'IN_TRANSIT':
+				return 'bg-orange-500';
+			case 'DELIVERED':
+				return 'bg-green-500';
+			default:
+				return 'bg-gray-500';
+		}
+	}
+
+	function getStatusText(status: string) {
+		switch (status) {
+			case 'RIDER_ASSIGNED':
+				return 'Assigned';
+			case 'IN_TRANSIT':
+				return 'In Transit';
+			case 'DELIVERED':
+				return 'Delivered';
+			default:
+				return status;
+		}
+	}
 </script>
 
-<div class="space-y-8">
-	<!-- Connection Status & Location Tracker -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<div class="flex items-center gap-4">
-			<div class="flex items-center gap-2">
-				{#if riderDispatchState.isConnected}
-					<div class="flex items-center gap-2 text-green-600">
-						<Wifi class="h-4 w-4" />
-						<span class="text-sm font-medium">Connected</span>
-					</div>
-				{:else}					<div class="flex items-center gap-2 text-red-600">
-						<WifiOff class="h-4 w-4" />
-						<span class="text-sm font-medium">Disconnected</span>
-					</div>
-				{/if}
-			</div>
-		</div>
-
-		<div class="flex items-center gap-2">
-			<Button
-				variant={riderState.isActive ? 'default' : 'outline'}
-				onclick={() => {
-					riderState.toggleActive();
-					if (riderState.isActive) {
-						riderDispatchState.goOnline();
-					} else {
-						riderDispatchState.goOffline();
-					}
-				}}
-				class="gap-2"
-			>
-				<Power class="h-4 w-4" />
-				{riderState.isActive ? 'Go Offline' : 'Go Online'}
-			</Button>
-		</div>
-	</div>
-
-	<LocationTracker />
-
-	<!-- Stats Overview -->
-	<div class="grid gap-4 md:grid-cols-4">
-		<Card class="p-4">
-			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Today's Earnings</span>
-				<div class="flex items-center gap-2">
-					<DollarSign class="h-4 w-4 text-green-500" />
-					<span class="text-2xl font-bold">{formatCurrency(riderState.earnings.today)}</span>
-				</div>
-			</div>
-		</Card>
-		<Card class="p-4">
-			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Total Deliveries</span>
-				<div class="flex items-center gap-2">
-					<Package class="h-4 w-4 text-blue-500" />
-					<span class="text-2xl font-bold">{stats.totalDeliveries}</span>
-				</div>
-			</div>
-		</Card>
-		<Card class="p-4">
-			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Rating</span>
-				<div class="flex items-center gap-2">
-					<Star class="h-4 w-4 text-yellow-500" />
-					<span class="text-2xl font-bold">{stats.rating}</span>
-				</div>
-			</div>
-		</Card>
-		<Card class="p-4">
-			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Completion Rate</span>
-				<div class="flex items-center gap-2">
-					<Navigation class="h-4 w-4 text-purple-500" />
-					<span class="text-2xl font-bold">{stats.completionRate}</span>
-				</div>
-			</div>
-		</Card>
-	</div>
-
-	<!-- Current Delivery -->
-	{#if riderState.currentDelivery}
-		<Card class="p-6">
+<div class="min-h-screen bg-gray-50 p-4">
+	<div class="mx-auto max-w-md space-y-4">
+		<div class="rounded-2xl bg-white p-6 shadow-sm">
 			<div class="flex items-center justify-between">
-				<h2 class="text-lg font-semibold">Current Delivery</h2>
-				<Badge variant="outline">{riderState.currentDelivery.status}</Badge>
+				<div>
+					<h1 class="text-xl font-bold">Rider Dashboard</h1>
+					<p class="text-sm text-gray-600">Welcome, {data.profile?.firstName || 'Rider'}</p>
+				</div>
+				<Button onclick={refreshOrders} variant="outline" size="sm" disabled={isLoading}>
+					<RefreshCw class="h-4 w-4 {isLoading ? 'animate-spin' : ''}" />
+				</Button>
 			</div>
+		</div>
 
-			<div class="mt-6 grid gap-6 md:grid-cols-2">
-				<!-- Pickup Details -->
-				<div class="space-y-4">
-					<h3 class="font-medium">Pickup Location</h3>
-					<div class="rounded-lg border p-4">
-						<div class="flex items-start gap-3">
-							<MapPin class="mt-1 h-4 w-4 text-muted-foreground" />
-							<div>
-								<div class="font-medium">{riderState.currentDelivery.pickupLocation.address}</div>
-								<div class="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-									<Phone class="h-3 w-3" />
-									{riderState.currentDelivery.vendorContact.phone}
+		{#if activeOrders.length > 0}
+			<div class="space-y-4">
+				<div class="rounded-2xl bg-white p-4 shadow-sm">
+					<div class="mb-3 flex items-center justify-between">
+						<h2 class="text-lg font-bold">Active Orders</h2>
+						<span class="rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
+							{activeOrders.length} orders
+						</span>
+					</div>
+					<div class="flex gap-2 overflow-x-auto pb-2">
+						{#each activeOrders as order}
+							<button
+								onclick={() => (selectedOrderId = order.id)}
+								class="flex-shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+									{selectedOrderId === order.id
+									? 'bg-blue-500 text-white'
+									: 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
+							>
+								{order.code || `Order ${order.id.slice(-6)}`}
+							</button>
+						{/each}
+					</div>
+				</div>
+
+				{#each activeOrders as order}
+					{#if selectedOrderId === order.id}
+						<div class="rounded-2xl border-2 border-blue-200 bg-blue-50 p-6 shadow-sm">
+							<div class="mb-4 text-center">
+								<div class="mb-2 flex items-center justify-center gap-2">
+									<h3 class="text-lg font-bold text-blue-900">
+										{order.code || `Order ${order.id.slice(-6)}`}
+									</h3>
+									<span
+										class="rounded-full px-2 py-1 text-xs font-medium text-white {getStatusColor(
+											order.status
+										)}"
+									>
+										{getStatusText(order.status)}
+									</span>
+								</div>
+								<p class="text-sm text-blue-700">{formatCurrency(order.total)}</p>
+							</div>
+							<div class="mb-4 rounded-xl bg-white p-4">
+								<div class="flex items-start gap-3">
+									<div
+										class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-orange-100"
+									>
+										<MapPin class="h-4 w-4 text-orange-600" />
+									</div>
+									<div class="flex-1">
+										<p class="text-sm font-medium">Pickup from {order.shop?.name}</p>
+										<p class="text-sm text-gray-600">{order.shop?.address}</p>
+										<p class="mt-1 text-xs text-gray-500">
+											{order.estimatedDistance || 0}km • {Math.round(
+												(order.estimatedDuration || 900) / 60
+											)}min
+										</p>
+										<div class="mt-2 flex items-center gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-8"
+												onclick={() => window.open(`tel:${order.shop?.phoneNumber}`)}
+											>
+												<Phone class="mr-1 h-3 w-3" />
+												Call Store
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-8"
+												onclick={() =>
+													window.open(
+														`https://maps.google.com?daddr=${encodeURIComponent(order.shop?.address || '')}`
+													)}
+											>
+												<Navigation class="mr-1 h-3 w-3" />
+												Navigate
+											</Button>
+										</div>
+									</div>
 								</div>
 							</div>
-						</div>
-					</div>
-				</div>
-
-				<!-- Dropoff Details -->
-				<div class="space-y-4">
-					<h3 class="font-medium">Dropoff Location</h3>
-					<div class="rounded-lg border p-4">
-						<div class="flex items-start gap-3">
-							<MapPin class="mt-1 h-4 w-4 text-muted-foreground" />
-							<div>
-								<div class="font-medium">{riderState.currentDelivery.dropoffLocation.address}</div>
-								<div class="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-									<Phone class="h-3 w-3" />
-									{riderState.currentDelivery.customerContact.phone}
+							<div class="mb-4 rounded-xl bg-white p-4">
+								<div class="flex items-start gap-3">
+									<div
+										class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-100"
+									>
+										<MapPin class="h-4 w-4 text-green-600" />
+									</div>
+									<div class="flex-1">
+										<p class="text-sm font-medium">
+											Deliver to {order.customer?.name || 'Customer'}
+										</p>
+										<p class="text-sm text-gray-600">
+											{order.addressName || `${order.latitude}, ${order.longitude}`}
+										</p>
+										<div class="mt-2 flex items-center gap-2">
+											{#if order.customer?.phoneNumber}
+												<Button
+													variant="outline"
+													size="sm"
+													class="h-8"
+													onclick={() => window.open(`tel:${order.customer?.phoneNumber}`)}
+												>
+													<Phone class="mr-1 h-3 w-3" />
+													Call Customer
+												</Button>
+											{/if}
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-8"
+												onclick={() =>
+													window.open(
+														`https://maps.google.com?daddr=${order.latitude},${order.longitude}`
+													)}
+											>
+												<Navigation class="mr-1 h-3 w-3" />
+												Navigate
+											</Button>
+										</div>
+									</div>
 								</div>
 							</div>
+							<div class="space-y-2">
+								<Button
+									href="/rider/orders/{order.id}"
+									variant="outline"
+									class="h-10 w-full rounded-xl border-blue-200 text-blue-600 hover:bg-blue-50"
+								>
+									<Eye class="mr-2 h-4 w-4" />
+									View Details
+								</Button>
+								{#if order.status === 'RIDER_ASSIGNED'}
+									<Button
+										onclick={() => markAsPickedUp(order.id)}
+										class="h-12 w-full rounded-xl bg-blue-500 text-white hover:bg-blue-600"
+										disabled={isLoading}
+									>
+										<CheckCircle class="mr-2 h-5 w-5" />
+										Mark as Picked Up
+									</Button>
+								{:else if order.status === 'IN_TRANSIT'}
+									<Button
+										onclick={() => handleMarkAsDelivered(order.id)}
+										class="h-12 w-full rounded-xl bg-green-500 text-white hover:bg-green-600"
+										disabled={isLoading}
+									>
+										<CheckCircle class="mr-2 h-5 w-5" />
+										Mark as Delivered
+									</Button>
+								{/if}
+							</div>
 						</div>
-					</div>
+					{/if}
+				{/each}
+			</div>
+		{:else}
+			<div class="rounded-2xl bg-gray-100 p-8 text-center shadow-sm">
+				<div
+					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-300"
+				>
+					<Clock class="h-6 w-6 text-gray-600" />
 				</div>
+				<h2 class="mb-2 text-lg font-bold text-gray-900">No Active Orders</h2>
+				<p class="text-sm text-gray-600">New orders will appear here when assigned by admin</p>
 			</div>
-
-			<div class="mt-6 flex items-center justify-between">
-				<div class="flex items-center gap-4">
-					<div class="flex items-center gap-2">
-						<Clock class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm">Est. {riderState.currentDelivery.estimatedDuration} mins</span>
-					</div>
-					<div class="flex items-center gap-2">
-						<Navigation class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm">{riderState.currentDelivery.distance} km</span>
-					</div>
-				</div>
-				<div class="flex gap-2">
-					<Button variant="outline">Navigate</Button>
-					<Button onclick={() => riderState.completeDelivery()}>Complete Delivery</Button>
-				</div>
-			</div>
-		</Card>
-	{:else if riderState.isActive}
-		<Card class="flex min-h-[200px] items-center justify-center p-6">
-			<div class="text-center">
-				<Package class="mx-auto h-12 w-12 text-muted-foreground" />
-				<h3 class="mt-4 text-lg font-medium">No Active Delivery</h3>
-				<p class="text-sm text-muted-foreground">New delivery requests will appear here</p>
-			</div>
-		</Card>
-	{:else}
-		<Card class="flex min-h-[200px] items-center justify-center p-6">
-			<div class="text-center">
-				<Power class="mx-auto h-12 w-12 text-muted-foreground" />
-				<h3 class="mt-4 text-lg font-medium">You're Offline</h3>
-				<p class="text-sm text-muted-foreground">Go to Settings to toggle your Online status</p>
-			</div>
-		</Card>
-	{/if}
+		{/if}
+	</div>
 </div>
 
-<!-- Notification Permission Banner for Push Notifications -->
-<NotificationPermissionBanner context="rider" />
+{#if showConfirmationDialog}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+		<div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+			<h3 class="mb-4 text-lg font-bold">Confirm Delivery</h3>
+			<p class="mb-4 text-sm text-gray-600">
+				Enter the confirmation code if provided by the customer:
+			</p>
+			<Input
+				bind:value={confirmationCode}
+				placeholder="Confirmation code (optional)"
+				class="mb-4"
+				type="number"
+			/>
+			<div class="flex gap-2">
+				<Button
+					onclick={() => {
+						showConfirmationDialog = false;
+						confirmationCode = '';
+						orderToDeliver = null;
+					}}
+					variant="outline"
+					class="flex-1"
+				>
+					Cancel
+				</Button>
+				<Button onclick={confirmDelivery} class="flex-1" disabled={isLoading}>Confirm</Button>
+			</div>
+		</div>
+	</div>
+{/if}

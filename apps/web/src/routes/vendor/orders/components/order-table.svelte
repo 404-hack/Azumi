@@ -254,11 +254,11 @@
 										</div>
 										<div class="flex justify-between text-sm">
 											<span class="text-muted-foreground"
-												>Platform Commission ({order.shop?.commission || 10}%)</span
+												>Platform Commission ({order.shop?.commission || 0}%)</span
 											>
 											<span class="text-red-600">
 												-{formatCurrency(
-													((order.subtotal || 0) * (order.shop?.commission || 10)) / 100
+													((order.subtotal || 0) * (order.shop?.commission || 0)) / 100
 												)}
 											</span>
 										</div>
@@ -267,7 +267,7 @@
 											<span>Your Earnings</span>
 											<span>
 												{formatCurrency(
-													((order.subtotal || 0) * (100 - (order.shop?.commission || 10))) / 100
+													((order.subtotal || 0) * (100 - (order.shop?.commission || 0))) / 100
 												)}
 											</span>
 										</div>
