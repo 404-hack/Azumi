@@ -13,9 +13,12 @@ type PaystackEnv = {
 /**
  * Weekly payout processor for vendor payments
  *
- * This scheduled function runs weekly to process payments to vendors.
+ * This scheduled function runs weekly every Friday at 23:59 PM to process payments to vendors.
  * It identifies eligible vendors (those with bank details), calculates their
  * earnings, and uses Paystack's bulk transfer API to send payments.
+ *
+ * Schedule: Friday 23:59 PM (end of week - industry standard)
+ * Period: Current week (Sunday to Friday)
  */
 export async function processVendorPayouts(env: PaystackEnv) {
   console.log("Starting vendor payouts processing...");
@@ -105,9 +108,7 @@ export async function processVendorPayouts(env: PaystackEnv) {
         const amountInKobo = Math.round(amount * 100);
 
         // Generate a unique reference for this transfer
-        const reference = `payout-${nanoid(16)}`;
-
-        // Add to transfers array
+        const reference = `payout-${nanoid(16)}`; // Add to transfers array
         transfers.push({
           amount: amountInKobo,
           recipient: recipientCode,
