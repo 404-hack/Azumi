@@ -489,11 +489,14 @@
 					<div class="relative overflow-hidden">
 						{#if data.restaurant.latitude && data.restaurant.longitude}
 							<div class="aspect-[16/9] w-full">
-								<img
-									src={`https://maps.googleapis.com/maps/api/staticmap?center=${data.restaurant.latitude},${data.restaurant.longitude}&zoom=15&size=600x300&markers=color:red%7C${data.restaurant.latitude},${data.restaurant.longitude}&key=YOUR_API_KEY`}
-									alt="Restaurant location map"
-									class="h-full w-full object-cover"
-								/>
+								<iframe
+									src={`https://www.openstreetmap.org/export/embed.html?bbox=${data.restaurant.longitude - 0.01},${data.restaurant.latitude - 0.01},${data.restaurant.longitude + 0.01},${data.restaurant.latitude + 0.01}&layer=mapnik&marker=${data.restaurant.latitude},${data.restaurant.longitude}`}
+									width="100%"
+									height="100%"
+									style="border: none;"
+									title="Restaurant location map"
+									class="h-full w-full"
+								></iframe>
 							</div>
 							<a
 								href={`https://maps.google.com/?q=${data.restaurant.latitude},${data.restaurant.longitude}`}

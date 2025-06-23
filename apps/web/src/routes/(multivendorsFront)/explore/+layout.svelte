@@ -47,7 +47,7 @@
 	// Category icons mapping
 	const categoryIcons: Record<string, string> = {
 		All: 'storeIcon.png',
-		restaurant: 'restaurantIcon.png',
+		restaurant: 'restaurantIcon.avif',
 		market: 'localMarketIcon.png'
 	};
 </script>
@@ -81,8 +81,8 @@
 						class={cn(
 							'relative mb-2 h-[116px] w-[116px] overflow-hidden rounded-lg shadow-sm transition-all duration-200',
 							activeCategory === name
-								? 'scale-105 shadow-md ring-[3px] ring-primary ring-offset-2 ring-offset-background'
-								: 'ring-1 ring-muted hover:scale-105 hover:ring-primary/50'
+								? 'ring-primary ring-offset-background scale-105 shadow-md ring-[3px] ring-offset-2'
+								: 'ring-muted hover:ring-primary/50 ring-1 hover:scale-105'
 						)}
 					>
 						<img
@@ -94,8 +94,8 @@
 							)}
 						/>
 						{#if activeCategory === name}
-							<div class="absolute inset-0 z-20 bg-primary/10"></div>
-							<div class="absolute bottom-0 left-0 right-0 z-30 h-1 bg-primary"></div>
+							<div class="bg-primary/10 absolute inset-0 z-20"></div>
+							<div class="bg-primary absolute bottom-0 left-0 right-0 z-30 h-1"></div>
 						{/if}
 					</div>
 					<span

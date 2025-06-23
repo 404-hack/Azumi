@@ -13,9 +13,12 @@ type PaystackEnv = {
 /**
  * Weekly payout processor for vendor payments
  *
- * This scheduled function runs weekly to process payments to vendors.
+ * This scheduled function runs weekly every Friday at 23:59 PM to process payments to vendors.
  * It identifies eligible vendors (those with bank details), calculates their
  * earnings, and uses Paystack's bulk transfer API to send payments.
+ *
+ * Schedule: Friday 23:59 PM (end of week - industry standard)
+ * Period: Current week (Sunday to Friday)
  */
 export async function processVendorPayouts(env: PaystackEnv) {
   console.log("Starting vendor payouts processing...");
@@ -86,12 +89,12 @@ export async function processVendorPayouts(env: PaystackEnv) {
               eq(vendorTransactionTable.shopId, vendorPaymentMethod.shopId),
               eq(vendorTransactionTable.status, "PENDING"),
               eq(vendorTransactionTable.type, "CREDIT"),
-              gte(vendorTransactionTable.createdAt, startDate.toISOString()),
-              lt(vendorTransactionTable.createdAt, endDate.toISOString())
+              gte(vendorTransactionTable.createdAt, startDate),
+              lt(vendorTransactionTable.createdAt, endDate)
             )
           )
           .get();
-        const amount = (vendorEarnings.total || 0) / 100; // Convert from cents to NGN
+        const amount = (vendorEarnings?.total || 0) / 100; // Convert from cents to NGN
 
         // Skip if no earnings to process
         if (amount <= 0) {
@@ -105,9 +108,7 @@ export async function processVendorPayouts(env: PaystackEnv) {
         const amountInKobo = Math.round(amount * 100);
 
         // Generate a unique reference for this transfer
-        const reference = `payout-${nanoid(16)}`;
-
-        // Add to transfers array
+        const reference = `payout-${nanoid(16)}`; // Add to transfers array
         transfers.push({
           amount: amountInKobo,
           recipient: recipientCode,
@@ -147,7 +148,6 @@ export async function processVendorPayouts(env: PaystackEnv) {
       console.log(
         `Processing batch ${i + 1} of ${batches.length} with ${batch.length} transfers`
       );
-
       try {
         // Make Paystack bulk transfer API call
         const response = await fetch("https://api.paystack.co/transfer/bulk", {
@@ -163,66 +163,85 @@ export async function processVendorPayouts(env: PaystackEnv) {
           }),
         });
 
-        const data = await response.json();
+        const data = (await response.json()) as {
+          status: boolean;
+          message: string;
+          data: Array<{
+            amount: number;
+            recipient: string;
+            reference: string;
+            transfer_code: string;
+          }>;
+        };
 
         if (data.status) {
-          console.log(`Batch ${i + 1} processed successfully: ${data.message}`);
-
-          // Update transaction status for each successful transfer
+          console.log(`Batch ${i + 1} processed successfully: ${data.message}`); // Update transaction status for each successful transfer
           for (const transfer of data.data) {
             try {
               // Extract the reference from the transfer
               const reference = transfer.reference;
 
               // Get the amount in database units (NGN not kobo)
-              const amount = transfer.amount / 100; // Start a transaction to keep operations atomic
-              await db.transaction(async (tx) => {
-                // 1. Mark pending transactions as completed
-                await tx
-                  .update(vendorTransactionTable)
-                  .set({
-                    status: "COMPLETED",
-                    reference: transfer.transfer_code,
-                    metadata: JSON.stringify({
-                      transferCode: transfer.transfer_code,
-                      processedAt: new Date().toISOString(),
-                    }),
-                  })
-                  .where(
-                    and(
-                      eq(vendorTransactionTable.status, "PENDING"),
-                      eq(vendorTransactionTable.type, "CREDIT"), // Find transactions for this specific shop
-                      sql`${vendorTransactionTable.shopId} = (
-                        SELECT pm.shop_id FROM "shopPaymentMethod" pm
-                        WHERE pm.paystack_recipient_code = '${transfer.recipient}'
-                      )`
-                    )
-                  ); // 2. Create a withdrawal transaction record
-                await tx.insert(vendorTransactionTable).values({
-                  shopId: sql`(
-                    SELECT pm.shop_id FROM "shopPaymentMethod" pm
-                    WHERE pm.paystack_recipient_code = '${transfer.recipient}'
-                    LIMIT 1
-                  )`,
-                  grossAmount: Math.round(amount * 100), // Convert to cents
-                  commissionRate: 0, // No commission on withdrawals
-                  commissionAmount: 0, // No commission on withdrawals
-                  netAmount: Math.round(amount * 100), // Convert to cents
-                  amount: Math.round(amount * 100), // Legacy field
-                  currency: "NGN",
+              const amount = transfer.amount / 100;
+
+              // First, get the shop ID safely to avoid SQL injection
+              const shopInfo = await db
+                .select({ shopId: shopPaymentMethodTable.shopId })
+                .from(shopPaymentMethodTable)
+                .where(
+                  eq(
+                    shopPaymentMethodTable.paystackRecipientCode,
+                    transfer.recipient
+                  )
+                )
+                .get();
+
+              if (!shopInfo) {
+                console.error(
+                  `No shop found for recipient code: ${transfer.recipient}`
+                );
+                continue;
+              } // Execute operations separately since D1 batch doesn't work with Drizzle prepared statements
+              // Update existing transactions
+              await db
+                .update(vendorTransactionTable)
+                .set({
                   status: "COMPLETED",
-                  type: "DEBIT",
                   reference: transfer.transfer_code,
-                  description: `Weekly payout for period ending ${endDate.toLocaleDateString()}`,
                   metadata: JSON.stringify({
                     transferCode: transfer.transfer_code,
-                    recipientCode: transfer.recipient,
-                    batchId: i + 1,
                     processedAt: new Date().toISOString(),
                   }),
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                });
+                })
+                .where(
+                  and(
+                    eq(vendorTransactionTable.shopId, shopInfo.shopId),
+                    eq(vendorTransactionTable.status, "PENDING"),
+                    eq(vendorTransactionTable.type, "CREDIT"),
+                    gte(vendorTransactionTable.createdAt, startDate),
+                    lt(vendorTransactionTable.createdAt, endDate)
+                  )
+                );
+
+              // Insert withdrawal record
+              await db.insert(vendorTransactionTable).values({
+                shopId: shopInfo.shopId,
+                grossAmount: Math.round(amount * 100),
+                commissionRate: 0,
+                commissionAmount: 0,
+                netAmount: Math.round(amount * 100),
+                amount: Math.round(amount * 100),
+                currency: "NGN",
+                status: "COMPLETED",
+                type: "DEBIT",
+                reference: transfer.transfer_code,
+                description: `Weekly payout for period ending ${endDate.toLocaleDateString()}`,
+                metadata: JSON.stringify({
+                  transferCode: transfer.transfer_code,
+                  recipientCode: transfer.recipient,
+                  batchId: i + 1,
+                  processedAt: new Date().toISOString(),
+                }),
               });
 
               console.log(
