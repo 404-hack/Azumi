@@ -212,7 +212,7 @@
 										{...props}
 										type="tel"
 										bind:value={$formData.phoneNumber}
-										placeholder="+234..."
+										placeholder="090..."
 									/>
 								</div>
 							{/snippet}
