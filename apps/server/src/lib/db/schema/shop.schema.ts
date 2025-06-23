@@ -13,6 +13,7 @@ import {
   DELIVERY_TYPE,
   SHOP_AGREEMENTS_TYPE,
   SHOP_STATUS,
+  SHOP_OWNERSHIP_TYPE,
   PAYMENT_METHODS,
 } from "../../constant";
 import { userTable } from "./auth.schema";
@@ -59,9 +60,11 @@ export const shopTable = sqliteTable(
     bankInfo: text("bank_info", { mode: "json" }),
     deliveryType: text("delivery_type", { enum: DELIVERY_TYPE }),
     latitude: real("latitude"), // Add latitude column
-    longitude: real("longitude"), // Add longitude column
-    addressName: text("address_name"), // Add address name column
+    longitude: real("longitude"), // Add longitude column    addressName: text("address_name"), // Add address name column
     isVerified: integer("is_verified", { mode: "boolean" }).default(false),
+    ownershipType: text("ownership_type", {
+      enum: SHOP_OWNERSHIP_TYPE,
+    }).default("OFFICIAL"),
 
     ...timestamps,
   },
