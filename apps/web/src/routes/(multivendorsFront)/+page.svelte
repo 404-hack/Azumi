@@ -74,14 +74,14 @@
 	<div class="relative isolate overflow-hidden pt-14">
 		<!-- Background Image and Darker Overlay -->
 		<img
-			src="/hero-1.jpeg"
+			src="/hero-2.avif"
 			alt="Diverse food options background"
 			class="absolute inset-0 -z-10 h-full w-full object-cover opacity-70"
 		/>
 		<div class="absolute inset-0 -z-10 bg-black/10" aria-hidden="true" />
 
 		<!-- Content -->
-		<div class="mx-auto max-w-3xl px-4 py-24 lg:py-32">
+		<div class="mx-auto max-w-3xl px-4 py-20 lg:py-28">
 			<div class="text-center">
 				<h1
 					class="text-4xl font-extrabold tracking-tight text-white drop-shadow-lg sm:text-5xl lg:text-6xl"
@@ -97,12 +97,12 @@
 						onsubmit={(e) => {
 							e.preventDefault();
 						}}
-						class="focus-within:ring-primary focus-within:ring-offset-background/50 flex items-center gap-2 rounded-full bg-white/90 p-2 shadow-xl backdrop-blur-sm focus-within:ring-2 focus-within:ring-offset-2"
+						class="focus-within:ring-primary focus-within:ring-offset-background/50 flex items-center gap-2 rounded-2xl bg-white/90 p-2 shadow-xl backdrop-blur-sm focus-within:ring-2 focus-within:ring-offset-2"
 					>
 						<MapPin class="text-muted-foreground ml-2 h-5 w-5 flex-shrink-0" />
 						<PlacesInput
 							class="text-foreground placeholder:text-muted-foreground/80 h-12 flex-1 border-none bg-transparent text-base outline-none"
-							placeholder="Enter delivery address or zip code"
+							placeholder="Enter delivery address"
 							onPlaceSelect={(p) => {
 								activeLocation.current = {
 									name: p.name,
@@ -116,7 +116,7 @@
 						<Button
 							type="submit"
 							size="icon"
-							class="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary flex-shrink-0 rounded-full shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2"
+							class="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary flex-shrink-0 rounded-2xl shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2"
 							aria-label="Search for locations"
 						>
 							<ArrowRight class="size-5" />
@@ -155,8 +155,8 @@
 						</dt>
 						<dd class="text-muted-foreground mt-4 flex flex-auto flex-col text-base leading-7">
 							<p class="flex-auto">
-								Enter your address or zip code above to discover a wide variety of restaurants,
-								local markets, and shops available in your area.
+								Enter your address above to discover a wide variety of restaurants, local markets,
+								and shops available in your area.
 							</p>
 						</dd>
 					</div>

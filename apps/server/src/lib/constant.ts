@@ -90,6 +90,8 @@ export const SHOP_STATUS = [
   "SUSPENDED",
 ] as const;
 
+export const SHOP_OWNERSHIP_TYPE = ["OFFICIAL", "SPECIAL"] as const;
+
 export const SHOP_AGREEMENTS_TYPE = ["VENDOR_TERMS"] as const;
 
 export const PROMOTION_TYPES = [

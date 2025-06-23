@@ -20,6 +20,7 @@ import riderRoute from "./routes/rider.route";
 import promotionRoute from "./routes/promotion.route";
 import pushNotificationRoute from "./routes/push-notification.route";
 import { firebaseAdminMiddleware } from "./middlewares/firebase.middleware";
+import { scheduled } from "./scheduled";
 
 // Create app instance using factory
 const app = factory
@@ -63,4 +64,13 @@ export { OrderNotification } from "./durable-objects/order-notification.do";
 export { RiderDispatch } from "./durable-objects/rider-dispatch.do";
 export { OrderWorkflow } from "./workflows/order.workflow";
 
-export default app;
+// Import the scheduled function
+
+// Export both the app and scheduled function following Hono pattern
+export default {
+  // The Hono app handles regular HTTP requests
+  fetch: app.fetch,
+
+  // The scheduled function handles Cron triggers
+  scheduled,
+};

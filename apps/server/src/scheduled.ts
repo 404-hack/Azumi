@@ -1,18 +1,32 @@
 import { processVendorPayouts } from "./services/vendorPayout.service";
 
-export default {
-  // Process weekly payouts every Sunday at 00:01 AM
-  async scheduled(event: ScheduledEvent, env: any, ctx: ExecutionContext) {
-    console.log("Running scheduled job:", event.cron);
+export async function scheduled(
+  event: ScheduledEvent,
+  env: any,
+  ctx: ExecutionContext
+) {
+  const environment = env.CLIENT_URL?.includes("localhost")
+    ? "staging"
+    : "production";
 
-    switch (event.cron) {
-      case "1 0 * * 0": // Sunday at 00:01 AM
-        ctx.waitUntil(processVendorPayouts(env));
-        break;
+  console.log("🕐 Running scheduled job:", event.cron);
+  console.log("📅 Current time:", new Date().toISOString());
+  console.log("🌍 Environment:", environment);
 
-      // You can add other scheduled jobs here as needed
-      default:
-        console.log("No handler for cron pattern:", event.cron);
-    }
-  },
-};
+  switch (event.cron) {
+    case "1 0 * * 5": // Friday at 00:01 AM - Weekly vendor payouts
+      console.log("💰 Processing weekly vendor payouts...");
+      ctx.waitUntil(processVendorPayouts(env));
+      break;
+
+    case "* * * * *": // Every minute - Test job
+      console.log("🎉 EVERY MINUTE CRON JOB TRIGGERED!");
+      console.log("⏰ This runs every minute for testing purposes");
+      console.log(`🧪 Environment: ${environment}`);
+      console.log("📊 Current timestamp:", Date.now());
+      break;
+
+    default:
+      console.log("❓ No handler for cron pattern:", event.cron);
+  }
+}

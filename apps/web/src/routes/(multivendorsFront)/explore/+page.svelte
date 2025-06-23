@@ -31,7 +31,7 @@
 		{
 			id: '1',
 			name: 'Fresh Local Fruits',
-			image: './shop.avif',
+			image: './hero-2.avif',
 			rating: 4.8,
 			location: 'Lagos',
 			deliveryTime: '25-35 min',
@@ -80,7 +80,7 @@
 		{
 			id: '5',
 			name: 'Handmade Baskets',
-			image: './shop.avif',
+			image: './localMarketIcon.png',
 			rating: 4.5,
 			location: 'Cape Town',
 			deliveryTime: '45-60 min',
@@ -134,8 +134,8 @@
 			{#each filters as filter}
 				<button
 					class="whitespace-nowrap border-b-2 px-4 py-2 transition-all {filter.active
-						? 'border-primary font-medium text-primary'
-						: 'border-transparent hover:border-primary/30 hover:text-primary'}"
+						? 'border-primary text-primary font-medium'
+						: 'hover:border-primary/30 hover:text-primary border-transparent'}"
 					onclick={() => setFilter(filter.name)}
 				>
 					{filter.name}
@@ -153,7 +153,7 @@
 		<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
 			{#each filteredItems.slice(0, 3) as item, i (item.id)}
 				<div
-					class="overflow-hidden rounded-xl bg-card shadow-md transition-all duration-300 hover:shadow-lg"
+					class="bg-card overflow-hidden rounded-xl shadow-md transition-all duration-300 hover:shadow-lg"
 					in:fly|global={{ y: 20, delay: i * 75, duration: 250 }}
 				>
 					<div class="relative h-48">
@@ -177,10 +177,10 @@
 					</div>
 					<div class="p-4">
 						<h3 class="mb-1 text-lg font-medium">{item.name}</h3>
-						<p class="mb-2 line-clamp-2 text-sm text-muted-foreground">{item.description}</p>
+						<p class="text-muted-foreground mb-2 line-clamp-2 text-sm">{item.description}</p>
 
 						<div
-							class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+							class="text-muted-foreground mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
 						>
 							<span class="flex items-center">
 								<Bike class="mr-1 h-3 w-3" />
@@ -216,7 +216,7 @@
 		<div class="scrollbar-hide flex gap-4 overflow-x-auto pb-4">
 			{#each filteredItems.slice(0, 6) as item, i (item.id)}
 				<div
-					class="min-w-[180px] max-w-[200px] flex-shrink-0 overflow-hidden rounded-lg bg-card shadow-sm transition-all duration-300 hover:shadow-md"
+					class="bg-card min-w-[180px] max-w-[200px] flex-shrink-0 overflow-hidden rounded-lg shadow-sm transition-all duration-300 hover:shadow-md"
 					in:fly|global={{ x: 20, delay: i * 50, duration: 200 }}
 				>
 					<img src={item.image} alt={item.name} class="h-24 w-full object-cover" />
@@ -243,7 +243,7 @@
 		<div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
 			{#each filteredItems as item, i (item.id)}
 				<div
-					class="overflow-hidden rounded-lg bg-card shadow-sm transition-all duration-300 hover:shadow-md"
+					class="bg-card overflow-hidden rounded-lg shadow-sm transition-all duration-300 hover:shadow-md"
 					in:fly|global={{ y: 15, delay: i * 50, duration: 200 }}
 				>
 					<img src={item.image} alt={item.name} class="h-32 w-full object-cover" />
