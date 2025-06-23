@@ -31,8 +31,7 @@ database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18"
     vars = { CLIENT_URL = "http://localhost:5173/" }
     d1_databases = [{ binding = "DB", database_name = "azumi-db-staging", database_id = "22ef4992-c5ff-4a89-afff-f467ef9d4d3c" }]
     r2_buckets = [{ bucket_name = "azumi-staging-bucket", binding = "BUCKET" }]
-    workflows = [{ name = "order-processing", binding = "ORDER_WORKFLOW", class_name = "OrderWorkflow" }]    # Staging cron jobs - Every minute test job
-    triggers = { crons = ["* * * * *"] }
+    workflows = [{ name = "order-processing", binding = "ORDER_WORKFLOW", class_name = "OrderWorkflow" }]
     durable_objects.bindings = [
         { name = "ORDER_NOTIFICATION", class_name = "OrderNotification" },
         { name = "RIDER_DISPATCH", class_name = "RiderDispatch" }
@@ -48,8 +47,8 @@ database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18"
 vars = { CLIENT_URL = "https://azumi.com.ng" }
     d1_databases = [ { binding = "DB", database_name = "azumi-db", database_id = "07b109be-83d0-41f7-a47f-1ce49611bc18" } ]
     r2_buckets = [{ bucket_name = "azumi-bucket", binding = "BUCKET" }]
- workflows = [{ name = "order-processing", binding = "ORDER_WORKFLOW", class_name = "OrderWorkflow" }]    # Production cron jobs - Weekly vendor payout (Friday 00:01 AM) and every minute test
-    triggers = { crons = ["1 0 * * 5", "* * * * *"] }
+ workflows = [{ name = "order-processing", binding = "ORDER_WORKFLOW", class_name = "OrderWorkflow" }]    # Production cron jobs - Weekly vendor payout (Friday 23:59 PM - End of week)
+    triggers = { crons = ["59 23 * * 5"] }
     durable_objects.bindings = [
         { name = "ORDER_NOTIFICATION", class_name = "OrderNotification" },
         { name = "RIDER_DISPATCH", class_name = "RiderDispatch" }

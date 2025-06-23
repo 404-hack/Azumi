@@ -12,18 +12,10 @@ export async function scheduled(
   console.log("🕐 Running scheduled job:", event.cron);
   console.log("📅 Current time:", new Date().toISOString());
   console.log("🌍 Environment:", environment);
-
   switch (event.cron) {
-    case "1 0 * * 5": // Friday at 00:01 AM - Weekly vendor payouts
+    case "59 23 * * 5": // Friday at 23:59 PM - Weekly vendor payouts (end of week)
       console.log("💰 Processing weekly vendor payouts...");
       ctx.waitUntil(processVendorPayouts(env));
-      break;
-
-    case "* * * * *": // Every minute - Test job
-      console.log("🎉 EVERY MINUTE CRON JOB TRIGGERED!");
-      console.log("⏰ This runs every minute for testing purposes");
-      console.log(`🧪 Environment: ${environment}`);
-      console.log("📊 Current timestamp:", Date.now());
       break;
 
     default:
