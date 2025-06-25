@@ -353,7 +353,7 @@
 					</div>
 
 					<!-- Email Signup -->
-					<div class="max-w-md">
+					<!-- <div class="max-w-md">
 						<p class="text-primary-foreground/90 mb-4">Be the first to know when we launch:</p>
 						<div class="flex gap-3">
 							<input
@@ -367,11 +367,11 @@
 								Notify Me
 							</Button>
 						</div>
-					</div>
+					</div> -->
 				</div>
 
 				<!-- Right - Phone mockup -->
-				<div class="relative">
+				<!-- <div class="relative">
 					<div class="relative mx-auto w-80">
 						<div class="bg-card relative z-10 overflow-hidden rounded-[2.5rem] shadow-2xl">
 							<img
@@ -380,7 +380,6 @@
 								class="h-[600px] w-full object-cover"
 							/>
 						</div>
-						<!-- Floating decoration -->
 						<div
 							class="bg-primary-foreground/20 absolute -right-8 -top-8 h-32 w-32 rounded-full"
 						></div>
@@ -388,7 +387,7 @@
 							class="bg-primary-foreground/10 absolute -bottom-4 -left-4 h-20 w-20 rounded-full"
 						></div>
 					</div>
-				</div>
+				</div> -->
 			</div>
 		</div>
 	</div>
