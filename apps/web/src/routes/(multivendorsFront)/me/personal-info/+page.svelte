@@ -31,7 +31,7 @@
 	<div class="space-y-8">
 		<!-- Profile Section -->
 		<div class="flex items-start gap-4">
-			<div class="h-20 w-20 overflow-hidden rounded-full bg-primary/10 text-center">
+			<div class="bg-primary/10 h-20 w-20 overflow-hidden rounded-full text-center">
 				<div class="flex h-full w-full items-center justify-center text-2xl font-semibold">
 					{user?.name
 						.split(' ')
@@ -43,15 +43,14 @@
 				<h2 class="text-2xl font-semibold">{user?.name}</h2>
 				<div class="mt-4 space-y-2">
 					<div>
-						<div class="text-sm text-muted-foreground">Email</div>
+						<div class="text-muted-foreground text-sm">Email</div>
 						<div>{user?.email}</div>
 					</div>
 					<div>
-						<div class="text-sm text-muted-foreground">Phone number</div>
+						<div class="text-muted-foreground text-sm">Phone number</div>
 						<div>{user?.phoneNumber}</div>
 					</div>
 				</div>
-				
 			</div>
 		</div>
 
@@ -70,7 +69,7 @@
 							<Coins class="h-5 w-5 text-yellow-500" />
 							<span class="text-xl font-semibold">{user?.tokens || 0} ×</span>
 						</div>
-						<p class="mt-2 text-sm text-muted-foreground">
+						<p class="text-muted-foreground mt-2 text-sm">
 							Each token will get you a standard delivery with no delivery fee.
 						</p>
 					</div>
@@ -87,9 +86,9 @@
 							</Button>
 						</div>
 						<div class="mt-2">
-							<span class="text-xl font-semibold">€{user?.credits || 0}</span>
+							<span class="text-xl font-semibold">₦{user?.credits || 0}</span>
 						</div>
-						<p class="mt-2 text-sm text-muted-foreground">
+						<p class="text-muted-foreground mt-2 text-sm">
 							You can use credits to pay for your orders.
 						</p>
 					</div>

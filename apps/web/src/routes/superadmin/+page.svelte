@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { adminState } from '$lib/states/adminState.svelte';
 	import { Card } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
@@ -12,101 +11,87 @@
 		ShoppingBag,
 		Clock,
 		TrendingUp,
-		ArrowUpRight,
-		ArrowDownRight
+		RefreshCw
 	} from 'lucide-svelte';
 	import { formatCurrency } from '$lib/utils';
+	import { invalidateAll } from '$app/navigation';
+	import type { PageData } from './$types';
 
-	// Mock data for demonstration
-	const recentOrders = [
-		{
-			id: 'ORD-001',
-			customer: 'John Doe',
-			vendor: 'Restaurant ABC',
-			total: 45.99,
-			status: 'completed',
-			time: '10 mins ago'
-		},
-		{
-			id: 'ORD-002',
-			customer: 'Jane Smith',
-			vendor: 'Restaurant XYZ',
-			total: 32.5,
-			status: 'preparing',
-			time: '15 mins ago'
-		}
-	];
+	let { data }: { data: PageData } = $props();
 
-	const metrics = [
-		{
-			label: 'Revenue',
-			value: 25789.5,
-			change: 12.5,
-			trend: 'up'
-		},
-		{
-			label: 'Orders',
-			value: 1254,
-			change: 8.2,
-			trend: 'up'
-		},
-		{
-			label: 'Average Order Value',
-			value: 42.3,
-			change: -2.4,
-			trend: 'down'
+	function getStatusBadgeVariant(status: string) {
+		switch (status.toLowerCase()) {
+			case 'completed':
+			case 'delivered':
+				return 'default';
+			case 'preparing':
+			case 'confirmed':
+				return 'secondary';
+			case 'cancelled':
+				return 'destructive';
+			default:
+				return 'outline';
 		}
-	];
+	}
 </script>
 
-<div class="space-y-8">
-	<!-- Overview Stats -->
-	<div class="grid gap-4 md:grid-cols-4">
+<div class="space-y-8">	<!-- Overview Stats -->
+	<div class="grid gap-4 md:grid-cols-5">
 		<Card class="p-4">
 			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Total Revenue</span>
+				<span class="text-muted-foreground text-sm font-medium">Total Revenue</span>
 				<div class="flex items-center gap-2">
 					<DollarSign class="h-4 w-4 text-green-500" />
-					<span class="text-2xl font-bold">{formatCurrency(adminState.stats.totalRevenue)}</span>
+					<span class="text-2xl font-bold">{formatCurrency(data.stats.totalRevenue)}</span>
 				</div>
 			</div>
 		</Card>
 		<Card class="p-4">
 			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Total Orders</span>
+				<span class="text-muted-foreground text-sm font-medium">Total Orders</span>
 				<div class="flex items-center gap-2">
 					<ShoppingBag class="h-4 w-4 text-blue-500" />
-					<span class="text-2xl font-bold">{adminState.stats.totalOrders}</span>
+					<span class="text-2xl font-bold">{data.stats.totalOrders}</span>
 				</div>
 			</div>
 		</Card>
 		<Card class="p-4">
 			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Active Vendors</span>
+				<span class="text-muted-foreground text-sm font-medium">Total Customers</span>
+				<div class="flex items-center gap-2">
+					<Users class="h-4 w-4 text-teal-500" />
+					<span class="text-2xl font-bold">{data.stats.totalCustomers}</span>
+				</div>
+			</div>
+		</Card>
+		<Card class="p-4">
+			<div class="flex flex-col gap-1">
+				<span class="text-muted-foreground text-sm font-medium">Active Vendors</span>
 				<div class="flex items-center gap-2">
 					<Store class="h-4 w-4 text-purple-500" />
-					<span class="text-2xl font-bold">{adminState.stats.totalVendors}</span>
+					<span class="text-2xl font-bold">{data.stats.totalVendors}</span>
 				</div>
 			</div>
 		</Card>
 		<Card class="p-4">
 			<div class="flex flex-col gap-1">
-				<span class="text-sm font-medium text-muted-foreground">Active Riders</span>
+				<span class="text-muted-foreground text-sm font-medium">Active Riders</span>
 				<div class="flex items-center gap-2">
 					<Bike class="h-4 w-4 text-orange-500" />
-					<span class="text-2xl font-bold">{adminState.stats.totalRiders}</span>
+					<span class="text-2xl font-bold">{data.stats.totalRiders}</span>
 				</div>
 			</div>
 		</Card>
 	</div>
 
-	<!-- Key Metrics -->
-
 	<!-- Recent Orders -->
 	<Card class="p-6">
 		<div class="flex items-center justify-between">
 			<h3 class="font-semibold">Recent Orders</h3>
-			<Button variant="ghost" size="sm">View All</Button>
+			<Button variant="ghost" size="sm" onclick={invalidateAll}>
+				<RefreshCw class="h-4 w-4" />
+				Refresh
+			</Button>
 		</div>
 		<div class="mt-6">
 			<Table.Root>
@@ -121,18 +106,18 @@
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
-					{#each recentOrders as order}
+					{#each data.recentOrders as order}
 						<Table.Row>
-							<Table.Cell class="font-medium">{order.id}</Table.Cell>
+							<Table.Cell class="font-medium">{order.orderCode}</Table.Cell>
 							<Table.Cell>{order.customer}</Table.Cell>
 							<Table.Cell>{order.vendor}</Table.Cell>
 							<Table.Cell>
-								<Badge variant={order.status === 'completed' ? 'success' : 'warning'}>
+								<Badge variant={getStatusBadgeVariant(order.status)}>
 									{order.status}
 								</Badge>
 							</Table.Cell>
 							<Table.Cell class="text-right">{formatCurrency(order.total)}</Table.Cell>
-							<Table.Cell class="text-right text-muted-foreground">{order.time}</Table.Cell>
+							<Table.Cell class="text-muted-foreground text-right">{order.time}</Table.Cell>
 						</Table.Row>
 					{/each}
 				</Table.Body>
@@ -142,40 +127,36 @@
 
 	<!-- Performance Overview -->
 	<div class="grid gap-6 md:grid-cols-2">
-		<!-- Active Deliveries -->
 		<Card class="p-6">
 			<div class="flex items-center justify-between">
 				<h3 class="font-semibold">Active Deliveries</h3>
-				<Badge variant="outline">{adminState.stats.activeDeliveries}</Badge>
+				<Badge variant="outline">{data.stats.activeDeliveries}</Badge>
 			</div>
 			<div class="mt-4 flex items-center gap-4">
 				<div>
-					<div class="text-sm font-medium text-muted-foreground">Avg. Delivery Time</div>
+					<div class="text-muted-foreground text-sm font-medium">Avg. Delivery Time</div>
 					<div class="mt-1 flex items-center gap-2">
-						<Clock class="h-4 w-4 text-muted-foreground" />
+						<Clock class="text-muted-foreground h-4 w-4" />
 						<span class="text-xl font-semibold">
-							{adminState.stats.averageDeliveryTime} mins
+							{data.stats.averageDeliveryTime} mins
 						</span>
 					</div>
 				</div>
 			</div>
 		</Card>
 
-		<!-- Platform Revenue -->
 		<Card class="p-6">
 			<div class="flex items-center justify-between">
 				<h3 class="font-semibold">Platform Revenue</h3>
-				<Badge variant="outline">{adminState.stats.platformCommission}%</Badge>
+				<Badge variant="outline">{data.stats.platformCommission}%</Badge>
 			</div>
 			<div class="mt-4 flex items-center gap-4">
 				<div>
-					<div class="text-sm font-medium text-muted-foreground">Commission Today</div>
+					<div class="text-muted-foreground text-sm font-medium">Commission Total</div>
 					<div class="mt-1 flex items-center gap-2">
 						<TrendingUp class="h-4 w-4 text-green-500" />
 						<span class="text-xl font-semibold">
-							{formatCurrency(
-								adminState.stats.totalRevenue * (adminState.stats.platformCommission / 100)
-							)}
+							{formatCurrency(data.stats.totalRevenue * (data.stats.platformCommission / 100))}
 						</span>
 					</div>
 				</div>

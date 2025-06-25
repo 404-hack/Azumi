@@ -300,60 +300,6 @@
 	</div>
 
 	<!-- Active Disputes -->
-	{#if activeDisputes.length > 0}
-		<Card class="p-6">
-			<div class="mb-6 flex items-center justify-between">
-				<div class="flex items-center gap-2">
-					<AlertTriangle class="h-5 w-5 text-red-500" />
-					<h3 class="font-semibold">Active Disputes</h3>
-				</div>
-				<Badge variant="destructive">{activeDisputes.length} active</Badge>
-			</div>
-			<div class="overflow-auto">
-				<Table.Root>
-					<Table.Header>
-						<Table.Row>
-							<Table.Head>Dispute ID</Table.Head>
-							<Table.Head>Customer</Table.Head>
-							<Table.Head>Order ID</Table.Head>
-							<Table.Head>Vendor</Table.Head>
-							<Table.Head>Reason</Table.Head>
-							<Table.Head>Status</Table.Head>
-							<Table.Head>Created</Table.Head>
-							<Table.Head class="text-right">Actions</Table.Head>
-						</Table.Row>
-					</Table.Header>
-					<Table.Body>
-						{#each activeDisputes as dispute}
-							<Table.Row>
-								<Table.Cell class="font-medium">{dispute.id}</Table.Cell>
-								<Table.Cell>{dispute.customer.name}</Table.Cell>
-								<Table.Cell>{dispute.orderId}</Table.Cell>
-								<Table.Cell>{dispute.vendor}</Table.Cell>
-								<Table.Cell>{dispute.reason}</Table.Cell>
-								<Table.Cell>
-									<Badge variant={getDisputeStatusBadgeVariant(dispute.status)}>
-										{dispute.status}
-									</Badge>
-								</Table.Cell>
-								<Table.Cell>{formatDate(dispute.createdAt)}</Table.Cell>
-								<Table.Cell class="text-right">
-									<div class="flex items-center justify-end gap-2">
-										<Button variant="outline" size="sm" href="/superadmin/disputes/{dispute.id}">
-											View Details
-										</Button>
-										<Button size="sm" onclick={() => handleCustomerAction(dispute.id, 'resolve')}>
-											Resolve
-										</Button>
-									</div>
-								</Table.Cell>
-							</Table.Row>
-						{/each}
-					</Table.Body>
-				</Table.Root>
-			</div>
-		</Card>
-	{/if}
 
 	<!-- Customers List -->
 	<Card class="p-6">
@@ -366,7 +312,7 @@
 					</Tabs.List>
 				</Tabs.Root>
 				<div class="relative">
-					<Search class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+					<Search class="text-muted-foreground absolute left-2 top-2.5 h-4 w-4" />
 					<Input placeholder="Search customers..." class="pl-8" bind:value={searchQuery} />
 				</div>
 			</div>
@@ -374,9 +320,9 @@
 				{#if loading}
 					<div class="py-10 text-center">
 						<div
-							class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"
+							class="border-primary inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-r-transparent"
 						></div>
-						<p class="mt-2 text-sm text-muted-foreground">Loading customers...</p>
+						<p class="text-muted-foreground mt-2 text-sm">Loading customers...</p>
 					</div>
 				{:else if customers.length === 0}
 					<div class="py-10 text-center">
@@ -400,7 +346,7 @@
 								<Table.Row>
 									<Table.Cell>
 										<div class="flex items-center gap-2">
-											<div class="h-8 w-8 overflow-hidden rounded-full bg-muted">
+											<div class="bg-muted h-8 w-8 overflow-hidden rounded-full">
 												<img
 													src="https://api.dicebear.com/7.x/avataaars/svg?seed={customer.name}"
 													alt="{customer.name}'s avatar"
@@ -414,25 +360,25 @@
 														<Badge variant="destructive" class="ml-2">Banned</Badge>
 													{/if}
 												</div>
-												<div class="text-sm text-muted-foreground">ID: {customer.id}</div>
+												<div class="text-muted-foreground text-sm">ID: {customer.id}</div>
 											</div>
 										</div>
 									</Table.Cell>
 									<Table.Cell>
 										<div class="flex items-center gap-2">
-											<ShoppingBag class="h-4 w-4 text-muted-foreground" />
+											<ShoppingBag class="text-muted-foreground h-4 w-4" />
 											<span>{customer.totalOrders}</span>
 										</div>
 									</Table.Cell>
 									<Table.Cell>
 										<div class="flex items-center gap-2">
-											<DollarSign class="h-4 w-4 text-muted-foreground" />
+											<DollarSign class="text-muted-foreground h-4 w-4" />
 											<span>{formatCurrency(customer.totalSpent)}</span>
 										</div>
 									</Table.Cell>
 									<Table.Cell>
 										<div class="flex items-center gap-1">
-											<MapPin class="h-4 w-4 text-muted-foreground" />
+											<MapPin class="text-muted-foreground h-4 w-4" />
 											<span>{customer.location}</span>
 										</div>
 									</Table.Cell>
@@ -503,7 +449,7 @@
 
 					<!-- Pagination Controls -->
 					<div class="flex items-center justify-between border-t px-4 py-4">
-						<div class="text-sm text-muted-foreground">
+						<div class="text-muted-foreground text-sm">
 							Showing {(currentPage - 1) * pageSize + 1} to {Math.min(
 								currentPage * pageSize,
 								totalCustomers
@@ -555,7 +501,7 @@
 			<div class="grid gap-2">
 				<label for="duration" class="text-sm font-medium">Block Duration (days)</label>
 				<Input id="duration" type="number" bind:value={banDuration} min="1" />
-				<p class="text-sm text-muted-foreground">Set to 0 for permanent block</p>
+				<p class="text-muted-foreground text-sm">Set to 0 for permanent block</p>
 			</div>
 		</div>
 		<Dialog.Footer>
@@ -577,9 +523,9 @@
 			{#if sessionsLoading}
 				<div class="py-10 text-center">
 					<div
-						class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"
+						class="border-primary inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-r-transparent"
 					></div>
-					<p class="mt-2 text-sm text-muted-foreground">Loading sessions...</p>
+					<p class="text-muted-foreground mt-2 text-sm">Loading sessions...</p>
 				</div>
 			{:else if customerSessions.length === 0}
 				<div class="py-6 text-center">
@@ -604,7 +550,7 @@
 											<div class="font-medium">
 												{session.userAgent || 'Unknown Device'}
 											</div>
-											<div class="text-sm text-muted-foreground">
+											<div class="text-muted-foreground text-sm">
 												{session.ip || 'Unknown IP'}
 											</div>
 										</div>
@@ -642,5 +588,3 @@
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
-
-
