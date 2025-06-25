@@ -113,7 +113,7 @@
 				<div class="text-left lg:pr-8">
 					<!-- Promotional Banner -->
 					<div
-						class="mb-6 inline-flex items-center rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-6 py-2 text-sm font-medium text-white shadow-lg"
+						class="from-primary mb-6 inline-flex items-center rounded-full bg-gradient-to-r to-orange-600 px-6 py-2 text-sm font-medium text-white shadow-lg"
 					>
 						<Zap class="mr-2 h-4 w-4" />
 						₦0 delivery fee on first order
@@ -121,9 +121,8 @@
 
 					<h1 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
 						Everything you
-						<span class="bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
-							crave, delivered.
-						</span>
+						<!-- bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent -->
+						<span class="text-primary"> crave, delivered. </span>
 					</h1>
 
 					<p class="mt-6 max-w-xl text-lg leading-8 text-gray-600">
@@ -208,10 +207,10 @@
 	<div class="bg-background py-24">
 		<div class="mx-auto max-w-7xl px-6 lg:px-8">
 			<div class="mb-16 text-center">
-				<h2 class="mb-6 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+				<h2 class="text-foreground mb-6 text-4xl font-bold tracking-tight sm:text-5xl">
 					Explore categories
 				</h2>
-				<p class="mx-auto max-w-2xl text-xl text-muted-foreground">
+				<p class="text-muted-foreground mx-auto max-w-2xl text-xl">
 					Discover everything you need, delivered fresh to your doorstep
 				</p>
 			</div>
@@ -338,32 +337,32 @@
 				<!-- Left - Content -->
 				<div class="text-primary-foreground">
 					<h2 class="mb-6 text-4xl font-bold tracking-tight sm:text-5xl">Mobile App Coming Soon</h2>
-					<p class="mb-8 text-xl leading-relaxed text-primary-foreground/90">
+					<p class="text-primary-foreground/90 mb-8 text-xl leading-relaxed">
 						We're working hard to bring you the best food delivery experience on mobile. Our app
 						will feature seamless ordering, real-time tracking, and exclusive deals.
 					</p>
 
 					<!-- Coming Soon Badge -->
 					<div
-						class="mb-8 inline-flex items-center rounded-full bg-primary-foreground/20 px-6 py-3 backdrop-blur-sm"
+						class="bg-primary-foreground/20 mb-8 inline-flex items-center rounded-full px-6 py-3 backdrop-blur-sm"
 					>
-						<Zap class="mr-3 h-5 w-5 text-primary-foreground" />
-						<span class="font-semibold text-primary-foreground"
+						<Zap class="text-primary-foreground mr-3 h-5 w-5" />
+						<span class="text-primary-foreground font-semibold"
 							>Launching Soon on iOS & Android</span
 						>
 					</div>
 
 					<!-- Email Signup -->
 					<div class="max-w-md">
-						<p class="mb-4 text-primary-foreground/90">Be the first to know when we launch:</p>
+						<p class="text-primary-foreground/90 mb-4">Be the first to know when we launch:</p>
 						<div class="flex gap-3">
 							<input
 								type="email"
 								placeholder="Enter your email"
-								class="flex-1 rounded-xl border-0 bg-primary-foreground/20 px-4 py-3 text-primary-foreground backdrop-blur-sm placeholder:text-primary-foreground/60 focus:bg-primary-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary-foreground/50"
+								class="bg-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/60 focus:bg-primary-foreground/30 focus:ring-primary-foreground/50 flex-1 rounded-xl border-0 px-4 py-3 backdrop-blur-sm focus:outline-none focus:ring-2"
 							/>
 							<Button
-								class="rounded-xl bg-background px-6 py-3 font-semibold text-foreground hover:bg-muted"
+								class="bg-background text-foreground hover:bg-muted rounded-xl px-6 py-3 font-semibold"
 							>
 								Notify Me
 							</Button>
@@ -374,7 +373,7 @@
 				<!-- Right - Phone mockup -->
 				<div class="relative">
 					<div class="relative mx-auto w-80">
-						<div class="relative z-10 overflow-hidden rounded-[2.5rem] bg-card shadow-2xl">
+						<div class="bg-card relative z-10 overflow-hidden rounded-[2.5rem] shadow-2xl">
 							<img
 								src="/hero-2.avif"
 								alt="Azumi mobile app"
@@ -383,10 +382,10 @@
 						</div>
 						<!-- Floating decoration -->
 						<div
-							class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-primary-foreground/20"
+							class="bg-primary-foreground/20 absolute -right-8 -top-8 h-32 w-32 rounded-full"
 						></div>
 						<div
-							class="absolute -bottom-4 -left-4 h-20 w-20 rounded-full bg-primary-foreground/10"
+							class="bg-primary-foreground/10 absolute -bottom-4 -left-4 h-20 w-20 rounded-full"
 						></div>
 					</div>
 				</div>
@@ -398,16 +397,16 @@
 	<div class="bg-muted/20 py-24">
 		<div class="mx-auto max-w-7xl px-6 lg:px-8">
 			<div class="mb-20 text-center">
-				<div class="mb-6 inline-flex items-center rounded-full bg-primary/10 px-4 py-2">
-					<span class="text-sm font-semibold text-primary">🚀 JOIN THE NETWORK</span>
+				<div class="bg-primary/10 mb-6 inline-flex items-center rounded-full px-4 py-2">
+					<span class="text-primary text-sm font-semibold">🚀 JOIN THE NETWORK</span>
 				</div>
-				<h2 class="mb-6 text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+				<h2 class="text-foreground mb-6 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
 					Grow with <span
-						class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
+						class="from-primary to-secondary bg-gradient-to-r bg-clip-text text-transparent"
 						>Azumi</span
 					>
 				</h2>
-				<p class="mx-auto max-w-3xl text-xl leading-relaxed text-muted-foreground">
+				<p class="text-muted-foreground mx-auto max-w-3xl text-xl leading-relaxed">
 					Join thousands of restaurants, riders, and team members who are building Nigeria's most
 					trusted food delivery platform
 				</p>
@@ -416,12 +415,12 @@
 			<div class="grid grid-cols-1 gap-8 md:grid-cols-3 lg:gap-12">
 				<!-- Restaurant Owners Card -->
 				<div
-					class="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 p-8 transition-all duration-500 hover:-translate-y-3 hover:shadow-2xl"
+					class="from-primary/5 via-primary/10 to-primary/5 group relative overflow-hidden rounded-3xl bg-gradient-to-br p-8 transition-all duration-500 hover:-translate-y-3 hover:shadow-2xl"
 				>
 					<div class="relative z-10">
 						<!-- Icon -->
 						<div
-							class="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary shadow-lg transition-all duration-300 group-hover:rotate-6 group-hover:scale-110"
+							class="bg-primary mb-8 flex h-20 w-20 items-center justify-center rounded-2xl shadow-lg transition-all duration-300 group-hover:rotate-6 group-hover:scale-110"
 						>
 							<img
 								src="/restaurantIcon.png"
@@ -432,22 +431,22 @@
 
 						<!-- Content -->
 						<div class="mb-8">
-							<h3 class="mb-4 text-2xl font-bold text-card-foreground">Restaurant Owners</h3>
-							<p class="mb-6 leading-relaxed text-muted-foreground">
+							<h3 class="text-card-foreground mb-4 text-2xl font-bold">Restaurant Owners</h3>
+							<p class="text-muted-foreground mb-6 leading-relaxed">
 								Turn your kitchen into a profitable business. Reach hundreds of hungry customers in
 								Epe and beyond with zero upfront costs.
 							</p>
 							<div class="space-y-2 text-sm">
-								<div class="flex items-center text-muted-foreground">
-									<div class="mr-3 h-1.5 w-1.5 rounded-full bg-primary"></div>
+								<div class="text-muted-foreground flex items-center">
+									<div class="bg-primary mr-3 h-1.5 w-1.5 rounded-full"></div>
 									<span>Zero commission for first month</span>
 								</div>
-								<div class="flex items-center text-muted-foreground">
-									<div class="mr-3 h-1.5 w-1.5 rounded-full bg-primary"></div>
+								<div class="text-muted-foreground flex items-center">
+									<div class="bg-primary mr-3 h-1.5 w-1.5 rounded-full"></div>
 									<span>Free marketing support</span>
 								</div>
-								<div class="flex items-center text-muted-foreground">
-									<div class="mr-3 h-1.5 w-1.5 rounded-full bg-primary"></div>
+								<div class="text-muted-foreground flex items-center">
+									<div class="bg-primary mr-3 h-1.5 w-1.5 rounded-full"></div>
 									<span>Real-time order management</span>
 								</div>
 							</div>
@@ -455,7 +454,7 @@
 
 						<!-- CTA -->
 						<Button
-							class="group/btn w-full rounded-xl bg-primary text-primary-foreground transition-all duration-300 hover:bg-primary/90 hover:shadow-lg"
+							class="group/btn bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-xl transition-all duration-300 hover:shadow-lg"
 						>
 							<span>Start Selling Today</span>
 							<ArrowRight class="ml-2 h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
@@ -464,41 +463,41 @@
 
 					<!-- Decorative Elements -->
 					<div
-						class="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-primary/10 transition-all duration-500 group-hover:scale-125"
+						class="bg-primary/10 absolute -right-6 -top-6 h-32 w-32 rounded-full transition-all duration-500 group-hover:scale-125"
 					></div>
-					<div class="absolute -bottom-4 -left-4 h-20 w-20 rounded-full bg-primary/5"></div>
+					<div class="bg-primary/5 absolute -bottom-4 -left-4 h-20 w-20 rounded-full"></div>
 				</div>
 
 				<!-- Delivery Riders Card -->
 				<div
-					class="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-secondary/10 via-secondary/15 to-secondary/10 p-8 transition-all duration-500 hover:-translate-y-3 hover:shadow-2xl"
+					class="from-secondary/10 via-secondary/15 to-secondary/10 group relative overflow-hidden rounded-3xl bg-gradient-to-br p-8 transition-all duration-500 hover:-translate-y-3 hover:shadow-2xl"
 				>
 					<div class="relative z-10">
 						<!-- Icon -->
 						<div
-							class="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-secondary shadow-lg transition-all duration-300 group-hover:rotate-6 group-hover:scale-110"
+							class="bg-secondary mb-8 flex h-20 w-20 items-center justify-center rounded-2xl shadow-lg transition-all duration-300 group-hover:rotate-6 group-hover:scale-110"
 						>
-							<Bike class="h-10 w-10 text-secondary-foreground" />
+							<Bike class="text-secondary-foreground h-10 w-10" />
 						</div>
 
 						<!-- Content -->
 						<div class="mb-8">
-							<h3 class="mb-4 text-2xl font-bold text-card-foreground">Delivery Riders</h3>
-							<p class="mb-6 leading-relaxed text-muted-foreground">
+							<h3 class="text-card-foreground mb-4 text-2xl font-bold">Delivery Riders</h3>
+							<p class="text-muted-foreground mb-6 leading-relaxed">
 								Earn money on your schedule. Join our fleet of professional riders and deliver
 								happiness while building your financial future.
 							</p>
 							<div class="space-y-2 text-sm">
-								<div class="flex items-center text-muted-foreground">
-									<div class="mr-3 h-1.5 w-1.5 rounded-full bg-secondary"></div>
+								<div class="text-muted-foreground flex items-center">
+									<div class="bg-secondary mr-3 h-1.5 w-1.5 rounded-full"></div>
 									<span>Flexible working hours</span>
 								</div>
-								<div class="flex items-center text-muted-foreground">
-									<div class="mr-3 h-1.5 w-1.5 rounded-full bg-secondary"></div>
+								<div class="text-muted-foreground flex items-center">
+									<div class="bg-secondary mr-3 h-1.5 w-1.5 rounded-full"></div>
 									<span>Weekly payments + tips</span>
 								</div>
-								<div class="flex items-center text-muted-foreground">
-									<div class="mr-3 h-1.5 w-1.5 rounded-full bg-secondary"></div>
+								<div class="text-muted-foreground flex items-center">
+									<div class="bg-secondary mr-3 h-1.5 w-1.5 rounded-full"></div>
 									<span>Insurance coverage included</span>
 								</div>
 							</div>
@@ -506,7 +505,7 @@
 
 						<!-- CTA -->
 						<Button
-							class="group/btn w-full rounded-xl bg-secondary text-secondary-foreground transition-all duration-300 hover:bg-secondary/90 hover:shadow-lg"
+							class="group/btn bg-secondary text-secondary-foreground hover:bg-secondary/90 w-full rounded-xl transition-all duration-300 hover:shadow-lg"
 						>
 							<span>Become a Rider</span>
 							<ArrowRight class="ml-2 h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
@@ -515,41 +514,41 @@
 
 					<!-- Decorative Elements -->
 					<div
-						class="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-secondary/10 transition-all duration-500 group-hover:scale-125"
+						class="bg-secondary/10 absolute -right-6 -top-6 h-32 w-32 rounded-full transition-all duration-500 group-hover:scale-125"
 					></div>
-					<div class="absolute -bottom-4 -left-4 h-20 w-20 rounded-full bg-secondary/5"></div>
+					<div class="bg-secondary/5 absolute -bottom-4 -left-4 h-20 w-20 rounded-full"></div>
 				</div>
 
 				<!-- Team Members Card -->
 				<div
-					class="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-accent/10 via-accent/15 to-accent/10 p-8 transition-all duration-500 hover:-translate-y-3 hover:shadow-2xl"
+					class="from-accent/10 via-accent/15 to-accent/10 group relative overflow-hidden rounded-3xl bg-gradient-to-br p-8 transition-all duration-500 hover:-translate-y-3 hover:shadow-2xl"
 				>
 					<div class="relative z-10">
 						<!-- Icon -->
 						<div
-							class="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-accent shadow-lg transition-all duration-300 group-hover:rotate-6 group-hover:scale-110"
+							class="bg-accent mb-8 flex h-20 w-20 items-center justify-center rounded-2xl shadow-lg transition-all duration-300 group-hover:rotate-6 group-hover:scale-110"
 						>
-							<Users class="h-10 w-10 text-accent-foreground" />
+							<Users class="text-accent-foreground h-10 w-10" />
 						</div>
 
 						<!-- Content -->
 						<div class="mb-8">
-							<h3 class="mb-4 text-2xl font-bold text-card-foreground">Join Our Team</h3>
-							<p class="mb-6 leading-relaxed text-muted-foreground">
+							<h3 class="text-card-foreground mb-4 text-2xl font-bold">Join Our Team</h3>
+							<p class="text-muted-foreground mb-6 leading-relaxed">
 								Be part of something bigger. Help us revolutionize food delivery in Nigeria with
 								cutting-edge technology and innovative solutions.
 							</p>
 							<div class="space-y-2 text-sm">
-								<div class="flex items-center text-muted-foreground">
-									<div class="mr-3 h-1.5 w-1.5 rounded-full bg-accent"></div>
+								<div class="text-muted-foreground flex items-center">
+									<div class="bg-accent mr-3 h-1.5 w-1.5 rounded-full"></div>
 									<span>Remote-first culture</span>
 								</div>
-								<div class="flex items-center text-muted-foreground">
-									<div class="mr-3 h-1.5 w-1.5 rounded-full bg-accent"></div>
+								<div class="text-muted-foreground flex items-center">
+									<div class="bg-accent mr-3 h-1.5 w-1.5 rounded-full"></div>
 									<span>Competitive salary + equity</span>
 								</div>
-								<div class="flex items-center text-muted-foreground">
-									<div class="mr-3 h-1.5 w-1.5 rounded-full bg-accent"></div>
+								<div class="text-muted-foreground flex items-center">
+									<div class="bg-accent mr-3 h-1.5 w-1.5 rounded-full"></div>
 									<span>Professional development</span>
 								</div>
 							</div>
@@ -557,7 +556,7 @@
 
 						<!-- CTA -->
 						<Button
-							class="group/btn w-full rounded-xl bg-accent text-accent-foreground transition-all duration-300 hover:bg-accent/90 hover:shadow-lg"
+							class="group/btn bg-accent text-accent-foreground hover:bg-accent/90 w-full rounded-xl transition-all duration-300 hover:shadow-lg"
 						>
 							<span>View Open Roles</span>
 							<ArrowRight class="ml-2 h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
@@ -566,9 +565,9 @@
 
 					<!-- Decorative Elements -->
 					<div
-						class="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-accent/10 transition-all duration-500 group-hover:scale-125"
+						class="bg-accent/10 absolute -right-6 -top-6 h-32 w-32 rounded-full transition-all duration-500 group-hover:scale-125"
 					></div>
-					<div class="absolute -bottom-4 -left-4 h-20 w-20 rounded-full bg-accent/5"></div>
+					<div class="bg-accent/5 absolute -bottom-4 -left-4 h-20 w-20 rounded-full"></div>
 				</div>
 			</div>
 		</div>
@@ -578,17 +577,17 @@
 	<div class="bg-background py-20">
 		<div class="mx-auto max-w-7xl px-6 lg:px-8">
 			<div class="mb-16 text-center">
-				<h2 class="mb-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+				<h2 class="text-foreground mb-4 text-4xl font-bold tracking-tight sm:text-5xl">
 					Now serving Epe, Lagos
 				</h2>
-				<p class="mx-auto max-w-2xl text-xl text-muted-foreground">
+				<p class="text-muted-foreground mx-auto max-w-2xl text-xl">
 					Discover amazing restaurants and local vendors in your area
 				</p>
 			</div>
 
 			<div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
 				<!-- Google Map -->
-				<div class="relative h-96 overflow-hidden rounded-3xl bg-muted/30">
+				<div class="bg-muted/30 relative h-96 overflow-hidden rounded-3xl">
 					<iframe
 						src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d126234.01944446626!2d3.5835!3d6.5833!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x103bc0f3b9b4a5e3%3A0x9bbb7a8f8f8f8f8f!2sEpe%2C%20Lagos%2C%20Nigeria!5e0!3m2!1sen!2s!4v1640000000000!5m2!1sen!2s"
 						width="100%"
@@ -609,30 +608,30 @@
 				<!-- Service Area Info -->
 				<div class="space-y-6">
 					<div>
-						<h3 class="mb-4 text-2xl font-bold text-foreground">Currently Available in Epe</h3>
-						<p class="mb-6 text-muted-foreground">
+						<h3 class="text-foreground mb-4 text-2xl font-bold">Currently Available in Epe</h3>
+						<p class="text-muted-foreground mb-6">
 							We're excited to serve the vibrant community of Epe, Lagos with fast, reliable food
 							delivery from local restaurants and vendors.
 						</p>
 					</div>
 
 					<!-- Service Coverage -->
-					<div class="rounded-xl border border-border bg-card p-6">
+					<div class="border-border bg-card rounded-xl border p-6">
 						<div class="mb-4 flex items-center space-x-3">
-							<div class="h-3 w-3 animate-pulse rounded-full bg-primary"></div>
-							<span class="font-semibold text-card-foreground">Epe, Lagos State</span>
+							<div class="bg-primary h-3 w-3 animate-pulse rounded-full"></div>
+							<span class="text-card-foreground font-semibold">Epe, Lagos State</span>
 						</div>
-						<div class="space-y-3 text-sm text-muted-foreground">
+						<div class="text-muted-foreground space-y-3 text-sm">
 							<div class="flex items-center space-x-2">
-								<Clock class="h-4 w-4 text-primary" />
+								<Clock class="text-primary h-4 w-4" />
 								<span>Delivery time: 15-45 minutes</span>
 							</div>
 							<div class="flex items-center space-x-2">
-								<MapPin class="h-4 w-4 text-primary" />
+								<MapPin class="text-primary h-4 w-4" />
 								<span>Coverage: All major areas in Epe</span>
 							</div>
 							<div class="flex items-center space-x-2">
-								<Users class="h-4 w-4 text-primary" />
+								<Users class="text-primary h-4 w-4" />
 								<span>Growing network of local restaurants</span>
 							</div>
 						</div>
@@ -640,15 +639,15 @@
 
 					<!-- CTA Button -->
 					<Button
-						class="w-full rounded-xl bg-primary py-3 text-primary-foreground hover:bg-primary/90"
+						class="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-xl py-3"
 					>
 						<MapPin class="mr-2 h-4 w-4" />
 						Find Restaurants in Epe
 					</Button>
 
 					<!-- Expansion Notice -->
-					<div class="rounded-xl bg-muted/50 p-4 text-center">
-						<p class="text-sm text-muted-foreground">
+					<div class="bg-muted/50 rounded-xl p-4 text-center">
+						<p class="text-muted-foreground text-sm">
 							🚀 <strong>Coming Soon:</strong> We're expanding to more areas in Lagos State
 						</p>
 					</div>

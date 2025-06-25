@@ -12,7 +12,7 @@
 		--card-foreground: 20 14.3% 4.1%;
 		--popover: 0 0% 100%;
 		--popover-foreground: 20 14.3% 4.1%;
-		--primary: 16 100% 52%;
+		--primary: 24.6 95% 53.1%;
 		--primary-foreground: 60 9.1% 97.8%;
 		--secondary: 60 4.8% 95.9%;
 		--secondary-foreground: 24 9.8% 10%;
@@ -24,7 +24,7 @@
 		--destructive-foreground: 60 9.1% 97.8%;
 		--border: 20 5.9% 90%;
 		--input: 20 5.9% 90%;
-		--ring: 16 100% 52%;
+		--ring: 24.6 95% 53.1%;
 		--radius: 0.5rem;
 		/* Sidebar specific variables */
 		--sidebar-background: 0 0% 98%;
@@ -78,9 +78,9 @@
 	}
 }
 
-/* h1 {
-	color: hsl(16, 100%, 52%);
-} */
+h1 {
+	color: #ff4f0f;
+}
 
 /* #f88527 */
 /* #3f4b52 */
