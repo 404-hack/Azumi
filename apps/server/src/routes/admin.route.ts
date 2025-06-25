@@ -38,9 +38,153 @@ import { PushNotificationService } from "../services/push-notification.service";
 import { calculateDistance } from "../lib/utils/geo";
 import { env } from "cloudflare:workers";
 
+// Helper function to calculate time ago
+function getTimeAgo(date: Date | string | null): string {
+  if (!date) return "unknown";
+  const now = new Date();
+  const orderDate = new Date(date);
+  const diffInMinutes = Math.floor(
+    (now.getTime() - orderDate.getTime()) / (1000 * 60)
+  );
+
+  if (diffInMinutes < 1) return "just now";
+  if (diffInMinutes < 60)
+    return `${diffInMinutes} min${diffInMinutes > 1 ? "s" : ""} ago`;
+
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24)
+    return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`;
+
+  const diffInDays = Math.floor(diffInHours / 24);
+  return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`;
+}
+
 const adminRoute = factory
   .createApp()
   .use("*", adminAuthMiddleware)
+
+  // Dashboard statistics endpoint
+  .get("/dashboard/stats", async (c) => {
+    try {
+      const db = c.get("db");
+
+      // Get current date ranges
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      // Get total orders count
+      const totalOrdersResult = await db
+        .select({ count: sql`COUNT(*)`.mapWith(Number) })
+        .from(orderTable)
+        .get();
+      const totalOrders = totalOrdersResult?.count || 0;
+
+      // Get total revenue (sum of all completed orders)
+      const totalRevenueResult = await db
+        .select({
+          revenue:
+            sql`COALESCE(SUM(CASE WHEN ${orderTable.status} IN ('COMPLETED', 'DELIVERED') THEN ${orderTable.total} ELSE 0 END), 0)`.mapWith(
+              Number
+            ),
+        })
+        .from(orderTable)
+        .get();
+      const totalRevenue = totalRevenueResult?.revenue || 0;
+
+      // Get total vendors count
+      const totalVendorsResult = await db
+        .select({ count: sql`COUNT(*)`.mapWith(Number) })
+        .from(shopTable)
+        .where(eq(shopTable.status, "APPROVED"))
+        .get();
+      const totalVendors = totalVendorsResult?.count || 0;
+
+      // Get total riders count
+      const totalRidersResult = await db
+        .select({ count: sql`COUNT(*)`.mapWith(Number) })
+        .from(riderTable)
+        .where(
+          and(
+            eq(riderTable.applicationStatus, "APPROVED"),
+            eq(riderTable.active, true)
+          )
+        )
+        .get();
+      const totalRiders = totalRidersResult?.count || 0;
+
+      // Get total customers count
+      const totalCustomersResult = await db
+        .select({ count: sql`COUNT(*)`.mapWith(Number) })
+        .from(userTable)
+        .where(eq(userTable.role, "user"))
+        .get();
+      const totalCustomers = totalCustomersResult?.count || 0; // Get active deliveries count (orders in progress)
+      const activeDeliveriesResult = await db
+        .select({ count: sql`COUNT(*)`.mapWith(Number) })
+        .from(orderTable)
+        .where(
+          sql`${orderTable.status} IN ('CONFIRMED', 'PREPARING', 'READY', 'RIDER_ASSIGNED', 'PICKED_UP')`
+        )
+        .get();
+      const activeDeliveries = activeDeliveriesResult?.count || 0;
+
+      // Calculate average delivery time for completed orders
+      const completedOrdersWithTimes = await db
+        .select({
+          createdAt: orderTable.createdAt,
+          deliveredAt: orderTable.deliveredAt,
+        })
+        .from(orderTable)
+        .where(
+          and(
+            sql`${orderTable.status} IN ('COMPLETED', 'DELIVERED')`,
+            sql`${orderTable.deliveredAt} IS NOT NULL`
+          )
+        )
+        .limit(100); // Last 100 orders for performance
+
+      let averageDeliveryTime = 0;
+      if (completedOrdersWithTimes.length > 0) {
+        const totalTime = completedOrdersWithTimes.reduce((sum, order) => {
+          if (order.createdAt && order.deliveredAt) {
+            const created = new Date(order.createdAt);
+            const delivered = new Date(order.deliveredAt);
+            const timeDiff = delivered.getTime() - created.getTime();
+            return sum + (timeDiff > 0 ? timeDiff : 0);
+          }
+          return sum;
+        }, 0);
+        averageDeliveryTime = Math.round(
+          totalTime / completedOrdersWithTimes.length / (1000 * 60)
+        ); // Convert to minutes
+      }
+
+      // Platform commission (hardcoded for now, can be made configurable)
+      const platformCommission = 15; // 15% commission
+
+      return c.json({
+        success: true,
+        data: {
+          totalOrders,
+          totalRevenue,
+          totalVendors,
+          totalRiders,
+          totalCustomers,
+          activeDeliveries,
+          averageDeliveryTime,
+          platformCommission,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+      return c.json({ error: "Failed to fetch dashboard statistics" }, 500);
+    }
+  })
 
   // Get all vendors
   .get(
@@ -694,7 +838,7 @@ const adminRoute = factory
         const { status, paymentStatus, adminNotes, cancelReason } =
           c.req.valid("json");
         const user = c.get("user");
-        const env = c.env;
+        const env = c.env as any;
 
         // Check if order exists
         const order = await db.query.orderTable.findFirst({
@@ -1077,6 +1221,7 @@ const adminRoute = factory
         const { id } = c.req.param();
         const { riderId, adminNotes } = c.req.valid("json");
         const user = c.get("user");
+        const env = c.env as any;
 
         // Check if order exists and is assignable
         const order = await db.query.orderTable.findFirst({
@@ -1172,6 +1317,7 @@ const adminRoute = factory
       const db = c.get("db");
       const { id } = c.req.param();
       const user = c.get("user");
+      const env = c.env as any;
 
       // Check if order exists
       const order = await db.query.orderTable.findFirst({

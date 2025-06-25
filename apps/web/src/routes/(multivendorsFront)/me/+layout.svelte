@@ -12,19 +12,19 @@
 		// 	link: 'payments',
 		// 	txt: 'Payment method'
 		// },
-		{
-			link: 'addresses',
-			txt: 'Addresses'
-		},
+		// {
+		// 	link: 'addresses',
+		// 	txt: 'Addresses'
+		// },
 		{
 			link: 'order-history',
 			txt: 'Order history'
 		},
 
-		{
-			link: 'redeem-code',
-			txt: 'Redeem code'
-		},
+		// {
+		// 	link: 'redeem-code',
+		// 	txt: 'Redeem code'
+		// },
 		{
 			link: 'settings',
 			txt: 'Settings'
@@ -33,10 +33,19 @@
 	let path = $derived(page.url.pathname.split('/').slice(2, 3).toString());
 </script>
 
-<div class="mx-auto mt-10 container w-full max-w-4xl ">
+<div class="container mx-auto mt-10 w-full max-w-4xl">
 	<div class="flex items-center justify-between">
 		<h1 class="font-display text-4xl font-bold capitalize">Profile</h1>
-		<Button class=" capitalize ">contact support</Button>
+		<Button
+			class="capitalize"
+			onclick={() =>
+				window.open(
+					'https://wa.me/2347049723597?text=Hello%20Azumi%20Support,%20I%20need%20help%20with%20my%20account.',
+					'_blank'
+				)}
+		>
+			contact support
+		</Button>
 	</div>
 	<div class="my-5 flex w-full flex-col gap-2 border-b-2 sm:flex-row md:gap-10">
 		{#each tabs as { link, txt }}
@@ -54,6 +63,6 @@
 		{/each}
 	</div>
 </div>
-<div class="mx-auto my-10 w-full max-w-4xl container md:px-0">
+<div class="container mx-auto my-10 w-full max-w-4xl md:px-0">
 	{@render children()}
 </div>
