@@ -50,6 +50,7 @@ const vendorMenuRoute = factory
   .post("/create", zValidator("json", createMenuSchema), async (c) => {
     try {
       const data = c.req.valid("json");
+
       const db = c.get("db");
       const session = c.get("session");
       const orgId = session?.activeOrganizationId;
@@ -67,7 +68,7 @@ const vendorMenuRoute = factory
         return c.json({ message: "Category not found" }, 404);
       }
 
-      const menuItem = await db
+      const [menuItem] = await db
         .insert(menuItemTable)
         .values({
           name: data.name,
@@ -78,8 +79,7 @@ const vendorMenuRoute = factory
           categoryId: data.categoryId,
           shopId: orgId,
         })
-        .returning()
-        .get();
+        .returning();
 
       // Handle option groups if provided
       if (data.optionGroupId && data.optionGroupId.length > 0) {
@@ -159,15 +159,14 @@ const vendorMenuRoute = factory
           return c.json({ message: "Unauthorized" }, 401);
         }
 
-        const category = await db
+        const [category] = await db
           .insert(menuCategoryTable)
           .values({
             name: body.name,
             published: body.published,
             shopId: orgId,
           })
-          .returning()
-          .get();
+          .returning();
 
         return c.json(
           {
@@ -208,7 +207,7 @@ const vendorMenuRoute = factory
           return c.json({ message: "Category not found" }, 404);
         }
 
-        const updatedCategory = await db
+        const [updatedCategory] = await db
           .update(menuCategoryTable)
           .set({
             name: body.name,
@@ -220,8 +219,7 @@ const vendorMenuRoute = factory
               eq(menuCategoryTable.shopId, orgId)
             )
           )
-          .returning()
-          .get();
+          .returning();
 
         return c.json({
           message: "Category updated successfully",

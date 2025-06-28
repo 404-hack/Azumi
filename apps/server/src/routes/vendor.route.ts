@@ -210,7 +210,7 @@ const vendorRoute = factory
         return c.json({ message: "Category not found" }, 404);
       }
 
-      const menuItem = await db
+      const [menuItem] = await db
         .insert(menuItemTable)
         .values({
           name: data.name,
@@ -222,13 +222,14 @@ const vendorRoute = factory
           shopId: orgId,
           imageUrl: imageUrl, // Add imageUrl here
         })
-        .returning()
-        .get();
+        .returning({
+          id: true,
+        });
 
       // Handle option groups if provided
       if (data.optionGroupId && data.optionGroupId.length > 0) {
         const optionGroupEntries = data.optionGroupId.map((groupId, index) => ({
-          menuItemId: menuItem.id,
+          menuItemId: menuItem,
           optionGroupId: groupId,
           sortOrder: index, // Use index as sort order
         }));
@@ -240,7 +241,7 @@ const vendorRoute = factory
         await db
           .update(menuItemTable)
           .set({ packId: data.packId })
-          .where(eq(menuItemTable.id, menuItem.id));
+          .where(eq(menuItemTable.id, menuItem));
       }
 
       return c.json({
@@ -345,7 +346,7 @@ const vendorRoute = factory
       }
 
       // Update menu item basic info
-      const updatedMenu = await db
+      const [updatedMenu] = await db
         .update(menuItemTable)
         .set({
           name: data.name,
@@ -358,8 +359,7 @@ const vendorRoute = factory
           packId: data.packId || null,
         })
         .where(and(eq(menuItemTable.id, id), eq(menuItemTable.shopId, orgId)))
-        .returning()
-        .get();
+        .returning();
 
       // Update option groups
       await db
@@ -450,15 +450,14 @@ const vendorRoute = factory
       const db = c.get("db");
       const orgId = c.get("orgId");
 
-      const category = await db
+      const [category] = await db
         .insert(menuCategoryTable)
         .values({
           name: body.name,
           published: body.published,
           shopId: orgId,
         })
-        .returning()
-        .get();
+        .returning();
 
       return c.json(
         {
@@ -491,7 +490,7 @@ const vendorRoute = factory
           return c.json({ message: "Category not found" }, 404);
         }
 
-        const updatedCategory = await db
+        const [updatedCategory] = await db
           .update(menuCategoryTable)
           .set({
             name: body.name,
@@ -503,8 +502,7 @@ const vendorRoute = factory
               eq(menuCategoryTable.shopId, orgId)
             )
           )
-          .returning()
-          .get();
+          .returning();
 
         return c.json({
           message: "Category updated successfully",
@@ -625,8 +623,7 @@ const vendorRoute = factory
           .update(optionTable)
           .set(data)
           .where(and(eq(optionTable.id, id), eq(optionTable.shopId, orgId)))
-          .returning()
-          .get();
+          .returning();
 
         return c.json({
           message: "Option updated successfully",
@@ -694,7 +691,7 @@ const vendorRoute = factory
     const session = c.get("session");
     const orgId = c.get("orgId");
 
-    const option = await db
+    const [option] = await db
       .insert(optionTable)
       .values({
         name: data.name,
@@ -703,8 +700,7 @@ const vendorRoute = factory
         userId: session.userId,
         shopId: orgId,
       })
-      .returning()
-      .get();
+      .returning();
 
     return c.json({ data: option });
   })
@@ -728,8 +724,7 @@ const vendorRoute = factory
           minSelections: data.minSelections,
           userId: session.userId,
         })
-        .returning()
-        .get();
+        .returning();
 
       // Create associations between option group and options in junction table
       if (data.optionsId && data.optionsId.length > 0) {
@@ -875,8 +870,7 @@ const vendorRoute = factory
       const res = await db
         .delete(optionToOptionGroupTable)
         .where(eq(optionToOptionGroupTable.optionGroupId, id))
-        .returning()
-        .get();
+        .returning();
       console.log(res);
 
       // Update associations between option group and options in junction table
@@ -977,8 +971,7 @@ const vendorRoute = factory
           shopId: orgId,
           userId: session.userId,
         })
-        .returning()
-        .get();
+        .returning();
 
       return c.json(
         {
@@ -1020,8 +1013,7 @@ const vendorRoute = factory
         .update(packTable)
         .set(data)
         .where(and(eq(packTable.id, id), eq(packTable.shopId, orgId)))
-        .returning()
-        .get();
+        .returning();
 
       return c.json({
         message: "Pack updated successfully",
@@ -1234,8 +1226,7 @@ const vendorRoute = factory
         .update(shopTable)
         .set(data)
         .where(eq(shopTable.id, orgId))
-        .returning()
-        .get();
+        .returning();
 
       return c.json({ data: updatedShop });
     } catch (error) {
@@ -1516,8 +1507,7 @@ const vendorRoute = factory
             bankCode: paymentMethodData.bankCode,
             paystackRecipientCode: paystackRecipientCode,
           })
-          .returning()
-          .get();
+          .returning();
 
         return c.json({
           success: true,
@@ -1712,8 +1702,7 @@ const vendorRoute = factory
                 "unknown",
               userAgent: c.req.header("user-agent") || "unknown",
             })
-            .returning()
-            .get();
+            .returning();
 
           return c.json({
             success: true,
@@ -1771,8 +1760,7 @@ const vendorRoute = factory
             .update(shopTodoTable)
             .set(data)
             .where(eq(shopTodoTable.shopId, orgId))
-            .returning()
-            .get();
+            .returning();
         } else {
           // Create new todo entry
           updatedTodo = await db
@@ -1781,8 +1769,7 @@ const vendorRoute = factory
               shopId: orgId,
               ...data,
             })
-            .returning()
-            .get();
+            .returning();
         }
 
         return c.json({
@@ -1933,8 +1920,7 @@ const vendorRoute = factory
         .update(shopTable)
         .set({ coverImage: imageUrl })
         .where(eq(shopTable.id, orgId))
-        .returning()
-        .get();
+        .returning();
 
       return c.json({
         success: true,
@@ -1988,8 +1974,7 @@ const vendorRoute = factory
         .update(shopTable)
         .set({ coverImage: null })
         .where(eq(shopTable.id, orgId))
-        .returning()
-        .get();
+        .returning();
 
       return c.json({
         success: true,

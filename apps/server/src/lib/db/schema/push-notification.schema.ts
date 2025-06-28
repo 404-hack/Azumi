@@ -1,7 +1,15 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import {
+  pgTable,
+  text,
+  integer,
+  index,
+  boolean,
+  timestamp,
+  json,
+} from "drizzle-orm/pg-core";
 import { userTable } from "./auth.schema";
 
-export const pushTokenTable = sqliteTable(
+export const pushTokenTable = pgTable(
   "push_token",
   {
     id: text("id").primaryKey(),
@@ -13,10 +21,10 @@ export const pushTokenTable = sqliteTable(
     deviceType: text("device_type"),
     userAgent: text("user_agent"),
     provider: text("provider").notNull().default("fcm"),
-    isActive: integer("is_active", { mode: "boolean" }).default(true),
-    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
-    lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { mode: "date" }),
   },
   (table) => [
     index("push_token_user_id_idx").on(table.userId),
@@ -26,7 +34,7 @@ export const pushTokenTable = sqliteTable(
   ]
 );
 
-export const topicSubscriptionTable = sqliteTable(
+export const topicSubscriptionTable = pgTable(
   "topic_subscription",
   {
     id: text("id").primaryKey(),
@@ -34,9 +42,9 @@ export const topicSubscriptionTable = sqliteTable(
       .notNull()
       .references(() => userTable.id, { onDelete: "cascade" }),
     topic: text("topic").notNull(),
-    isSubscribed: integer("is_subscribed", { mode: "boolean" }).default(true),
-    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+    isSubscribed: boolean("is_subscribed").default(true),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   },
   (table) => [
     index("topic_subscription_user_topic_idx").on(table.userId, table.topic),
@@ -44,7 +52,7 @@ export const topicSubscriptionTable = sqliteTable(
   ]
 );
 
-export const notificationLogTable = sqliteTable(
+export const notificationLogTable = pgTable(
   "notification_log",
   {
     id: text("id").primaryKey(),
@@ -54,13 +62,13 @@ export const notificationLogTable = sqliteTable(
     token: text("token"),
     title: text("title").notNull(),
     body: text("body").notNull(),
-    data: text("data", { mode: "json" }),
+    data: json("data"),
     messageId: text("message_id"),
     status: text("status").notNull(),
     errorMessage: text("error_message"),
-    sentAt: integer("sent_at", { mode: "timestamp" }).notNull(),
-    deliveredAt: integer("delivered_at", { mode: "timestamp" }),
-    clickedAt: integer("clicked_at", { mode: "timestamp" }),
+    sentAt: timestamp("sent_at", { mode: "date" }).notNull(),
+    deliveredAt: timestamp("delivered_at", { mode: "date" }),
+    clickedAt: timestamp("clicked_at", { mode: "date" }),
   },
   (table) => [
     index("notification_log_user_id_idx").on(table.userId),

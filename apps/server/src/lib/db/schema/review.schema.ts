@@ -1,11 +1,11 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, json, timestamp } from "drizzle-orm/pg-core";
 import { timestamps } from "./utils.schema";
 import { orderTable } from "./order.schema";
 import { userTable } from "./auth.schema";
 import { shopTable } from "./shop.schema";
 import { riderTable } from "./rider.schema";
 
-export const reviews = sqliteTable("reviews", {
+export const reviews = pgTable("reviews", {
   id: text("id").primaryKey(),
   orderId: text("order_id").references(() => orderTable.id),
   userId: text("user_id").references(() => userTable.id),
@@ -14,8 +14,8 @@ export const reviews = sqliteTable("reviews", {
   foodRating: integer("food_rating"),
   deliveryRating: integer("delivery_rating"),
   comment: text("comment"),
-  images: text("images", { mode: "json" }),
+  images: json("images"),
   reply: text("reply"),
-  replyAt: integer("reply_at", { mode: "timestamp" }),
+  replyAt: timestamp("reply_at", { mode: "date" }),
   ...timestamps,
 });

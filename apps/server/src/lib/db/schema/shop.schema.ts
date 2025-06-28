@@ -1,11 +1,15 @@
 import {
-  sqliteTable,
+  pgTable,
   text,
   integer,
   primaryKey,
-  real, // Import real for floating-point numbers
-  index, // Import index for creating indexes
-} from "drizzle-orm/sqlite-core";
+  doublePrecision,
+  index,
+  boolean,
+  json,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { array, timestamps } from "./utils.schema";
 import { nanoid } from "nanoid";
 import {
@@ -20,9 +24,9 @@ import { userTable } from "./auth.schema";
 import { relations } from "drizzle-orm";
 import { menuItemTable, menuCategoryTable } from "./menu.schema";
 import { TCoordinates } from "../../types";
-import { promotions } from "./promotion.schema";
+import { promotions, promotionShops } from "./promotion.schema";
 
-export const shopTypeTable = sqliteTable("shopType", {
+export const shopTypeTable = pgTable("shopType", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -30,10 +34,8 @@ export const shopTypeTable = sqliteTable("shopType", {
   ...timestamps,
 });
 
-// Define the coordinates type
-
-export const shopTable = sqliteTable(
-  "shop_table",
+export const shopTable = pgTable(
+  "shop",
   {
     id: text("id")
       .primaryKey()
@@ -44,38 +46,38 @@ export const shopTable = sqliteTable(
     shopType: text("shop_type").references(() => shopTypeTable.id),
     website: text("website"),
     description: text("description"),
-    metadata: text("metadata", { mode: "json" }),
+    metadata: json("metadata"),
     phoneNumber: text("phone_number"),
     address: text("address"),
     commission: integer("commission").default(0),
     minimumOrderAmount: integer("minimum_order_amount").default(500),
-    active: integer("active", { mode: "boolean" }).default(false),
+    active: boolean("active").default(false),
     status: text("status", { enum: SHOP_STATUS }).default("DRAFT"),
     logo: text("logo"),
     coverImage: text("cover_image"),
     averageRating: integer("average_rating"),
     totalRatings: integer("total_ratings").default(0),
     featuredPosition: integer("featured_position"),
-    tags: array<string>(),
-    bankInfo: text("bank_info", { mode: "json" }),
+    tags: text("tags").array(),
+    bankInfo: json("bank_info"),
     deliveryType: text("delivery_type", { enum: DELIVERY_TYPE }),
-    latitude: real("latitude"), // Add latitude column
-    longitude: real("longitude"), // Add longitude column    addressName: text("address_name"), // Add address name column
-    isVerified: integer("is_verified", { mode: "boolean" }).default(false),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
+    addressName: text("address_name"),
+    isVerified: boolean("is_verified").default(false),
     ownershipType: text("ownership_type", {
       enum: SHOP_OWNERSHIP_TYPE,
     }).default("OFFICIAL"),
 
     ...timestamps,
   },
-  // Add indexes for location columns
   (table) => [
     index("location_idx").on(table.latitude, table.longitude),
-    index("shop_type_idx").on(table.shopType), // Index shopType if frequently filtered
+    index("shop_type_idx").on(table.shopType),
   ]
 );
 
-export const member = sqliteTable("member", {
+export const member = pgTable("member", {
   id: text("id").primaryKey(),
   organizationId: text("organization_id")
     .notNull()
@@ -84,10 +86,10 @@ export const member = sqliteTable("member", {
     .notNull()
     .references(() => userTable.id, { onDelete: "cascade" }),
   role: text("role").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
 });
 
-export const invitation = sqliteTable("invitation", {
+export const invitation = pgTable("invitation", {
   id: text("id").primaryKey(),
   organizationId: text("organization_id")
     .notNull()
@@ -95,13 +97,13 @@ export const invitation = sqliteTable("invitation", {
   email: text("email").notNull(),
   role: text("role"),
   status: text("status").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
   inviterId: text("inviter_id")
     .notNull()
     .references(() => userTable.id, { onDelete: "cascade" }),
 });
 
-export const shopOperatingHoursTable = sqliteTable(
+export const shopOperatingHoursTable = pgTable(
   "shopOperatingHours",
   {
     id: text("id")
@@ -113,38 +115,32 @@ export const shopOperatingHoursTable = sqliteTable(
     day: text("day").notNull(),
     openTime: text("open_time").notNull(),
     closeTime: text("close_time").notNull(),
-    isOpen: integer("is_open", { mode: "boolean" }).default(true),
+    isOpen: boolean("is_open").default(true),
     ...timestamps,
   },
   (table) => [primaryKey({ columns: [table.shopId, table.day] })]
 );
 
-export const shopTodoTable = sqliteTable("shopTodo", {
+export const shopTodoTable = pgTable("shopTodo", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   shopId: text("shop_id")
     .notNull()
     .references(() => shopTable.id, { onDelete: "cascade" }),
-  storeInformationComplete: integer("store_information_complete", {
-    mode: "boolean",
-  }).default(false),
-  uploadAtLeastOneMenu: integer("upload_at_least_one_menu", {
-    mode: "boolean",
-  }).default(false),
-  setUpPaymentMethod: integer("set_up_payment_method", {
-    mode: "boolean",
-  }).default(false),
-  reviewTermsAndConditions: integer("review_terms_and_conditions", {
-    mode: "boolean",
-  }).default(false),
-  setUpOperatingHours: integer("set_up_operating_hours", {
-    mode: "boolean",
-  }).default(false),
+  storeInformationComplete: boolean("store_information_complete").default(
+    false
+  ),
+  uploadAtLeastOneMenu: boolean("upload_at_least_one_menu").default(false),
+  setUpPaymentMethod: boolean("set_up_payment_method").default(false),
+  reviewTermsAndConditions: boolean("review_terms_and_conditions").default(
+    false
+  ),
+  setUpOperatingHours: boolean("set_up_operating_hours").default(false),
   ...timestamps,
 });
 
-export const shopAgreementsTable = sqliteTable("shopAgreements", {
+export const shopAgreementsTable = pgTable("shopAgreements", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -154,14 +150,14 @@ export const shopAgreementsTable = sqliteTable("shopAgreements", {
   agreementType: text("agreement_type", {
     enum: SHOP_AGREEMENTS_TYPE,
   }).notNull(),
-  version: text("version").notNull(), // e.g., "1.0", "2023-05-01"
+  version: text("version").notNull(),
   acceptedById: text("accepted_by_id").references(() => userTable.id),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   ...timestamps,
 });
 
-export const shopPaymentMethodTable = sqliteTable(
+export const shopPaymentMethodTable = pgTable(
   "shopPaymentMethod",
   {
     id: text("id").$defaultFn(() => nanoid()),
@@ -202,7 +198,7 @@ export const shopRelations = relations(shopTable, ({ one, many }) => ({
   agreements: many(shopAgreementsTable),
   paymentMethods: many(shopPaymentMethodTable),
   operatingHours: many(shopOperatingHoursTable),
-  promotions: many(promotions),
+  promotions: many(promotionShops),
 }));
 export const shopAgreementRelations = relations(
   shopAgreementsTable,

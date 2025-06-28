@@ -1,9 +1,10 @@
 import {
-  sqliteTable,
+  pgTable,
   text,
   integer,
   primaryKey,
-} from "drizzle-orm/sqlite-core";
+  boolean,
+} from "drizzle-orm/pg-core";
 import { timestamps } from "./utils.schema";
 import { nanoid } from "nanoid";
 import { shopTable } from "./shop.schema";
@@ -12,19 +13,19 @@ import { relations } from "drizzle-orm";
 import { optionGroupTable } from "./option.schema";
 import { packTable } from "./pack.schema";
 
-export const menuCategoryTable = sqliteTable("menuCategory", {
+export const menuCategoryTable = pgTable("menu_category", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   name: text("name").notNull(),
-  published: integer("published", { mode: "boolean" }).default(true).notNull(),
+  published: boolean("published").default(true).notNull(),
   shopId: text("shop_id")
     .references(() => shopTable.id)
     .notNull(),
   ...timestamps,
 });
 
-export const menuItemTable = sqliteTable("menuItem", {
+export const menuItemTable = pgTable("menu_item", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -33,7 +34,7 @@ export const menuItemTable = sqliteTable("menuItem", {
   imageUrl: text("image_url"),
   price: integer("price").notNull(),
   priceDescription: text("price_description"),
-  inStock: integer("in_stock", { mode: "boolean" }).default(true),
+  inStock: boolean("in_stock").default(true),
   categoryId: text("category_id")
     .references(() => menuCategoryTable.id, { onDelete: "cascade" })
     .notNull(),
@@ -44,7 +45,7 @@ export const menuItemTable = sqliteTable("menuItem", {
   ...timestamps,
 });
 
-export const menuItemOptionGroups = sqliteTable(
+export const menuItemOptionGroups = pgTable(
   "menu_item_option_groups",
   {
     menuItemId: text("menu_item_id")

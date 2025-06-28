@@ -69,31 +69,34 @@ export class RiderPaymentService {
       );
 
       const transactionId = nanoid();
-      await db.insert(riderTransactionTable).values({
-        riderId: order.riderId,
-        orderId: orderId,
-        deliveryFee: Math.round((order.deliveryFee || 0) * 100),
-        distanceBonus: 0,
-        peakTimeBonus: 0,
-        tipAmount: 0,
-        platformFee: 0,
-        netAmount: Math.round(riderEarnings * 100),
-        amount: Math.round(riderEarnings * 100),
-        currency: "NGN",
-        status: "COMPLETED",
-        type: "CREDIT",
-        reference: `delivery-payout-${orderId}`,
-        description: `Distance-based delivery earnings for order ${orderId} (₦${riderEarnings})`,
-        metadata: JSON.stringify({
-          deliveryFee: order.deliveryFee || 0,
-          riderEarnings: riderEarnings,
-          processedAt: new Date().toISOString(),
-          trigger: "delivery",
-          paymentMethod: "distance-based",
-        }),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+      const [result] = await db
+        .insert(riderTransactionTable)
+        .values({
+          riderId: order.riderId,
+          orderId: orderId,
+          deliveryFee: Math.round((order.deliveryFee || 0) * 100),
+          distanceBonus: 0,
+          peakTimeBonus: 0,
+          tipAmount: 0,
+          platformFee: 0,
+          netAmount: Math.round(riderEarnings * 100),
+          amount: Math.round(riderEarnings * 100),
+          currency: "NGN",
+          status: "COMPLETED",
+          type: "CREDIT",
+          reference: `delivery-payout-${orderId}`,
+          description: `Distance-based delivery earnings for order ${orderId} (₦${riderEarnings})`,
+          metadata: JSON.stringify({
+            deliveryFee: order.deliveryFee || 0,
+            riderEarnings: riderEarnings,
+            processedAt: new Date().toISOString(),
+            trigger: "delivery",
+            paymentMethod: "distance-based",
+          }),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
 
       console.log(
         `✅ Rider earnings processed: ₦${riderEarnings} for rider ${order.riderId} on order ${orderId}`

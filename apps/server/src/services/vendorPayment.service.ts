@@ -114,7 +114,7 @@ export class VendorPaymentService {
         netAmount: payoutAmount,
         deliveryFee: order.deliveryFee || 0,
       });
-      const newTransaction = await db
+      const [newTransaction] = await db
         .insert(vendorTransactionTable)
         .values({
           shopId: order.shop.id,
@@ -146,8 +146,8 @@ export class VendorPaymentService {
           createdAt: new Date(),
           updatedAt: new Date(),
         })
-        .returning({ id: vendorTransactionTable.id })
-        .get();
+        .returning({ id: vendorTransactionTable.id });
+
       console.log(`[VENDOR_PAYMENT] ✅ Transaction created successfully:`, {
         transactionId: newTransaction.id,
         shopId: order.shop.id,
@@ -198,7 +198,7 @@ export class VendorPaymentService {
   }> {
     try {
       // Calculate total earnings from completed transactions
-      const totalEarningsResult = await db
+      const [totalEarningsResult] = await db
         .select({
           total: sql`SUM(${vendorTransactionTable.netAmount})`.mapWith(Number),
         })
@@ -209,11 +209,10 @@ export class VendorPaymentService {
             eq(vendorTransactionTable.type, "CREDIT"),
             eq(vendorTransactionTable.status, "COMPLETED")
           )
-        )
-        .get();
+        );
 
       // Calculate pending earnings
-      const pendingAmountResult = await db
+      const [pendingAmountResult] = await db
         .select({
           total: sql`SUM(${vendorTransactionTable.netAmount})`.mapWith(Number),
         })
@@ -224,11 +223,10 @@ export class VendorPaymentService {
             eq(vendorTransactionTable.type, "CREDIT"),
             eq(vendorTransactionTable.status, "PENDING")
           )
-        )
-        .get();
+        );
 
       // Calculate total withdrawals
-      const withdrawalsResult = await db
+      const [withdrawalsResult] = await db
         .select({
           total: sql`SUM(${vendorTransactionTable.netAmount})`.mapWith(Number),
         })
@@ -239,8 +237,7 @@ export class VendorPaymentService {
             eq(vendorTransactionTable.type, "DEBIT"),
             eq(vendorTransactionTable.status, "COMPLETED")
           )
-        )
-        .get();
+        );
 
       const totalEarnings = (totalEarningsResult?.total || 0) / 100; // Convert from cents
       const totalWithdrawals = (withdrawalsResult?.total || 0) / 100;

@@ -51,7 +51,7 @@ pushNotificationRoute.post(
     const db = c.get("db");
 
     try {
-      const existingToken = await db
+      const [existingToken] = await db
         .select()
         .from(pushTokenTable)
         .where(
@@ -59,8 +59,7 @@ pushNotificationRoute.post(
             eq(pushTokenTable.userId, session.userId),
             eq(pushTokenTable.token, token)
           )
-        )
-        .get();
+        );
 
       if (existingToken) {
         await db
@@ -299,7 +298,7 @@ pushNotificationRoute.post(
     const db = c.get("db");
 
     try {
-      const tokenExists = await db
+      const [tokenExists] = await db
         .select({ token: pushTokenTable.token })
         .from(pushTokenTable)
         .where(
@@ -308,8 +307,7 @@ pushNotificationRoute.post(
             eq(pushTokenTable.token, token),
             eq(pushTokenTable.isActive, true)
           )
-        )
-        .get();
+        );
 
       if (!tokenExists) {
         return c.json(
@@ -434,7 +432,7 @@ pushNotificationRoute.post(
         );
       }
 
-      const existingSubscription = await db
+      const [existingSubscription] = await db
         .select()
         .from(topicSubscriptionTable)
         .where(
@@ -442,8 +440,7 @@ pushNotificationRoute.post(
             eq(topicSubscriptionTable.userId, session.userId),
             eq(topicSubscriptionTable.topic, topic)
           )
-        )
-        .get();
+        );
 
       if (existingSubscription) {
         await db
@@ -554,7 +551,7 @@ pushNotificationRoute.post(
     const userId = session.userId;
 
     try {
-      const existingToken = await db
+      const [existingToken] = await db
         .select()
         .from(pushTokenTable)
         .where(
@@ -562,8 +559,7 @@ pushNotificationRoute.post(
             eq(pushTokenTable.userId, userId),
             eq(pushTokenTable.token, token)
           )
-        )
-        .get();
+        );
 
       if (existingToken) {
         await db
@@ -572,9 +568,9 @@ pushNotificationRoute.post(
             isActive: true,
             lastUsedAt: new Date(),
             updatedAt: new Date(),
-            deviceId,
-            deviceType,
-            userAgent,
+            deviceId: deviceId ?? null,
+            deviceType: deviceType ?? null,
+            userAgent: userAgent ?? null,
           })
           .where(eq(pushTokenTable.id, existingToken.id));
 
@@ -588,10 +584,10 @@ pushNotificationRoute.post(
       await db.insert(pushTokenTable).values({
         id: nanoid(),
         userId: userId,
-        token,
-        deviceId,
-        deviceType,
-        userAgent,
+        token: token ?? null,
+        deviceId: deviceId ?? null,
+        deviceType: deviceType ?? null,
+        userAgent: userAgent ?? null,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),

@@ -1,222 +1,26 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1744608315942,
-      "tag": "0000_spotty_colleen_wing",
+      "version": "7",
+      "when": 1751014213823,
+      "tag": "0000_noisy_puck",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "6",
-      "when": 1744614123099,
-      "tag": "0001_eminent_shockwave",
+      "version": "7",
+      "when": 1751037958273,
+      "tag": "0001_crazy_nova",
       "breakpoints": true
     },
     {
       "idx": 2,
-      "version": "6",
-      "when": 1744990131208,
-      "tag": "0002_dusty_peter_parker",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1744991466590,
-      "tag": "0003_quick_ulik",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1745309639793,
-      "tag": "0004_aberrant_major_mapleleaf",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1745595917878,
-      "tag": "0005_chilly_marvel_boy",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1746509044185,
-      "tag": "0006_light_wiccan",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1746509205302,
-      "tag": "0007_brainy_loki",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1746509349984,
-      "tag": "0008_married_molly_hayes",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1746995800754,
-      "tag": "0009_lame_mach_iv",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "6",
-      "when": 1747224986250,
-      "tag": "0010_great_cerebro",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "6",
-      "when": 1747417494024,
-      "tag": "0011_mighty_marauders",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "6",
-      "when": 1747753522187,
-      "tag": "0012_smart_pride",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "6",
-      "when": 1748016590444,
-      "tag": "0013_nosy_moon_knight",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "6",
-      "when": 1748135963055,
-      "tag": "0014_high_ares",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "6",
-      "when": 1748195737412,
-      "tag": "0015_omniscient_medusa",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "6",
-      "when": 1748204188817,
-      "tag": "0016_tearful_plazm",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "6",
-      "when": 1748250307924,
-      "tag": "0017_acoustic_valeria_richards",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "6",
-      "when": 1748441446155,
-      "tag": "0018_cute_jamie_braddock",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "6",
-      "when": 1748590076097,
-      "tag": "0019_breezy_whiplash",
-      "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "6",
-      "when": 1748785513174,
-      "tag": "0020_tidy_magdalene",
-      "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "6",
-      "when": 1749397163048,
-      "tag": "0021_whole_slipstream",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "6",
-      "when": 1749625532840,
-      "tag": "0022_strange_micromax",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "6",
-      "when": 1749627474767,
-      "tag": "0023_modern_blockbuster",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "6",
-      "when": 1749671202687,
-      "tag": "0024_large_impossible_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "6",
-      "when": 1749754368747,
-      "tag": "0025_boring_lockjaw",
-      "breakpoints": true
-    },
-    {
-      "idx": 26,
-      "version": "6",
-      "when": 1749754778088,
-      "tag": "0026_graceful_violations",
-      "breakpoints": true
-    },
-    {
-      "idx": 27,
-      "version": "6",
-      "when": 1749853582730,
-      "tag": "0027_magical_scorpion",
-      "breakpoints": true
-    },
-    {
-      "idx": 28,
-      "version": "6",
-      "when": 1750031853731,
-      "tag": "0028_careless_aqueduct",
-      "breakpoints": true
-    },
-    {
-      "idx": 29,
-      "version": "6",
-      "when": 1750088129216,
-      "tag": "0029_large_venus",
-      "breakpoints": true
-    },
-    {
-      "idx": 30,
-      "version": "6",
-      "when": 1750687244733,
-      "tag": "0030_futuristic_psylocke",
+      "version": "7",
+      "when": 1751127678949,
+      "tag": "0002_tan_iron_monger",
       "breakpoints": true
     }
   ]

@@ -324,12 +324,12 @@ const shopRoute = factory
         return c.json({ error: "Failed to create shop" }, 400);
       }
 
-      const shop = await db
+      const shopResult = await db
         .update(shopTable)
         .set({
           name: data.name,
           address: data.address,
-          phoneNumber: data.phoneNumber, // Ensure this matches the schema
+          phoneNumber: data.phoneNumber,
           email: data.email,
           shopType: data.type,
           longitude: data.longitude,
@@ -337,8 +337,10 @@ const shopRoute = factory
           addressName: data.addressName,
         })
         .where(eq(shopTable.id, organization.id))
-        .returning()
-        .get();
+        .returning();
+      const shop = shopResult[0];
+      console.log("🚀 ~ .post ~ shop:", shop);
+
       // create the shop todo
       await db.insert(shopTodoTable).values({
         shopId: organization.id,
@@ -418,6 +420,7 @@ const shopRoute = factory
           ? eq(shopTable.slug, slug) // No restrictions for owner
           : and(eq(shopTable.slug, slug), eq(shopTable.status, "APPROVED"));
 
+        // 1. Fetch shop, operating hours, menu categories, and menus (no deep nesting)
         const shop = await db.query.shopTable.findFirst({
           where: whereConditions,
           with: {
@@ -426,38 +429,6 @@ const shopRoute = factory
               with: {
                 menus: {
                   orderBy: (menuItems, { asc }) => asc(menuItems.name),
-                  with: {
-                    menuItemOptionGroups: {
-                      columns: {
-                        menuItemId: false,
-                        optionGroupId: false,
-                        sortOrder: false,
-                      },
-                      with: {
-                        optionGroup: {
-                          columns: {
-                            id: true,
-                            name: true,
-                            minSelections: true,
-                            maxSelections: true,
-                          },
-                          with: {
-                            optionsToOptionGroups: {
-                              columns: {
-                                optionId: false,
-                                optionGroupId: false,
-                                createdAt: false,
-                                updatedAt: false,
-                              },
-                              with: {
-                                option: true,
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
                 },
               },
             },
@@ -468,41 +439,75 @@ const shopRoute = factory
           return c.json({ message: "Shop not found" }, 404);
         }
 
+        // 2. For each menu, fetch its option groups and options
+        // We'll build a map of menuId -> optionGroups
+        const menuIds = shop.menuCategories.flatMap((cat) =>
+          cat.menus.map((m) => m.id)
+        );
+        let menuOptionGroupsMap = {};
+        if (menuIds.length > 0) {
+          // Fetch all option groups for all menus in one go
+          const menuItemOptionGroups =
+            await db.query.menuItemOptionGroups.findMany({
+              where: (mio, { inArray }) => inArray(mio.menuItemId, menuIds),
+              with: {
+                optionGroup: {
+                  columns: {
+                    id: true,
+                    name: true,
+                    minSelections: true,
+                    maxSelections: true,
+                  },
+                },
+              },
+            });
+          // For each option group, fetch its options
+          const optionGroupIds = menuItemOptionGroups.map(
+            (mio) => mio.optionGroupId
+          );
+          let optionGroupsWithOptions = [];
+          if (optionGroupIds.length > 0) {
+            optionGroupsWithOptions = await db.query.optionGroupTable.findMany({
+              where: (og, { inArray }) => inArray(og.id, optionGroupIds),
+              with: {
+                optionsToOptionGroups: {
+                  with: {
+                    option: true,
+                  },
+                },
+              },
+            });
+          }
+          // Build a map of optionGroupId -> options
+          const optionGroupOptionsMap = {};
+          for (const og of optionGroupsWithOptions) {
+            optionGroupOptionsMap[og.id] = og.optionsToOptionGroups.map(
+              (oto) => oto.option
+            );
+          }
+          // Build menuOptionGroupsMap: menuId -> [optionGroups]
+          for (const mio of menuItemOptionGroups) {
+            if (!menuOptionGroupsMap[mio.menuItemId])
+              menuOptionGroupsMap[mio.menuItemId] = [];
+            menuOptionGroupsMap[mio.menuItemId].push({
+              id: mio.optionGroup.id,
+              name: mio.optionGroup.name,
+              minSelections: mio.optionGroup.minSelections,
+              maxSelections: mio.optionGroup.maxSelections,
+              options: optionGroupOptionsMap[mio.optionGroup.id] || [],
+            });
+          }
+        }
+
         // Map the shop data to a cleaner structure
         const mappedShopData = {
           ...shop, // Keep other shop properties
           menuCategories: shop.menuCategories.map((category) => ({
             ...category, // Keep other category properties
             menus: category.menus.map((menu) => {
-              // Map the menuItemOptionGroups to a more direct structure
-              const mappedOptionGroups = menu.menuItemOptionGroups.map(
-                (menuItemOptGroup) => {
-                  const optionGroupData = menuItemOptGroup.optionGroup;
-
-                  // Extract the options directly from the nested structure
-                  const mappedOptions =
-                    optionGroupData.optionsToOptionGroups.map(
-                      (optToGroup) => optToGroup.option
-                    );
-
-                  // Return the cleaned-up option group structure
-                  return {
-                    id: optionGroupData.id,
-                    name: optionGroupData.name,
-                    minSelections: optionGroupData.minSelections,
-                    maxSelections: optionGroupData.maxSelections,
-                    options: mappedOptions, // Array of option objects
-                  };
-                }
-              );
-
-              // Create the final menu item structure, replacing the old junction table data
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              const { menuItemOptionGroups, ...restOfMenu } = menu; // Remove original structure
-
               return {
-                ...restOfMenu, // Keep other menu item properties (id, name, price, etc.)
-                optionGroups: mappedOptionGroups, // Add the cleaned-up array
+                ...menu,
+                optionGroups: menuOptionGroupsMap[menu.id] || [],
               };
             }),
           })),
@@ -540,8 +545,6 @@ const shopRoute = factory
 
         const shopLat = shop.latitude;
         const shopLng = shop.longitude;
-        console.log("this actually runs1");
-
         if (
           userLat !== undefined &&
           userLng !== undefined &&
@@ -550,7 +553,6 @@ const shopRoute = factory
           shopLat !== undefined &&
           shopLng !== undefined
         ) {
-          console.log("this actually runs2");
           distance = parseFloat(
             calculateDistance(userLat, userLng, shopLat, shopLng).toFixed(2)
           );
@@ -647,13 +649,12 @@ const shopRoute = factory
         return c.json({ error: "Only admins can update shop details" }, 403);
       }
 
-      const updatedShop = await db
+      const updatedShopResult = await db
         .update(shopTable)
         .set(data)
         .where(eq(shopTable.id, id))
-        .returning()
-        .get();
-
+        .returning();
+      const updatedShop = updatedShopResult[0];
       return c.json({ data: updatedShop });
     } catch (error) {
       console.error("Error updating shop:", error);

@@ -506,7 +506,7 @@ const orderRoute = factory
       console.log("[ORDER_ROUTE] Creating order in database");
 
       // Create the order (only if validations passed)
-      const order = await db
+      const [order] = await db
         .insert(orderTable)
         .values({
           // code: orderCode, // Omitted as per user request
@@ -527,8 +527,7 @@ const orderRoute = factory
           addressName: data.addressName,
           riderConfirmationCode: riderConfirmationCode, // Save the generated number
         })
-        .returning()
-        .get();
+        .returning();
 
       console.log("[ORDER_ROUTE] Order created:", {
         orderId: order.id,
@@ -545,7 +544,7 @@ const orderRoute = factory
       const orderItems = await Promise.all(
         cart.items.map(async (item) => {
           // We already validated menuItem and options exist and are in stock above
-          const orderItem = await db
+          const [orderItem] = await db
             .insert(orderItemTable)
             .values({
               orderId: order.id,
@@ -556,8 +555,7 @@ const orderRoute = factory
               totalPrice: Number(item.totalPrice) || 0,
               specialInstructions: item.specialInstructions || null,
             })
-            .returning()
-            .get();
+            .returning();
 
           console.log("[ORDER_ROUTE] Created order item:", {
             orderItemId: orderItem.id,
@@ -938,7 +936,7 @@ const orderRoute = factory
             break;
         }
 
-        const updatedOrder = await db
+        const [updatedOrder] = await db
           .update(orderTable)
           .set(updateData)
           .where(eq(orderTable.id, id))
@@ -946,8 +944,7 @@ const orderRoute = factory
             id: orderTable.id,
             status: orderTable.status,
             shopId: orderTable.shopId, // Add shopId for rider notification
-          })
-          .get();
+          });
 
         try {
           const workflowInstance = await env.ORDER_WORKFLOW.get(id); // Use order ID as workflow instance ID

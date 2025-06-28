@@ -1,4 +1,10 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import {
+  pgTable,
+  text,
+  integer,
+  doublePrecision,
+  boolean,
+} from "drizzle-orm/pg-core";
 import { userTable } from "./auth.schema";
 import { timestamps } from "./utils.schema";
 import {
@@ -12,7 +18,7 @@ import { nanoid } from "nanoid";
 import { relations } from "drizzle-orm";
 import { orderTable } from "./order.schema";
 
-export const riderTable = sqliteTable("riders", {
+export const riderTable = pgTable("riders", {
   id: text("id")
     .primaryKey()
     .$default(() => nanoid()),
@@ -26,8 +32,8 @@ export const riderTable = sqliteTable("riders", {
   lastName: text("last_name"),
   email: text("email"),
   address: text("address"),
-  longitude: real("longitude"),
-  latitude: real("latitude"),
+  longitude: doublePrecision("longitude"),
+  latitude: doublePrecision("latitude"),
   addressName: text("address_name"),
   vehicleType: text("vehicle_type", {
     enum: VEHICLE_TYPES,
@@ -37,26 +43,26 @@ export const riderTable = sqliteTable("riders", {
   applicationStatus: text("application_status", {
     enum: RIDER_APPLICATION_STATUS,
   }).default("DRAFT"),
-  active: integer("active", { mode: "boolean" }).default(false),
+  active: boolean("active").default(false),
   availabilityStatus: text("availability_status", {
     enum: RIDER_AVAILABILITY_STATUS,
   }).default("AVAILABLE"),
-  rating: real("rating").default(0),
+  rating: doublePrecision("rating").default(0),
   totalRatings: integer("total_ratings").default(0),
   maxDeliveryDistance: integer("max_delivery_distance").default(10),
-  currentLat: real("current_lat"),
-  currentLng: real("current_lng"),
+  currentLat: doublePrecision("current_lat"),
+  currentLng: doublePrecision("current_lng"),
   ...timestamps,
 });
 
-export const riderPaymentMethodTable = sqliteTable("rider_payment_methods", {
+export const riderPaymentMethodTable = pgTable("rider_payment_methods", {
   id: text("id")
     .primaryKey()
     .$default(() => nanoid()),
   riderId: text("rider_id")
     .notNull()
     .references(() => riderTable.id, { onDelete: "cascade" })
-    .unique(), // Ensure one rider can only have one payment method
+    .unique(),
   type: text("type", { enum: PAYMENT_METHODS }).default("BANK_TRANSFER"),
   accountNumber: text("account_number").notNull(),
   accountName: text("account_name").notNull(),

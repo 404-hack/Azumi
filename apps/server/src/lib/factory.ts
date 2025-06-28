@@ -1,9 +1,10 @@
 import { createFactory } from "hono/factory";
-import { drizzle } from "drizzle-orm/d1";
+import { drizzle } from "drizzle-orm/postgres-js";
 import type { Variables } from "./types";
 import * as schema from "./db/schema";
 import { createAuth } from "./auth";
 import { env } from "cloudflare:workers";
+import postgres from "postgres";
 
 // Our factory with environment and variables types
 export const factory = createFactory<{
@@ -12,7 +13,9 @@ export const factory = createFactory<{
   initApp: (app) => {
     // Global middleware for database
     app.use(async (c, next) => {
-      const db = drizzle(env.DB, { schema, casing: "snake_case" });
+      const sql = postgres(env.DATABASE_URL);
+
+      const db = drizzle({ schema, casing: "snake_case", client: sql });
       c.set("db", db);
 
       const auth = await createAuth(db);

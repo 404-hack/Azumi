@@ -1,6 +1,8 @@
-import { drizzle } from "drizzle-orm/d1";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import * as schema from "./schema";
 
-export const createClient = (db: D1Database) => {
-  return drizzle(db, { schema, casing: "snake_case" });
+export const createClient = (connectionString: string) => {
+  const sql = postgres(connectionString);
+  return drizzle({ schema, casing: "snake_case", client: sql });
 };

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, real } from "drizzle-orm/pg-core";
 import { userTable } from "./auth.schema";
 import { shopTable } from "./shop.schema";
 import { timestamps } from "./utils.schema";
@@ -8,7 +8,7 @@ import { nanoid } from "nanoid";
 import { relations } from "drizzle-orm";
 import { orderTable } from "./order.schema";
 
-export const cartTable = sqliteTable("carts", {
+export const cartTable = pgTable("carts", {
   id: text("id")
     .primaryKey()
     .notNull()
@@ -18,14 +18,14 @@ export const cartTable = sqliteTable("carts", {
   }),
   shopId: text("shop_id")
     .references(() => shopTable.id)
-    .notNull(), // Only one shop per cart
+    .notNull(),
   status: text("status", {
     enum: ["ACTIVE", "ABANDONED", "CONVERTED", "PENDING_PAYMENT"],
   }).default("ACTIVE"),
   ...timestamps,
 });
 
-export const cartItems = sqliteTable("cart_items", {
+export const cartItems = pgTable("cart_items", {
   id: text("id")
     .primaryKey()
     .notNull()
@@ -36,14 +36,14 @@ export const cartItems = sqliteTable("cart_items", {
   menuItemId: text("menu_item_id").references(() => menuItemTable.id, {
     onDelete: "cascade",
   }),
-  optionsHash: text("options_hash").notNull().default("no-options"), // Hash of the selected options to identify unique configurations
+  optionsHash: text("options_hash").notNull().default("no-options"),
   quantity: integer("quantity").notNull().default(1),
   specialInstructions: text("special_instructions"),
-  totalPrice: integer("total_price").notNull(), // Calculated price including options
+  totalPrice: integer("total_price").notNull(),
   ...timestamps,
 });
 
-export const cartItemOptions = sqliteTable("cart_item_options", {
+export const cartItemOptions = pgTable("cart_item_options", {
   id: text("id")
     .primaryKey()
     .notNull()
@@ -58,7 +58,7 @@ export const cartItemOptions = sqliteTable("cart_item_options", {
     onDelete: "cascade",
   }),
   quantity: integer("quantity").default(1),
-  price: integer("price").notNull(), // Price at the time of selection
+  price: integer("price").notNull(),
 });
 
 // Define relations for cart

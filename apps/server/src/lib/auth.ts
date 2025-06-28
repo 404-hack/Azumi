@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import * as schema from "./db/schema";
-import { DrizzleD1Database } from "drizzle-orm/d1";
+import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { Variables } from "./types";
 import { openAPI, organization, phoneNumber, admin } from "better-auth/plugins";
 import { env } from "cloudflare:workers";
@@ -58,10 +58,10 @@ import { smsService } from "../services/sms.service";
 //   ],
 // });
 
-export const createAuth = async (db: DrizzleD1Database<typeof schema>) => {
+export const createAuth = async (db: PostgresJsDatabase<typeof schema>) => {
   return betterAuth({
     database: drizzleAdapter(db, {
-      provider: "sqlite",
+      provider: "pg",
     }),
     user: {
       changeEmail: {

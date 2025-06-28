@@ -120,15 +120,14 @@ const addressRoute = factory
 
       // Create the new address
       const addressId = nanoid();
-      const newAddress = await db
+      const [newAddress] = await db
         .insert(addressesTable)
         .values({
           id: addressId,
           userId: user.id,
           ...data,
         })
-        .returning()
-        .get();
+        .returning();
 
       return c.json({ data: newAddress }, 201);
     } catch (error) {
@@ -176,14 +175,13 @@ const addressRoute = factory
       }
 
       // Update the address
-      const updatedAddress = await db
+      const [updatedAddress] = await db
         .update(addressesTable)
         .set(data)
         .where(
           and(eq(addressesTable.id, id), eq(addressesTable.userId, user.id))
         )
-        .returning()
-        .get();
+        .returning();
 
       return c.json({ data: updatedAddress });
     } catch (error) {
@@ -227,12 +225,11 @@ const addressRoute = factory
         );
 
       // Set the selected address as default
-      const updatedAddress = await db
+      const [updatedAddress] = await db
         .update(addressesTable)
         .set({ isDefault: true })
         .where(eq(addressesTable.id, id))
-        .returning()
-        .get();
+        .returning();
 
       return c.json({ data: updatedAddress });
     } catch (error) {

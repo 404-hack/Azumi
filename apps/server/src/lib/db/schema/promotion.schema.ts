@@ -1,11 +1,17 @@
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  integer,
+  pgTable,
+  text,
+  boolean,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { shopTable } from "./shop.schema";
 import { userTable } from "./auth.schema";
 import { timestamps } from "./utils.schema";
 import { relations } from "drizzle-orm";
 import { PROMOTION_COST_BEARER } from "../../constant";
 
-export const promotions = sqliteTable("promotions", {
+export const promotions = pgTable("promotions", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").unique().notNull(),
@@ -13,22 +19,18 @@ export const promotions = sqliteTable("promotions", {
   type: text("type", {
     enum: ["percentage", "fixed", "bogo", "minimum_spend"],
   }).notNull(),
-  value: real("value").notNull(),
-  minOrderValue: real("min_order_value"),
-  maxDiscount: real("max_discount"),
+  value: integer("value").notNull(),
+  minOrderValue: integer("min_order_value"),
+  maxDiscount: integer("max_discount"),
   buyQuantity: integer("buy_quantity"),
   getQuantity: integer("get_quantity"),
-  startDate: integer("start_date", { mode: "timestamp" }).notNull(),
-  endDate: integer("end_date", { mode: "timestamp" }).notNull(),
+  startDate: timestamp("start_date", { mode: "date" }).notNull(),
+  endDate: timestamp("end_date", { mode: "date" }).notNull(),
   usageLimit: integer("usage_limit"),
   usageCount: integer("usage_count").default(0),
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
-  isFirstOrderOnly: integer("is_first_order_only", { mode: "boolean" }).default(
-    false
-  ),
-  appliesToAllShops: integer("applies_to_all_shops", {
-    mode: "boolean",
-  }).default(false),
+  isActive: boolean("is_active").default(true),
+  isFirstOrderOnly: boolean("is_first_order_only").default(false),
+  appliesToAllShops: boolean("applies_to_all_shops").default(false),
   costBearer: text("cost_bearer", {
     enum: PROMOTION_COST_BEARER,
   })
@@ -43,7 +45,7 @@ export const promotions = sqliteTable("promotions", {
   ...timestamps,
 });
 
-export const promotionShops = sqliteTable("promotion_shops", {
+export const promotionShops = pgTable("promotion_shops", {
   id: text("id").primaryKey(),
   promotionId: text("promotion_id")
     .notNull()
@@ -54,7 +56,7 @@ export const promotionShops = sqliteTable("promotion_shops", {
   ...timestamps,
 });
 
-export const promotionProducts = sqliteTable("promotion_products", {
+export const promotionProducts = pgTable("promotion_products", {
   id: text("id").primaryKey(),
   promotionId: text("promotion_id").references(() => promotions.id),
   productId: text("product_id").notNull(),

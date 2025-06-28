@@ -1,9 +1,16 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import {
+  pgTable,
+  text,
+  integer,
+  boolean,
+  timestamp,
+  json,
+} from "drizzle-orm/pg-core";
 import { timestamps } from "./utils.schema";
 import { nanoid } from "nanoid";
 import { userTable } from "./auth.schema";
 
-export const notificationTable = sqliteTable("notification", {
+export const notificationTable = pgTable("notification", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -12,17 +19,17 @@ export const notificationTable = sqliteTable("notification", {
     .references(() => userTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   body: text("body").notNull(),
-  type: text("type").notNull(), // order_update, promotion, system_alert, etc.
-  priority: text("priority").default("normal"), // high, normal, low
-  read: integer("read", { mode: "boolean" }).default(false),
-  readAt: integer("read_at", { mode: "timestamp" }),
+  type: text("type").notNull(),
+  priority: text("priority").default("normal"),
+  read: boolean("read").default(false),
+  readAt: timestamp("read_at", { mode: "date" }),
   actionUrl: text("action_url"),
   image: text("image"),
-  metadata: text("metadata", { mode: "json" }),
+  metadata: json("metadata"),
   ...timestamps,
 });
 
-export const deviceTokenTable = sqliteTable("device_token", {
+export const deviceTokenTable = pgTable("device_token", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -30,9 +37,9 @@ export const deviceTokenTable = sqliteTable("device_token", {
     .notNull()
     .references(() => userTable.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
-  type: text("type").notNull(), // fcm, apn
-  device: text("device"), // ios, android, web
-  lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
-  metadata: text("metadata", { mode: "json" }),
+  type: text("type").notNull(),
+  device: text("device"),
+  lastUsedAt: timestamp("last_used_at", { mode: "date" }),
+  metadata: json("metadata"),
   ...timestamps,
 });

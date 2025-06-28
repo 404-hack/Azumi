@@ -1,14 +1,10 @@
-import { text, integer } from "drizzle-orm/sqlite-core";
+import { text, timestamp } from "drizzle-orm/pg-core";
 
 export const timestamps = {
-  createdAt: integer("created_at", { mode: "timestamp" }).$default(
+  createdAt: timestamp("created_at", { mode: "date" }).$default(
     () => new Date()
   ),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).$onUpdate(
+  updatedAt: timestamp("updated_at", { mode: "date" }).$onUpdate(
     () => new Date()
   ),
 };
-
-export function array<T>() {
-  return text("", { mode: "json" }).$type<T[]>();
-}

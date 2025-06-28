@@ -44,7 +44,7 @@ const riderRoute = factory
         return c.json({ error: "You are already registered as a rider" }, 409);
       }
 
-      const rider = await db
+      const [rider] = await db
         .insert(riderTable)
         .values({
           userId: userId, // Use the authenticated user's ID
@@ -57,8 +57,7 @@ const riderRoute = factory
           vehicleType: data.vehicleType,
           vehicleLicense: data.vehicleLicense,
         })
-        .returning()
-        .get();
+        .returning();
 
       return c.json(
         { message: "Application submitted successfully", data: rider },
@@ -113,7 +112,7 @@ const riderRoute = factory
       const db = c.get("db");
       const userId = c.get("userId");
       const { status, latitude, longitude } = c.req.valid("json");
-      const updatedRider = await db
+      const [updatedRider] = await db
         .update(riderTable)
         .set({
           availabilityStatus: status,
@@ -121,8 +120,7 @@ const riderRoute = factory
           latitude,
         })
         .where(eq(riderTable.userId, userId))
-        .returning()
-        .get();
+        .returning();
 
       return c.json({ data: updatedRider });
     } catch (error) {
@@ -135,12 +133,11 @@ const riderRoute = factory
       const db = c.get("db");
       const userId = c.get("userId");
       const { latitude, longitude } = c.req.valid("json");
-      const updatedRider = await db
+      const [updatedRider] = await db
         .update(riderTable)
         .set({ latitude, longitude })
         .where(eq(riderTable.userId, userId))
-        .returning()
-        .get();
+        .returning();
 
       return c.json({ data: updatedRider });
     } catch (error) {
@@ -158,12 +155,11 @@ const riderRoute = factory
         const userId = c.get("userId");
         const data = c.req.valid("json");
 
-        const updatedRider = await db
+        const [updatedRider] = await db
           .update(riderTable)
           .set(data) // data directly matches the schema now
           .where(eq(riderTable.userId, userId))
-          .returning()
-          .get();
+          .returning();
 
         return c.json({
           message: "Profile updated successfully",
@@ -364,7 +360,7 @@ const riderRoute = factory
         const userId = c.get("userId"); // This is the ID of the accepting rider
         const honoEnv = env; // Atomically update the order to assign the rider and change status
         // This ensures only the first rider to accept gets the order.
-        const result = await db
+        const [result] = await db
           .update(orderTable)
           .set({
             riderId: userId,
@@ -382,8 +378,7 @@ const riderRoute = factory
           .returning({
             id: orderTable.id,
             status: orderTable.status,
-          })
-          .get(); // Use .get() if you expect one row or null
+          });
 
         if (!result) {
           // This means the order was either not found, not in READY status,
@@ -510,7 +505,7 @@ const riderRoute = factory
       );
 
       // Update order status to IN_TRANSIT
-      const updatedOrder = await db
+      const [updatedOrder] = await db
         .update(orderTable)
         .set({
           status: "IN_TRANSIT",
@@ -520,8 +515,7 @@ const riderRoute = factory
         .returning({
           id: orderTable.id,
           status: orderTable.status,
-        })
-        .get();
+        });
       console.log(`[RIDER_PICKUP] Rider ${userId} picked up order ${id}`);
 
       // PROCESS VENDOR PAYMENT: Update vendor wallet balance on pickup
@@ -684,7 +678,7 @@ const riderRoute = factory
         }
 
         // Update order status to DELIVERED
-        const updatedOrder = await db
+        const [updatedOrder] = await db
           .update(orderTable)
           .set({
             status: "DELIVERED",
@@ -694,8 +688,7 @@ const riderRoute = factory
           .returning({
             id: orderTable.id,
             status: orderTable.status,
-          })
-          .get();
+          });
         console.log(`Rider ${userId} delivered order ${id}`);
 
         // WORKFLOW: Notify workflow about delivery
@@ -1052,7 +1045,7 @@ const riderRoute = factory
 
           paystackRecipientCode = paystackData.data.recipient_code;
         } // Insert the payment method into the database
-        const newPaymentMethod = await db
+        const [newPaymentMethod] = await db
           .insert(riderPaymentMethodTable)
           .values({
             riderId: rider.id, // Using the correct rider ID from context
@@ -1063,8 +1056,7 @@ const riderRoute = factory
             bankCode: data.bankCode,
             paystackRecipientCode,
           })
-          .returning()
-          .get();
+          .returning();
 
         return c.json(
           {
@@ -1122,14 +1114,13 @@ const riderRoute = factory
         }
 
         // Update the payment method
-        const updatedMethod = await db
+        const [updatedMethod] = await db
           .update(riderPaymentMethodTable)
           .set(data)
           .where(
             eq(riderPaymentMethodTable.riderId, rider.id) // Use riderId to update
           )
-          .returning()
-          .get();
+          .returning();
 
         return c.json({
           message: "Payment method updated successfully",
@@ -1251,7 +1242,7 @@ const riderRoute = factory
         .where(eq(riderTable.id, riderId));
 
       // Get the updated rider to confirm changes were applied
-      const updatedRider = await db.query.riderTable.findFirst({
+      const [updatedRider] = await db.query.riderTable.findFirst({
         where: eq(riderTable.id, riderId),
         columns: { applicationStatus: true },
       });

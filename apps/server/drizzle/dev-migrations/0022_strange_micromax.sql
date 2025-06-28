@@ -1,1 +1,0 @@
-ALTER TABLE `order` ADD `payment_confirmed_at` text;

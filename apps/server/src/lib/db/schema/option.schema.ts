@@ -1,9 +1,10 @@
 import {
-  sqliteTable,
+  pgTable,
   text,
   integer,
   primaryKey,
-} from "drizzle-orm/sqlite-core";
+  boolean,
+} from "drizzle-orm/pg-core";
 import { timestamps } from "./utils.schema";
 import { nanoid } from "nanoid";
 import { shopTable } from "./shop.schema";
@@ -11,39 +12,38 @@ import { relations } from "drizzle-orm";
 import { menuItemTable, menuItemOptionGroups } from "./menu.schema";
 import { userTable } from "./auth.schema";
 
-export const optionGroupTable = sqliteTable("optionGroup", {
+export const optionGroupTable = pgTable("optionGroup", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   name: text("name").notNull(),
   minSelections: integer("min_selections").default(0).notNull(),
-  maxSelections: integer("max_selections"), // null means unlimited
+  maxSelections: integer("max_selections"),
   shopId: text("shop_id")
     .references(() => shopTable.id)
     .notNull(),
-  userId: text()
+  userId: text("user_id")
     .references(() => userTable.id)
     .notNull(),
   ...timestamps,
 });
 
-export const optionTable = sqliteTable("option", {
+export const optionTable = pgTable("option", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   name: text("name").notNull(),
   price: integer("price").notNull(),
-  inStock: integer("", { mode: "boolean" }).default(true).notNull(),
+  inStock: boolean("in_stock").default(true).notNull(),
   shopId: text("shop_id")
     .references(() => shopTable.id)
     .notNull(),
-  userId: text().references(() => userTable.id),
+  userId: text("user_id").references(() => userTable.id),
   ...timestamps,
 });
 
-// Junction table for many-to-many relationship with composite primary key
-export const optionToOptionGroupTable = sqliteTable(
-  "optionToOptionGroup",
+export const optionToOptionGroupTable = pgTable(
+  "option_to_option_group",
   {
     optionId: text("option_id")
       .references(() => optionTable.id, { onDelete: "cascade" })
@@ -60,8 +60,7 @@ export const optionToOptionGroupTable = sqliteTable(
   }
 );
 
-// New table to track option quantities in selections
-export const optionSelectionTable = sqliteTable("optionSelection", {
+export const optionSelectionTable = pgTable("optionSelection", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),

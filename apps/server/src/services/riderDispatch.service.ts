@@ -374,7 +374,7 @@ export class RiderDispatchService {
         const closestRider = closestRiderWithMetrics.rider;
         const shortestDistance =
           closestRiderWithMetrics.metrics.pickupDistanceKm; // Assign the closest rider
-        const updatedOrder = await db
+        const [updatedOrder] = await db
           .update(orderTable)
           .set({
             riderId: closestRider.userId,
@@ -382,8 +382,7 @@ export class RiderDispatchService {
             riderAssignedAt: new Date().toISOString(),
           })
           .where(eq(orderTable.id, orderId))
-          .returning()
-          .get();
+          .returning();
 
         // Update rider status to BUSY
         await db

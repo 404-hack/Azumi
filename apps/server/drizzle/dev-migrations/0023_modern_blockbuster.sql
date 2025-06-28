@@ -1,1 +1,0 @@
-ALTER TABLE `order` ADD `rider_assigned_at` text;

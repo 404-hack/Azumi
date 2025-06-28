@@ -1,4 +1,10 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import {
+  pgTable,
+  text,
+  integer,
+  doublePrecision,
+  boolean,
+} from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 import { timestamps } from "./utils.schema";
 import { userTable } from "./auth.schema";
@@ -16,46 +22,40 @@ import { cartTable, cartItems, cartItemOptions } from "./cart.schema";
 import { optionTable, optionGroupTable } from "./option.schema";
 import { riderTable } from "./rider.schema";
 
-export const orderTable = sqliteTable("order", {
+export const orderTable = pgTable("order", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   code: text("code"),
   customerId: text("customer_id").references(() => userTable.id),
-  shopId: text()
+  shopId: text("shop_id")
     .references(() => shopTable.id)
     .notNull(),
   riderId: text("rider_id").references(() => userTable.id),
-  riderConfirmationCode: integer("rider_confirmation_code").notNull(), // Changed to integer
+  riderConfirmationCode: integer("rider_confirmation_code").notNull(),
   status: text("status", { enum: ORDER_STATUS }).notNull(),
   cartId: text("cart_id")
     .references(() => cartTable.id)
-    .notNull(), // Required cart reference
+    .notNull(),
 
-  // Delivery information
   addressName: text("address_name").notNull().default(""),
-  longitude: real("longitude").notNull(),
-  latitude: real("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  latitude: doublePrecision("latitude").notNull(),
 
-  // deliveryAddressId: text("delivery_address_id").references(
-  //   () => addressesTable.id
-  // ),
   deliveryNotes: text("delivery_notes"),
   vendorNotes: text("vendor_notes"),
 
-  // Payment information
   paymentMethod: text("payment_method", { enum: PAYMENT_METHODS })
     .notNull()
     .default("CARD"),
   paymentStatus: text("payment_status", { enum: PAYMENT_STATUS }).notNull(),
   paymentTransactionId: text("payment_transaction_id"),
 
-  // Pricing
-  subtotal: real("subtotal").notNull(),
-  deliveryFee: real("delivery_fee").default(0),
-  serviceFee: real("service_fee").default(0),
-  discount: real("discount").default(0),
-  total: real("total").notNull(), // Timestamps for order progress
+  subtotal: integer("subtotal").notNull(),
+  deliveryFee: integer("delivery_fee").default(0),
+  serviceFee: integer("service_fee").default(0),
+  discount: integer("discount").default(0),
+  total: integer("total").notNull(),
   paymentConfirmedAt: text("payment_confirmed_at"),
   acceptedAt: text("accepted_at"),
   preparedAt: text("prepared_at"),
@@ -63,8 +63,8 @@ export const orderTable = sqliteTable("order", {
   pickedUpAt: text("picked_up_at"),
   deliveredAt: text("delivered_at"),
   canceledAt: text("canceled_at"),
-  cancelReason: text("cancel_reason"), // Refund information
-  refundAmount: real("refund_amount").default(0),
+  cancelReason: text("cancel_reason"),
+  refundAmount: integer("refund_amount").default(0),
   refundReason: text("refund_reason"),
   refundStatus: text("refund_status", { enum: REFUND_STATUS }),
   refundReference: text("refund_reference"),
@@ -73,7 +73,7 @@ export const orderTable = sqliteTable("order", {
   ...timestamps,
 });
 
-export const orderItemTable = sqliteTable("orderItem", {
+export const orderItemTable = pgTable("orderItem", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -83,17 +83,16 @@ export const orderItemTable = sqliteTable("orderItem", {
       onDelete: "cascade",
     }),
   menuItemId: text("menu_item_id").references(() => menuItemTable.id),
-  menuItemName: text("menu_item_name").notNull(), // Snapshot of name at time of order
+  menuItemName: text("menu_item_name").notNull(),
   quantity: integer("quantity").notNull(),
-  unitPrice: real("unit_price").notNull(),
-  totalPrice: real("total_price").notNull(),
+  unitPrice: integer("unit_price").notNull(),
+  totalPrice: integer("total_price").notNull(),
   specialInstructions: text("special_instructions"),
 
   ...timestamps,
 });
 
-// Table for order item options (to preserve option choices)
-export const orderItemOptionTable = sqliteTable("orderItemOption", {
+export const orderItemOptionTable = pgTable("orderItemOption", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -104,9 +103,9 @@ export const orderItemOptionTable = sqliteTable("orderItemOption", {
     }),
   optionId: text("option_id").references(() => optionTable.id),
   optionGroupId: text("option_group_id").references(() => optionGroupTable.id),
-  optionName: text("option_name").notNull(), // Snapshot of option name
+  optionName: text("option_name").notNull(),
   quantity: integer("quantity").default(1),
-  price: real("price").notNull(), // Price at time of order
+  price: integer("price").notNull(),
 
   ...timestamps,
 });

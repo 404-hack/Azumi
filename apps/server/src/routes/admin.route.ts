@@ -337,9 +337,7 @@ const adminRoute = factory
             status,
             active: active !== undefined ? active : status === "APPROVED",
           })
-          .where(eq(shopTable.id, id))
-          .returning()
-          .get();
+          .where(eq(shopTable.id, id));
 
         return c.json({
           success: true,
@@ -531,8 +529,7 @@ const adminRoute = factory
           .update(riderTable)
           .set(updates)
           .where(eq(riderTable.id, id))
-          .returning()
-          .get();
+          .returning();
 
         return c.json({
           success: true,
@@ -914,17 +911,9 @@ const adminRoute = factory
         const updatedOrder = await db
           .update(orderTable)
           .set(updateData)
-          .where(eq(orderTable.id, id))
-          .returning({
-            id: orderTable.id,
-            status: orderTable.status,
-            shopId: orderTable.shopId,
-          })
-          .get();
+          .where(eq(orderTable.id, id));
 
-        if (!updatedOrder) {
-          return c.json({ error: "Failed to update order" }, 500);
-        } // Enhanced workflow integration - matches vendor functionality exactly
+        // Enhanced workflow integration - matches vendor functionality exactly
         try {
           const workflowInstance = await env.ORDER_WORKFLOW.get(id);
 
@@ -1248,25 +1237,19 @@ const adminRoute = factory
         if (!rider) {
           return c.json({ error: "Rider not found or not approved" }, 400);
         } // Update order with rider assignment (no rider status change needed)
-        await db
-          .update(orderTable)
-          .set({
-            riderId: rider.userId,
-            status: "RIDER_ASSIGNED",
-            riderAssignedAt: new Date().toISOString(),
-            updatedAt: new Date(),
-          })
-          .where(eq(orderTable.id, id));
+        await db.update(orderTable).set({
+          riderId: rider.userId,
+          status: "RIDER_ASSIGNED",
+          riderAssignedAt: new Date().toISOString(),
+          updatedAt: new Date(),
+        });
 
         // Add admin notes if provided
         if (adminNotes) {
-          await db
-            .update(orderTable)
-            .set({
-              vendorNotes: adminNotes,
-              updatedAt: new Date(),
-            })
-            .where(eq(orderTable.id, id));
+          await db.update(orderTable).set({
+            vendorNotes: adminNotes,
+            updatedAt: new Date(),
+          });
         } // Notify workflow about the assignment
         try {
           const workflowInstance = await env.ORDER_WORKFLOW.get(id);
@@ -1408,15 +1391,13 @@ const adminRoute = factory
 
       const closestRider = ridersWithDistance[0].rider;
       const shortestDistance = ridersWithDistance[0].pickupDistanceKm; // Assign the closest rider (no rider status change needed)
-      await db
-        .update(orderTable)
-        .set({
-          riderId: closestRider.userId,
-          status: "RIDER_ASSIGNED",
-          riderAssignedAt: new Date().toISOString(),
-          updatedAt: new Date(),
-        })
-        .where(eq(orderTable.id, id)); // Notify workflow about the assignment
+      await db.update(orderTable).set({
+        riderId: closestRider.userId,
+        status: "RIDER_ASSIGNED",
+        riderAssignedAt: new Date().toISOString(),
+        updatedAt: new Date(),
+      });
+      // Notify workflow about the assignment
       try {
         const workflowInstance = await env.ORDER_WORKFLOW.get(id);
         await workflowInstance.sendEvent({
@@ -1651,8 +1632,8 @@ const adminRoute = factory
           createdBy: user.id,
           usageCount: 0,
         })
-        .returning()
-        .get(); // Link shops to promotion - but skip if applies to all shops
+        .returning();
+      // Link shops to promotion - but skip if applies to all shops
       if (!promotionData.appliesToAllShops && shopIds && shopIds.length > 0) {
         await db.insert(promotionShops).values(
           shopIds.map((shopId) => ({
@@ -1756,8 +1737,8 @@ const adminRoute = factory
             updatedAt: now,
           })
           .where(eq(promotions.id, id))
-          .returning()
-          .get(); // Update shop links if specified
+          .returning();
+        // Update shop links if specified
         if (shopIds !== undefined) {
           // Remove existing shop links
           await db

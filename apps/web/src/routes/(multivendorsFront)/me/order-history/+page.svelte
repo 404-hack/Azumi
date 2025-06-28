@@ -2,6 +2,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
+	import { Button } from '$lib/components/ui/button';
 
 	let { data }: { data: PageData } = $props();
 	let orderList = data.orderList;
@@ -74,7 +75,7 @@
 	}
 </script>
 
-<div class="min-h-screen bg-gray-50">
+<div class="min-h-screen">
 	<div class="mx-auto max-w-4xl px-4 py-6">
 		<h1 class="mb-6 text-2xl font-bold text-gray-900">Orders</h1>
 
@@ -118,9 +119,14 @@
 				{/each}
 			</div>
 		{:else}
-			<div class="py-16 text-center">
-				<h2 class="mb-2 text-xl font-semibold text-gray-900">No orders yet</h2>
-				<p class="mb-6 text-gray-600">When you place your first order, it will appear here</p>
+			<div class="flex flex-col items-center justify-center py-5">
+				<img src="/azumi-chilling.png" alt="No orders" class="mb-6 w-40 drop-shadow-lg" />
+				<h2 class="mb-2 text-2xl font-bold text-gray-900">No orders yet</h2>
+				<p class="mb-6 max-w-md text-gray-600">
+					You haven't placed any orders yet. When you do, your order history will show up here. Sit
+					back and relax!
+				</p>
+				<Button href="/">Start Shopping</Button>
 			</div>
 		{/if}
 	</div>

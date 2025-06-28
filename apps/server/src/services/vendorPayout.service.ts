@@ -6,7 +6,7 @@ import { createClient } from "../lib/db";
 
 type PaystackEnv = {
   PAYSTACK_SECRET_KEY: string;
-  DB: D1Database;
+  DATABASE_URL: string;
   RIDER_COMMISSION_RATE: string;
 };
 
@@ -24,7 +24,7 @@ export async function processVendorPayouts(env: PaystackEnv) {
   console.log("Starting vendor payouts processing...");
 
   try {
-    const db = createClient(env.DB);
+    const db = createClient(env.DATABASE_URL);
 
     // Get the date range for this payout period
     // Process transactions from the previous week (Sunday to Saturday)
@@ -77,7 +77,7 @@ export async function processVendorPayouts(env: PaystackEnv) {
           );
           continue;
         } // Calculate total pending earnings for the vendor
-        const vendorEarnings = await db
+        const [vendorEarnings] = await db
           .select({
             total: sql`SUM(${vendorTransactionTable.netAmount})`.mapWith(
               Number
@@ -92,8 +92,7 @@ export async function processVendorPayouts(env: PaystackEnv) {
               gte(vendorTransactionTable.createdAt, startDate),
               lt(vendorTransactionTable.createdAt, endDate)
             )
-          )
-          .get();
+          );
         const amount = (vendorEarnings?.total || 0) / 100; // Convert from cents to NGN
 
         // Skip if no earnings to process
@@ -185,7 +184,7 @@ export async function processVendorPayouts(env: PaystackEnv) {
               const amount = transfer.amount / 100;
 
               // First, get the shop ID safely to avoid SQL injection
-              const shopInfo = await db
+              const [shopInfo] = await db
                 .select({ shopId: shopPaymentMethodTable.shopId })
                 .from(shopPaymentMethodTable)
                 .where(
@@ -193,8 +192,7 @@ export async function processVendorPayouts(env: PaystackEnv) {
                     shopPaymentMethodTable.paystackRecipientCode,
                     transfer.recipient
                   )
-                )
-                .get();
+                );
 
               if (!shopInfo) {
                 console.error(
@@ -203,7 +201,7 @@ export async function processVendorPayouts(env: PaystackEnv) {
                 continue;
               } // Execute operations separately since D1 batch doesn't work with Drizzle prepared statements
               // Update existing transactions
-              await db
+              const [result] = await db
                 .update(vendorTransactionTable)
                 .set({
                   status: "COMPLETED",
@@ -221,28 +219,32 @@ export async function processVendorPayouts(env: PaystackEnv) {
                     gte(vendorTransactionTable.createdAt, startDate),
                     lt(vendorTransactionTable.createdAt, endDate)
                   )
-                );
+                )
+                .returning();
 
               // Insert withdrawal record
-              await db.insert(vendorTransactionTable).values({
-                shopId: shopInfo.shopId,
-                grossAmount: Math.round(amount * 100),
-                commissionRate: 0,
-                commissionAmount: 0,
-                netAmount: Math.round(amount * 100),
-                amount: Math.round(amount * 100),
-                currency: "NGN",
-                status: "COMPLETED",
-                type: "DEBIT",
-                reference: transfer.transfer_code,
-                description: `Weekly payout for period ending ${endDate.toLocaleDateString()}`,
-                metadata: JSON.stringify({
-                  transferCode: transfer.transfer_code,
-                  recipientCode: transfer.recipient,
-                  batchId: i + 1,
-                  processedAt: new Date().toISOString(),
-                }),
-              });
+              const [withdrawalResult] = await db
+                .insert(vendorTransactionTable)
+                .values({
+                  shopId: shopInfo.shopId,
+                  grossAmount: Math.round(amount * 100),
+                  commissionRate: 0,
+                  commissionAmount: 0,
+                  netAmount: Math.round(amount * 100),
+                  amount: Math.round(amount * 100),
+                  currency: "NGN",
+                  status: "COMPLETED",
+                  type: "DEBIT",
+                  reference: transfer.transfer_code,
+                  description: `Weekly payout for period ending ${endDate.toLocaleDateString()}`,
+                  metadata: JSON.stringify({
+                    transferCode: transfer.transfer_code,
+                    recipientCode: transfer.recipient,
+                    batchId: i + 1,
+                    processedAt: new Date().toISOString(),
+                  }),
+                })
+                .returning();
 
               console.log(
                 `Updated transaction records for transfer ${reference}`

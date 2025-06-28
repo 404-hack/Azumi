@@ -1,4 +1,4 @@
-import { DrizzleD1Database } from "drizzle-orm/d1";
+import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "../db/schema";
 import { ContextVariables } from "hono";
 
@@ -70,7 +70,7 @@ export type TRider = typeof schema.riderTable.$inferSelect & {
 
 // Hono Context Variables
 export type Variables = {
-  db: DrizzleD1Database<typeof schema>;
+  db: PostgresJsDatabase<typeof schema>;
   user: TUser | null;
   session: TSession | null;
   orgId: string;

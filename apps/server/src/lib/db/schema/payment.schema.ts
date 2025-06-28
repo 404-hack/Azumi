@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, boolean, json } from "drizzle-orm/pg-core";
 import { timestamps } from "./utils.schema";
 import { nanoid } from "nanoid";
 import { userTable } from "./auth.schema";
@@ -6,24 +6,23 @@ import { orderTable } from "./order.schema";
 import { shopTable } from "./shop.schema";
 import { relations } from "drizzle-orm";
 
-export const paymentMethodTable = sqliteTable("payment_method", {
+export const paymentMethodTable = pgTable("payment_method", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   userId: text("user_id")
     .notNull()
     .references(() => userTable.id, { onDelete: "cascade" }),
-  type: text("type").notNull(), // credit_card, bank_transfer, mobile_money, etc.
-  provider: text("provider"), // visa, mastercard, mpesa, etc.
+  type: text("type").notNull(),
+  provider: text("provider"),
   accountNumber: text("account_number"),
   expiryDate: text("expiry_date"),
-  isDefault: integer("is_default", { mode: "boolean" }).default(false),
-  metadata: text("metadata", { mode: "json" }),
+  isDefault: boolean("is_default").default(false),
+  metadata: json("metadata"),
   ...timestamps,
 });
 
-// Vendor Transaction Table - For shop/vendor earnings and payouts
-export const vendorTransactionTable = sqliteTable("vendor_transaction", {
+export const vendorTransactionTable = pgTable("vendor_transaction", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -34,26 +33,23 @@ export const vendorTransactionTable = sqliteTable("vendor_transaction", {
     onDelete: "set null",
   }),
 
-  // Amount breakdown for transparency
-  grossAmount: integer("gross_amount").notNull(), // Full order subtotal before any deductions (in cents)
-  commissionRate: integer("commission_rate").notNull(), // Commission percentage (e.g., 10 for 10%)
-  commissionAmount: integer("commission_amount").notNull(), // Actual commission deducted in cents
-  netAmount: integer("net_amount").notNull(), // Final payout amount after commission in cents
+  grossAmount: integer("gross_amount").notNull(),
+  commissionRate: integer("commission_rate").notNull(),
+  commissionAmount: integer("commission_amount").notNull(),
+  netAmount: integer("net_amount").notNull(),
 
-  // Legacy amount field for backward compatibility
-  amount: integer("amount").notNull(), // This will be same as netAmount
+  amount: integer("amount").notNull(),
 
   currency: text("currency").notNull().default("NGN"),
-  status: text("status").notNull(), // PENDING, COMPLETED, FAILED, REFUNDED
-  type: text("type").notNull(), // CREDIT (earning), DEBIT (withdrawal), REFUND
+  status: text("status").notNull(),
+  type: text("type").notNull(),
   reference: text("reference").unique(),
   description: text("description"),
-  metadata: text("metadata", { mode: "json" }),
+  metadata: json("metadata"),
   ...timestamps,
 });
 
-// Rider Transaction Table - For delivery driver earnings and payouts
-export const riderTransactionTable = sqliteTable("rider_transaction", {
+export const riderTransactionTable = pgTable("rider_transaction", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -64,23 +60,21 @@ export const riderTransactionTable = sqliteTable("rider_transaction", {
     onDelete: "set null",
   }),
 
-  // Amount breakdown for delivery earnings
-  deliveryFee: integer("delivery_fee").notNull(), // Base delivery fee in cents
-  distanceBonus: integer("distance_bonus").default(0), // Extra for long distances
-  peakTimeBonus: integer("peak_time_bonus").default(0), // Rush hour bonus
-  tipAmount: integer("tip_amount").default(0), // Customer tip
-  platformFee: integer("platform_fee").default(0), // Platform commission from delivery fee
-  netAmount: integer("net_amount").notNull(), // Final payout to rider in cents
+  deliveryFee: integer("delivery_fee").notNull(),
+  distanceBonus: integer("distance_bonus").default(0),
+  peakTimeBonus: integer("peak_time_bonus").default(0),
+  tipAmount: integer("tip_amount").default(0),
+  platformFee: integer("platform_fee").default(0),
+  netAmount: integer("net_amount").notNull(),
 
-  // Legacy amount field for backward compatibility
-  amount: integer("amount").notNull(), // This will be same as netAmount
+  amount: integer("amount").notNull(),
 
   currency: text("currency").notNull().default("NGN"),
-  status: text("status").notNull(), // PENDING, COMPLETED, FAILED, REFUNDED
-  type: text("type").notNull(), // CREDIT (earning), DEBIT (withdrawal), REFUND
+  status: text("status").notNull(),
+  type: text("type").notNull(),
   reference: text("reference").unique(),
   description: text("description"),
-  metadata: text("metadata", { mode: "json" }),
+  metadata: json("metadata"),
   ...timestamps,
 });
 

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer } from "drizzle-orm/pg-core";
 import { timestamps } from "./utils.schema";
 import { nanoid } from "nanoid";
 import { shopTable } from "./shop.schema";
@@ -6,7 +6,7 @@ import { relations } from "drizzle-orm";
 import { menuItemTable } from "./menu.schema";
 import { userTable } from "./auth.schema";
 
-export const packTable = sqliteTable("pack", {
+export const packTable = pgTable("pack", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
