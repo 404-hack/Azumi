@@ -2045,7 +2045,7 @@ export class cartInvoicesWorkflow extends WorkflowEntrypoint<Env, Params> {
         timeout: "30 seconds",
       },
       async () => {
-        const { results } = await this.env.DB.prepare(
+        const { results } = await this.env.DATABASE_URL.prepare(
           `SELECT * FROM cart WHERE id = ?`
         )
           .bind(event.payload.cartId)

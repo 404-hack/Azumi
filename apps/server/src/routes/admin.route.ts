@@ -78,34 +78,34 @@ const adminRoute = factory
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       // Get total orders count
-      const totalOrdersResult = await db
+      const [totalOrdersResult] = await db
         .select({ count: sql`COUNT(*)`.mapWith(Number) })
-        .from(orderTable)
-        .get();
+        .from(orderTable);
+
       const totalOrders = totalOrdersResult?.count || 0;
 
       // Get total revenue (sum of all completed orders)
-      const totalRevenueResult = await db
+      const [totalRevenueResult] = await db
         .select({
           revenue:
             sql`COALESCE(SUM(CASE WHEN ${orderTable.status} IN ('COMPLETED', 'DELIVERED') THEN ${orderTable.total} ELSE 0 END), 0)`.mapWith(
               Number
             ),
         })
-        .from(orderTable)
-        .get();
+        .from(orderTable);
+
       const totalRevenue = totalRevenueResult?.revenue || 0;
 
       // Get total vendors count
-      const totalVendorsResult = await db
+      const [totalVendorsResult] = await db
         .select({ count: sql`COUNT(*)`.mapWith(Number) })
         .from(shopTable)
-        .where(eq(shopTable.status, "APPROVED"))
-        .get();
+        .where(eq(shopTable.status, "APPROVED"));
+
       const totalVendors = totalVendorsResult?.count || 0;
 
       // Get total riders count
-      const totalRidersResult = await db
+      const [totalRidersResult] = await db
         .select({ count: sql`COUNT(*)`.mapWith(Number) })
         .from(riderTable)
         .where(
@@ -113,16 +113,16 @@ const adminRoute = factory
             eq(riderTable.applicationStatus, "APPROVED"),
             eq(riderTable.active, true)
           )
-        )
-        .get();
+        );
+
       const totalRiders = totalRidersResult?.count || 0;
 
       // Get total customers count
-      const totalCustomersResult = await db
+      const [totalCustomersResult] = await db
         .select({ count: sql`COUNT(*)`.mapWith(Number) })
         .from(userTable)
-        .where(eq(userTable.role, "user"))
-        .get();
+        .where(eq(userTable.role, "user"));
+
       const totalCustomers = totalCustomersResult?.count || 0; // Get active deliveries count (orders in progress)
       const activeDeliveriesResult = await db
         .select({ count: sql`COUNT(*)`.mapWith(Number) })

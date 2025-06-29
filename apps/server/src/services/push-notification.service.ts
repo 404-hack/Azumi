@@ -446,7 +446,7 @@ export class PushNotificationService {
     payload: NotificationPayload
   ): Promise<boolean> {
     try {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const tokenRecords = await db
         .select({ token: pushTokenTable.token })
         .from(pushTokenTable)
@@ -508,7 +508,7 @@ export class PushNotificationService {
     payload: NotificationPayload
   ): Promise<boolean> {
     try {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const shopMembers = await db
         .select({ userId: member.userId })
         .from(member)

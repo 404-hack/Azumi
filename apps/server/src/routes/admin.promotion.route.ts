@@ -48,7 +48,7 @@ const adminPromotionRoute = factory
       const promotionId = nanoid();
       const now = new Date();
 
-      const newPromotion = await db
+      const [newPromotion] = await db
         .insert(promotions)
         .values({
           id: promotionId,
@@ -58,8 +58,7 @@ const adminPromotionRoute = factory
           createdAt: now,
           updatedAt: now,
         })
-        .returning()
-        .get();
+        .returning();
 
       // Link products if specified
       if (productIds && productIds.length > 0) {
@@ -125,15 +124,13 @@ const adminPromotionRoute = factory
 
       // Update the promotion
       const now = new Date();
-      const updatedPromotion = await db
+      const [updatedPromotion] = await db
         .update(promotions)
         .set({
           ...promotionData,
-          updatedAt: now,
         })
         .where(eq(promotions.id, id))
-        .returning()
-        .get();
+        .returning();
 
       // Update product links if specified
       if (productIds !== undefined) {

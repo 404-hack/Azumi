@@ -87,7 +87,7 @@ export class RiderDispatchService {
   ): Promise<{ orderInfo: OrderInfo; availableRiders: RiderMetricInfo[] }> {
     console.log(`RiderDispatchService: Finding riders for order ${orderId}`);
 
-    const db = createClient(env.DB); // Get the order with shop details
+    const db = createClient(env.DATABASE_URL); // Get the order with shop details
     const order = await db.query.orderTable.findFirst({
       where: eq(orderTable.id, orderId),
       columns: {
@@ -247,7 +247,7 @@ export class RiderDispatchService {
    */
   private async isOrderStillAvailable(orderId: string): Promise<boolean> {
     try {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const order = await db.query.orderTable.findFirst({
         where: and(
           eq(orderTable.id, orderId),
@@ -345,7 +345,7 @@ export class RiderDispatchService {
     );
 
     try {
-      const db = createClient(env.DB); // Check if order is already assigned or not READY
+      const db = createClient(env.DATABASE_URL); // Check if order is already assigned or not READY
       const order = await db.query.orderTable.findFirst({
         where: and(
           eq(orderTable.id, orderId),
@@ -451,7 +451,7 @@ export class RiderDispatchService {
     message: string;
   }> {
     try {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
 
       // Verify order is in READY status
       const order = await db.query.orderTable.findFirst({
@@ -543,7 +543,7 @@ export class RiderDispatchService {
     orderInfo: OrderInfo
   ): Promise<void> {
     const pushNotificationService = new PushNotificationService();
-    const db = createClient(env.DB);
+    const db = createClient(env.DATABASE_URL);
     const orderData = await db.query.orderTable.findFirst({
       where: eq(orderTable.id, orderId),
       columns: {
@@ -730,7 +730,7 @@ export class RiderDispatchService {
     riders: RiderForNotification[],
     orderId: string
   ): Promise<void> {
-    const db = createClient(env.DB);
+    const db = createClient(env.DATABASE_URL);
     for (const rider of riders) {
       try {
         const pushNotificationService = new PushNotificationService();
@@ -919,7 +919,7 @@ export class RiderDispatchService {
 
   private async notifyAdminsNoRiders(orderId: string): Promise<void> {
     try {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const adminUsers = await db
         .select({ id: userTable.id, phoneNumber: userTable.phoneNumber })
         .from(userTable)
@@ -956,7 +956,7 @@ export class RiderDispatchService {
 
   private async notifyAdminsNoResponse(orderId: string): Promise<void> {
     try {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const adminUsers = await db
         .select({ id: userTable.id, phoneNumber: userTable.phoneNumber })
         .from(userTable)
@@ -989,7 +989,7 @@ export class RiderDispatchService {
     orderId: string,
     orderInfo: OrderInfo
   ): Promise<void> {
-    const db = createClient(env.DB);
+    const db = createClient(env.DATABASE_URL);
 
     for (const riderInfo of riders) {
       try {

@@ -257,7 +257,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       const orderStatus = await step.do(
         "check_order_status_in_db",
         async () => {
-          const db = createClient(env.DB);
+          const db = createClient(env.DATABASE_URL);
           return await db.query.orderTable.findFirst({
             where: eq(orderTable.id, params.orderId),
             columns: { paymentStatus: true, status: true, cancelReason: true },
@@ -335,7 +335,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     );
 
     try {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
 
       // Step 1: Restore cart to active state if it exists
       if (order?.cart?.id) {
@@ -624,7 +624,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       const currentOrder = await step.do(
         "fetch_order_status_after_preemption",
         async () => {
-          const db = createClient(env.DB);
+          const db = createClient(env.DATABASE_URL);
           return await db.query.orderTable.findFirst({
             where: eq(orderTable.id, params.orderId),
             columns: { id: true, status: true, updatedAt: true, shopId: true }, // Assuming shopId is vendorId
@@ -676,7 +676,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     console.log(
       `🚨 [VENDOR-ESCALATION] Starting escalation process for order: ${params.orderId}`
     );
-    const db = createClient(env.DB);
+    const db = createClient(env.DATABASE_URL);
 
     // Helper to check status and execute a durable action if order is still pending
     const checkStatusAndProceed = async (
@@ -1183,7 +1183,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       }
 
       const order = await step.do("check_refund_eligibility", async () => {
-        const db = createClient(env.DB);
+        const db = createClient(env.DATABASE_URL);
         return await db.query.orderTable.findFirst({
           where: eq(orderTable.id, params.orderId),
           columns: {
@@ -1213,7 +1213,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         return;
       }
       await step.do("update_refund_status_processing", async () => {
-        const db = createClient(env.DB);
+        const db = createClient(env.DATABASE_URL);
         await db
           .update(orderTable)
           .set({
@@ -1239,7 +1239,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
       if (refundResponse.status && refundResponse.data) {
         await step.do("update_refund_status_completed", async () => {
-          const db = createClient(env.DB);
+          const db = createClient(env.DATABASE_URL);
           await db
             .update(orderTable)
             .set({
@@ -1285,7 +1285,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         );
       } else {
         await step.do("update_refund_status_failed", async () => {
-          const db = createClient(env.DB);
+          const db = createClient(env.DATABASE_URL);
           await db
             .update(orderTable)
             .set({
@@ -1325,7 +1325,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
       try {
         await step.do("handle_refund_error", async () => {
-          const db = createClient(env.DB);
+          const db = createClient(env.DATABASE_URL);
           await db
             .update(orderTable)
             .set({
@@ -1568,7 +1568,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         );
         const riderPaymentService = new RiderPaymentService();
 
-        const db = createClient(env.DB);
+        const db = createClient(env.DATABASE_URL);
         const paymentResult = await riderPaymentService.processDeliveryPayment(
           params.orderId,
           db
@@ -1637,7 +1637,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         const orderRecord = await step.do(
           "get_customer_id_from_db",
           async () => {
-            const db = createClient(env.DB);
+            const db = createClient(env.DATABASE_URL);
             return await db.query.orderTable.findFirst({
               where: eq(orderTable.id, order.id),
               columns: { customerId: true },
@@ -1647,7 +1647,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
 
         customerId = orderRecord?.customerId || undefined;
       } else if (!customerId) {
-        const db = createClient(env.DB);
+        const db = createClient(env.DATABASE_URL);
         const orderRecord = await db.query.orderTable.findFirst({
           where: eq(orderTable.id, order.id),
           columns: { customerId: true },
@@ -1830,7 +1830,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
    * Get list of admin user IDs
    */ private async getAdminUsers(step: WorkflowStep): Promise<string[]> {
     return await step.do("get_admin_users", async () => {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const adminUsers = await db
         .select({ id: userTable.id })
         .from(userTable)

@@ -86,7 +86,6 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       return 350 + additionalKm * 150;
     }
   }
-
   async run(
     event: WorkflowEvent<OrderParams>,
     step: WorkflowStep
@@ -259,7 +258,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       console.log(
         `🔍 [WORKFLOW-PAYMENT] Checking order status in database for order: ${params.orderId}`
       );
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const order = await db.query.orderTable.findFirst({
         where: eq(orderTable.id, params.orderId),
         columns: { paymentStatus: true, status: true, cancelReason: true },
@@ -328,7 +327,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     );
 
     try {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
 
       // Step 1: Restore cart to active state if it exists
       if (order?.cart?.id) {
@@ -627,7 +626,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       `🔄 [TIMEOUT-HANDLER] Starting timeout handling for order ${params.orderId}`
     );
     try {
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const riderDispatchService = new RiderDispatchService();
 
       console.log(
@@ -719,7 +718,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
         return;
       }
 
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const order = await db.query.orderTable.findFirst({
         where: eq(orderTable.id, params.orderId),
         columns: {
@@ -839,7 +838,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       );
 
       try {
-        const db = createClient(env.DB);
+        const db = createClient(env.DATABASE_URL);
         await db
           .update(orderTable)
           .set({
@@ -878,7 +877,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
     try {
       const pushNotificationService = new PushNotificationService();
 
-      const db = createClient(env.DB);
+      const db = createClient(env.DATABASE_URL);
       const shop = await db.query.shopTable.findFirst({
         where: eq(shopTable.id, params.shopId),
         columns: {
@@ -993,7 +992,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
           "../services/riderPayment.service"
         );
         const riderPaymentService = new RiderPaymentService();
-        const db = createClient(env.DB);
+        const db = createClient(env.DATABASE_URL);
 
         const paymentResult = await riderPaymentService.processDeliveryPayment(
           params.orderId,
@@ -1050,7 +1049,7 @@ export class OrderWorkflow extends WorkflowEntrypoint {
       // Get customer ID from order in database if not provided in params
       let customerId = params?.customerId;
       if (!customerId) {
-        const db = createClient(env.DB);
+        const db = createClient(env.DATABASE_URL);
 
         const orderRecord = await db.query.orderTable.findFirst({
           where: eq(orderTable.id, order.id),
