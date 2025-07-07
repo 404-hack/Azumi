@@ -410,7 +410,7 @@ const cartRoute = factory
         // For each menu item, fetch its available option groups and options separately
         const menuItemIds = cartData.items
           .map((item) => item.menuItem?.id)
-          .filter(Boolean);
+          .filter((id): id is string => Boolean(id));
 
         // Fetch all option groups and their options for these menu items
         const availableOptionsMap = new Map();
@@ -817,7 +817,7 @@ const cartRoute = factory
       // Fetch available options for all menu items
       const menuItemIds = finalCartState.items
         .map((item) => item.menuItem?.id)
-        .filter(Boolean);
+        .filter((id): id is string => Boolean(id));
       const availableOptionsMap = new Map();
 
       if (menuItemIds.length > 0) {
@@ -1116,7 +1116,7 @@ const cartRoute = factory
         // Fetch available options for all menu items
         const menuItemIds = finalCartState.items
           .map((item) => item.menuItem?.id)
-          .filter(Boolean);
+          .filter((id): id is string => Boolean(id));
         const availableOptionsMap = new Map();
 
         if (menuItemIds.length > 0) {
@@ -1373,7 +1373,7 @@ const cartRoute = factory
         // Fetch available options for remaining items
         const menuItemIds = fetchedCart.items
           .map((item) => item.menuItem?.id)
-          .filter(Boolean);
+          .filter((id): id is string => Boolean(id));
         const availableOptionsMap = new Map();
 
         if (menuItemIds.length > 0) {

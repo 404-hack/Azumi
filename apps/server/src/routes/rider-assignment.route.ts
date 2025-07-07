@@ -3,12 +3,12 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { Context } from "../lib/types";
 import { factory } from "../lib/factory";
-import { and, eq, inArray, isNotNull, or, gt, lt } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or, gt, lt, not } from "drizzle-orm";
 import { orderTable } from "../lib/db/schema/order.schema";
 import { riderTable } from "../lib/db/schema/rider.schema";
 import { calculateDistance } from "../lib/utils/geo";
 import { RiderDispatchService } from "../services/riderDispatch.service";
-
+import { env } from "cloudflare:workers";
 /**
  * This route is responsible for the rider assignment system
  * It contains endpoints for:
@@ -182,12 +182,12 @@ const riderAssignmentRoute = factory
         }
 
         // Update order with rider assignment
-        const updatedOrder = await db
+        const [updatedOrder] = await db
           .update(orderTable)
           .set({ riderId: rider.userId })
           .where(eq(orderTable.id, orderId))
           .returning()
-          .get();
+         
 
         // Update rider status to BUSY
         await db
@@ -241,7 +241,7 @@ const riderAssignmentRoute = factory
         where: and(
           eq(orderTable.id, orderId),
           eq(orderTable.status, "READY"),
-          isNotNull(orderTable.riderId).not()
+          isNotNull(orderTable.riderId)
         ),
         with: {
           shop: {
@@ -299,12 +299,12 @@ const riderAssignmentRoute = factory
       }
 
       // Assign the closest rider
-      const updatedOrder = await db
+      const [updatedOrder] = await db
         .update(orderTable)
         .set({ riderId: closestRider.userId })
         .where(eq(orderTable.id, orderId))
         .returning()
-        .get();
+      
 
       // Update rider status
       await db

@@ -174,7 +174,7 @@ const riderRoute = factory
 
   // WORKFLOW: Rider order management endpoints
   // Get active orders assigned to rider
-  .get("/orders", async (c) => {
+  .get("/orders/actives", async (c) => {
     try {
       const db = c.get("db");
       const userId = c.get("userId");
@@ -1242,7 +1242,7 @@ const riderRoute = factory
         .where(eq(riderTable.id, riderId));
 
       // Get the updated rider to confirm changes were applied
-      const [updatedRider] = await db.query.riderTable.findFirst({
+      const updatedRider = await db.query.riderTable.findFirst({
         where: eq(riderTable.id, riderId),
         columns: { applicationStatus: true },
       });

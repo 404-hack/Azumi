@@ -5,7 +5,7 @@ export const load = async () => {
 	try {
 		const [profileRes, ordersRes] = await Promise.all([
 			client.rider.profile.$get(),
-			client.rider.orders.$get()
+			client.rider.orders.actives.$get()
 		]);
 
 		if (!profileRes.ok) {

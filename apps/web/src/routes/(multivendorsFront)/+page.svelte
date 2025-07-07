@@ -84,11 +84,9 @@
 
 <div class="min-h-screen bg-white">
 	<!-- Hero Section with Enhanced Design -->
-	<div
-		class="relative isolate overflow-hidden bg-gradient-to-br from-orange-50 via-red-50 to-orange-100"
-	>
+	<div class="relative isolate overflow-hidden">
 		<!-- Background Pattern -->
-		<div class="absolute inset-0 -z-10 opacity-20">
+		<!-- <div class="absolute inset-0 -z-10 opacity-20">
 			<svg class="h-full w-full" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
 				<defs>
 					<pattern
@@ -104,7 +102,7 @@
 				</defs>
 				<rect width="100%" height="100%" fill="url(#hero-pattern)" />
 			</svg>
-		</div>
+		</div> -->
 
 		<!-- Hero Content -->
 		<div class="mx-auto max-w-7xl px-6 py-16 lg:px-8 lg:py-24">

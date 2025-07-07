@@ -124,7 +124,16 @@ const orderRoute = factory
               },
             },
           },
-          shop: true,
+          shop: {
+            columns: {
+              id: true,
+              name: true,
+              address: true,
+              coverImage: true,
+              latitude: true,
+              longitude: true,
+            },
+          },
           customer: true,
           rider: {
             with: {

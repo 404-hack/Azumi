@@ -110,5 +110,7 @@ export const ALLOWED_ORIGINS = [
   "https://azumi-server-staging.sphade012.workers.dev",
   "https://azumi.pages.dev",
   "https://azumi.com.ng",
+  "https://wtkzkc0x-8787.uks1.devtunnels.ms",
+  "http://localhost:8081",
   // Add your production origins here
 ];

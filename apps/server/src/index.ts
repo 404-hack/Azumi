@@ -19,6 +19,7 @@ import adminRoute from "./routes/admin.route";
 import riderRoute from "./routes/rider.route";
 import promotionRoute from "./routes/promotion.route";
 import pushNotificationRoute from "./routes/push-notification.route";
+import expoPushRoute from "./routes/expo-push.route";
 import { firebaseAdminMiddleware } from "./middlewares/firebase.middleware";
 import { scheduled } from "./scheduled";
 
@@ -53,6 +54,7 @@ export const routes = app
   .route("/webhook/paystack", paystackWebhookRoute)
   .route("/rider", riderRoute)
   .route("/push-notifications", pushNotificationRoute)
+  .route("/expo-push", expoPushRoute)
   .route("promotions", promotionRoute)
   .route("/", bucketRoute)
   .route("/ws", wsRoute)

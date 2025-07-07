@@ -17,7 +17,7 @@
 	import type { OrderDetails } from '$lib/services/riderOrderService';
 
 	const { data } = $props();
-	let orders = $state<any[]>(data.orders || []);
+	let orders = $state(data.orders || []);
 	let selectedOrderId = $state<string | null>(null);
 	let isLoading = $state(false);
 	let confirmationCode = $state('');
@@ -35,7 +35,7 @@
 	async function refreshOrders() {
 		isLoading = true;
 		try {
-			const response = await client.rider.orders.$get();
+			const response = await client.rider.orders.actives.$get();
 			if (response.ok) {
 				const result = await response.json();
 				orders = result.data || [];

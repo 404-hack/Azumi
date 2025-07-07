@@ -11,7 +11,7 @@ import {
   shopTable,
   shopTodoTable,
 } from "../lib/db/schema/shop.schema";
-import { and, between, eq, gte, lte, sql } from "drizzle-orm";
+import { and, between, eq, gte, lte, sql, getTableColumns } from "drizzle-orm";
 import { createAuth } from "../lib/auth";
 import { nanoid } from "nanoid";
 import { factory } from "../lib/factory";
@@ -23,7 +23,14 @@ import {
   estimateTravelTime,
 } from "../lib/utils/shop.utils";
 import { calculateDistance } from "../lib/utils/geo";
+import {
+  createPointWithSRID,
+  distanceInKm,
+  withinRadius,
+  orderByDistance,
+} from "../lib/utils/spatial.utils";
 import { z } from "zod";
+import { env } from "cloudflare:workers";
 
 const shopRoute = factory
   .createApp()
@@ -49,6 +56,8 @@ const shopRoute = factory
       } = c.req.valid("query");
 
       console.log("User coordinates:", { lat, lng });
+      console.log("Search radius:", searchRadius);
+      console.log("Shop type filter:", shopType);
       console.log("Filters applied:", {
         openNow,
         feeMin,
@@ -58,18 +67,12 @@ const shopRoute = factory
         sort,
       });
 
-      // Calculate boundary box (rough approximation)
-      const latDelta = searchRadius / 111; // 1 degree of latitude is approximately 111 km
-      const lonDelta = searchRadius / (111 * Math.cos(lat * (Math.PI / 180)));
-
-      const minLat = lat - latDelta;
-      const maxLat = lat + latDelta;
-      const minLon = lng - lonDelta;
-      const maxLon = lng + lonDelta;
+      // Create user location point for PostGIS queries
+      const userPoint = createPointWithSRID(lng, lat, 4326);
 
       // Get current time for openNow filter
       const now = new Date();
-      const currentDay = now.getDay(); // 0 for Sunday, 1 for Monday, etc.
+      const currentDay = now.getDay();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
       const currentTimeMinutes = currentHour * 60 + currentMinute;
@@ -88,32 +91,10 @@ const shopRoute = factory
       const currentDayString =
         dayMapping[currentDay as keyof typeof dayMapping];
 
-      // Query for shops within the bounding box
-      let query = db.query.shopTable.findMany({
-        where: (shops, { and, eq, gte, lte, sql, not, isNull, or }) => {
-          // Start with base query conditions
-          let conditions = [
-            gte(shops.latitude, minLat),
-            lte(shops.latitude, maxLat),
-            gte(shops.longitude, minLon),
-            lte(shops.longitude, maxLon),
-            eq(shops.status, "APPROVED"),
-          ];
+      // ✅ Use Drizzle query syntax with spatial functions (it works!)
+      console.log("🔍 Using Drizzle query syntax with spatial functions...");
 
-          // Add shop type filter if provided
-          if (shopType) {
-            conditions.push(eq(shops.shopType, shopType));
-          }
-
-          // Add rating filter if provided (single minimum rating value)
-          if (rating !== null) {
-            conditions.push(gte(shops.averageRating, rating));
-          }
-
-          // Return combined conditions
-          return and(...conditions);
-        },
-        // Include necessary shop information
+      const shopsWithDistance = await db.query.shopTable.findMany({
         columns: {
           id: true,
           name: true,
@@ -124,64 +105,77 @@ const shopRoute = factory
           totalRatings: true,
           active: true,
           status: true,
+          shopType: true,
           longitude: true,
           latitude: true,
           createdAt: true,
           updatedAt: true,
         },
+        extras: {
+          distance: distanceInKm(userPoint, shopTable.location).as("distance"),
+        },
         with: {
           operatingHours: true,
         },
+        where: (shop, { and, eq, gte }) =>
+          and(
+            withinRadius(userPoint, shop.location, searchRadius),
+            eq(shop.status, "APPROVED"),
+            ...(shopType ? [eq(shop.shopType, shopType)] : []),
+            ...(rating !== null ? [gte(shop.averageRating, rating)] : [])
+          ),
+        orderBy: () => [orderByDistance(userPoint, shopTable.location)],
+        limit: 100,
       });
 
-      const shops = await query;
-      console.log(`Found ${shops.length} shops within the bounding box`);
+      console.log(
+        "✅ PostGIS query completed, found shops:",
+        shopsWithDistance.length
+      );
+      console.log(
+        "📍 First few shops:",
+        shopsWithDistance.slice(0, 3).map((s) => ({
+          id: s.id,
+          name: s.name,
+          distance: s.distance,
+          shopType: s.shopType || "undefined",
+          status: s.status,
+        }))
+      );
 
-      // Filter shops by actual distance using Haversine (still needed for accuracy)
-      let nearbyShops = shops
+      // Process shops with operating hours and calculate isOpen status
+      let nearbyShops = shopsWithDistance
         .map((shop) => {
           try {
-            // Use direct latitude and longitude from the shop record
-            const shopLat = shop.latitude;
-            const shopLng = shop.longitude;
-
-            // Skip shops without coordinates
-            if (
-              shopLat === null ||
-              shopLng === null ||
-              shopLat === undefined ||
-              shopLng === undefined
-            ) {
-              console.warn(
-                `Shop ${shop.id} skipped due to missing coordinates.`
-              );
-              return null; // Return null for shops that don't have coordinates
-            }
-
-            // Calculate actual distance using Haversine formula (use imported function)
-            const distance = calculateDistance(lat, lng, shopLat, shopLng);
+            // Get operating hours directly from the shop relation
+            const shopOperatingHours = shop.operatingHours || [];
 
             // Calculate isOpen status (inactive shops are always closed)
             const isOpen = shop.active
               ? isShopCurrentlyOpen(
-                  shop.operatingHours,
+                  shopOperatingHours,
                   currentDayString,
                   currentTimeMinutes
                 )
               : false;
 
-            // Return shop with distance and isOpen status
-            return { ...shop, distance, isOpen };
+            return {
+              ...shop,
+              distance: parseFloat((shop.distance as number).toFixed(2)),
+              isOpen,
+              operatingHours: shopOperatingHours,
+            };
           } catch (e) {
             console.error(`Error processing shop ${shop.id}:`, e);
-            return null; // Return null for shops that errored
+            return null;
           }
         })
-        .filter((shop): shop is NonNullable<typeof shop> => shop !== null) // Filter out nulls
-        .filter((shop) => {
-          // Check if shop is within the specified radius
-          return shop.distance <= searchRadius;
-        });
+        .filter((shop): shop is NonNullable<typeof shop> => shop !== null);
+
+      console.log(
+        "🔄 After processing operating hours, shops count:",
+        nearbyShops.length
+      );
 
       // Apply additional filters
       nearbyShops = nearbyShops.filter((shop) => {
@@ -198,21 +192,6 @@ const shopRoute = factory
         if (openNow && !shop.isOpen) {
           return false;
         }
-
-        // For discount filter implementation (when discountPercentage is added to schema)
-        // We'll keep the structure ready for future implementation
-        // if (discount === 'any') {
-        //   // Check if shop has any discount
-        //   if (!shop.discountPercentage || shop.discountPercentage <= 0) {
-        //     return false;
-        //   }
-        // } else if (discount) {
-        //   // Check for specific discount percentage
-        //   const discountValue = Number(discount);
-        //   if (shop.discountPercentage !== discountValue) {
-        //     return false;
-        //   }
-        // }
 
         return true;
       });
@@ -256,6 +235,8 @@ const shopRoute = factory
           break;
       }
 
+      console.log("📈 After sorting, final shops count:", nearbyShops.length);
+
       // Create a simplified filter state for the response
       const appliedFilters = {
         openNow,
@@ -265,24 +246,26 @@ const shopRoute = factory
         activeSort: sort,
       };
 
+      console.log(
+        "🚀 Returning response with shops count:",
+        nearbyShops.length
+      );
       return c.json({
         data: {
           userLocation: { latitude: lat, longitude: lng },
           shops: nearbyShops.map((shop) => {
-            const distanceKm = parseFloat(shop.distance.toFixed(2)); // Use pre-calculated distance
-            const estimatedTime = estimateTravelTime(distanceKm); // Use imported function
-            const deliveryFee =
-              (shop as any).deliveryFee || calculateDeliveryFee(distanceKm); // Use imported function
+            // Use PostGIS distance as primary source
+            const finalDistance = shop.distance;
+            const estimatedTime = estimateTravelTime(finalDistance);
+            const deliveryFee = calculateDeliveryFee(finalDistance);
 
-            // Remove operatingHours from the final shop object if desired, keep isOpen
             const { operatingHours, ...shopResponse } = shop;
 
             return {
-              ...shopResponse, // Includes the pre-calculated isOpen
-              distance: distanceKm,
+              ...shopResponse,
+              distance: finalDistance,
               estimatedTime: estimatedTime,
               deliveryFee: deliveryFee,
-              // isOpen: shop.isOpen // Already included via spread
             };
           }),
           filters: appliedFilters,
@@ -423,6 +406,17 @@ const shopRoute = factory
         // 1. Fetch shop, operating hours, menu categories, and menus (no deep nesting)
         const shop = await db.query.shopTable.findFirst({
           where: whereConditions,
+          extras:
+            userLat !== undefined &&
+            userLng !== undefined &&
+            shopForOwnershipCheck
+              ? {
+                  distance: distanceInKm(
+                    createPointWithSRID(userLng, userLat, 4326),
+                    shopTable.location
+                  ).as("distance"),
+                }
+              : {},
           with: {
             operatingHours: true,
             menuCategories: {
@@ -444,7 +438,7 @@ const shopRoute = factory
         const menuIds = shop.menuCategories.flatMap((cat) =>
           cat.menus.map((m) => m.id)
         );
-        let menuOptionGroupsMap = {};
+        let menuOptionGroupsMap: Record<string, any[]> = {};
         if (menuIds.length > 0) {
           // Fetch all option groups for all menus in one go
           const menuItemOptionGroups =
@@ -465,7 +459,7 @@ const shopRoute = factory
           const optionGroupIds = menuItemOptionGroups.map(
             (mio) => mio.optionGroupId
           );
-          let optionGroupsWithOptions = [];
+          let optionGroupsWithOptions: any[] = [];
           if (optionGroupIds.length > 0) {
             optionGroupsWithOptions = await db.query.optionGroupTable.findMany({
               where: (og, { inArray }) => inArray(og.id, optionGroupIds),
@@ -479,10 +473,10 @@ const shopRoute = factory
             });
           }
           // Build a map of optionGroupId -> options
-          const optionGroupOptionsMap = {};
+          const optionGroupOptionsMap: Record<string, any[]> = {};
           for (const og of optionGroupsWithOptions) {
             optionGroupOptionsMap[og.id] = og.optionsToOptionGroups.map(
-              (oto) => oto.option
+              (oto: any) => oto.option
             );
           }
           // Build menuOptionGroupsMap: menuId -> [optionGroups]
@@ -553,9 +547,18 @@ const shopRoute = factory
           shopLat !== undefined &&
           shopLng !== undefined
         ) {
-          distance = parseFloat(
-            calculateDistance(userLat, userLng, shopLat, shopLng).toFixed(2)
-          );
+          // Use PostGIS distance if available, otherwise fallback to Haversine
+          if ((shop as any).distance !== undefined) {
+            distance = parseFloat(
+              ((shop as any).distance as number).toFixed(2)
+            );
+          } else {
+            // Fallback to Haversine calculation
+            distance = parseFloat(
+              calculateDistance(userLat, userLng, shopLat, shopLng).toFixed(2)
+            );
+          }
+
           deliveryFee = calculateDeliveryFee(distance);
           estimatedTime = estimateTravelTime(distance);
         }

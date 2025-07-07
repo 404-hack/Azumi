@@ -97,178 +97,91 @@
 	});
 </script>
 
-<div class="container mx-auto space-y-6 p-4">
-	<h1 class="text-3xl font-bold">Wallet</h1>
-
-	{#if isLoading}
-		<div class="flex h-40 items-center justify-center">
-			<div
-				class="border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent"
-			></div>
-		</div>
-	{:else if !hasBankInfo}
-		<!-- Bank Account Information Required -->
-		<Card.Root class="mx-auto w-full max-w-2xl">
-			<Card.Header>
-				<Card.Title class="flex items-center text-amber-600">
-					<AlertCircle class="mr-2 h-5 w-5" />
-					Banking Information Required
-				</Card.Title>
-				<Card.Description>
-					You need to set up your banking information before you can access your wallet and receive
-					payments.
-				</Card.Description>
-			</Card.Header>
-			<Card.Content>
-				<div class="space-y-4">
-					<p>
-						To receive payments from your sales, we need your bank account details. Your earnings
-						will be transferred to this account on a weekly basis.
-					</p>
-					<div class="flex flex-col space-y-2">
-						<p class="font-medium">You'll need to provide:</p>
-						<ul class="list-inside list-disc space-y-1 text-sm">
-							<li>Bank name</li>
-							<li>Account number</li>
-						</ul>
-					</div>
-				</div>
-			</Card.Content>
-			<Card.Footer>
-				<Button onclick={setupBankAccount} class="w-full">
-					<Landmark class="mr-2 h-4 w-4" />
-					Set Up Banking Information
-				</Button>
-			</Card.Footer>
-		</Card.Root>
-	{:else}
-		<!-- Show Wallet if bank information is available -->
-		<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-			<!-- Balance Card -->
-			<Card.Root>
-				<Card.Header>
-					<Card.Title class="flex items-center">
-						<Wallet class="mr-2 h-5 w-5" />
-						Available Balance
-					</Card.Title>
-				</Card.Header>
-				<Card.Content>
-					<div class="mt-2">
-						<p class="text-3xl font-bold">₦{balance.toFixed(2)}</p>
-						<p class="text-muted-foreground text-sm">Available for withdrawal</p>
-						<p class="text-muted-foreground mt-1 text-xs">
-							Payouts are processed automatically on a weekly basis.
-						</p>
-					</div>
-				</Card.Content>
-			</Card.Root>
-
-			<!-- Total Earnings Card -->
-			<Card.Root>
-				<Card.Header>
-					<Card.Title class="flex items-center">
-						<DollarSign class="mr-2 h-5 w-5" />
-						Total Earnings
-					</Card.Title>
-				</Card.Header>
-				<Card.Content>
-					<div class="mt-2">
-						<p class="text-3xl font-bold">₦{totalEarnings.toFixed(2)}</p>
-						<p class="text-muted-foreground text-sm">All-time earnings</p>
-					</div>
-				</Card.Content>
-			</Card.Root>
-
-			<!-- Pending Amount Card -->
-			<Card.Root>
-				<Card.Header>
-					<Card.Title class="flex items-center">
-						<History class="mr-2 h-5 w-5" />
-						Pending Amount
-					</Card.Title>
-				</Card.Header>
-				<Card.Content>
-					<div class="mt-2">
-						<p class="text-3xl font-bold">₦{pendingAmount.toFixed(2)}</p>
-						<p class="text-muted-foreground text-sm">Scheduled for next weekly payout</p>
-					</div>
-				</Card.Content>
-			</Card.Root>
-
-			<!-- Total Withdrawals Card -->
-			<Card.Root>
-				<Card.Header>
-					<Card.Title class="flex items-center">
-						<ArrowUpRight class="mr-2 h-5 w-5" />
-						Total Withdrawals
-					</Card.Title>
-				</Card.Header>
-				<Card.Content>
-					<div class="mt-2">
-						<p class="text-3xl font-bold">₦{totalWithdrawals.toFixed(2)}</p>
-						<p class="text-muted-foreground text-sm">All-time withdrawals</p>
-					</div>
-				</Card.Content>
-			</Card.Root>
-		</div>
-
-		<!-- Quick Actions -->
+<div class="container mx-auto max-w-5xl space-y-8 p-4">
+	<h1 class="mb-4 text-3xl font-bold">Wallet</h1>
+	<div class="grid gap-6 md:grid-cols-3">
+		<!-- Available Balance Card -->
 		<Card.Root>
 			<Card.Header>
-				<Card.Title class="flex items-center">
-					<DollarSign class="mr-2 h-5 w-5" />
-					Quick Actions
+				<Card.Title class="flex items-center gap-2 text-lg">
+					<Wallet class="h-5 w-5" /> Available Balance
 				</Card.Title>
 			</Card.Header>
 			<Card.Content>
-				<div class="flex gap-4">
-					<Button variant="outline" class="justify-start">
-						<Download class="mr-2 h-4 w-4" />
-						Download Statement
-					</Button>
-				</div>
+				<p class="text-primary mb-1 text-4xl font-extrabold">₦{balance.toFixed(2)}</p>
+				<p class="text-muted-foreground text-sm">Available for withdrawal</p>
+				<p class="text-muted-foreground mt-2 text-xs">
+					Payouts are processed automatically on a weekly basis.
+				</p>
 			</Card.Content>
 		</Card.Root>
-
-		<!-- Transaction History -->
+		<!-- Total Earnings Card -->
 		<Card.Root>
 			<Card.Header>
-				<Card.Title>Transaction History</Card.Title>
-				<Card.Description>Your recent financial activities</Card.Description>
+				<Card.Title class="flex items-center gap-2 text-lg">
+					<DollarSign class="h-5 w-5" /> Total Earnings
+				</Card.Title>
 			</Card.Header>
 			<Card.Content>
-				<div class="space-y-4">
-					{#each transactions as transaction}
-						<div class="flex items-center justify-between rounded-lg border p-4">
-							<div class="flex items-center space-x-4">
+				<p class="mb-1 text-4xl font-extrabold text-green-700">₦{totalEarnings.toFixed(2)}</p>
+				<p class="text-muted-foreground text-sm">All-time earnings</p>
+			</Card.Content>
+		</Card.Root>
+		<!-- Pending Amount Card -->
+		<Card.Root>
+			<Card.Header>
+				<Card.Title class="flex items-center gap-2 text-lg">
+					<History class="h-5 w-5" /> Pending Amount
+				</Card.Title>
+			</Card.Header>
+			<Card.Content>
+				<p class="mb-1 text-4xl font-extrabold text-yellow-600">₦{pendingAmount.toFixed(2)}</p>
+				<p class="text-muted-foreground text-sm">Scheduled for next weekly payout</p>
+			</Card.Content>
+		</Card.Root>
+	</div>
+
+	<!-- Transaction History -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title class="text-lg">Transaction History</Card.Title>
+			<Card.Description>Your recent financial activities</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			{#if transactions.length === 0}
+				<div class="flex flex-col items-center py-8">
+					<History class="text-muted-foreground mb-2 h-10 w-10" />
+					<p class="text-muted-foreground">No transactions yet.</p>
+				</div>
+			{:else}
+				<div class="divide-y">
+					{#each transactions as transaction, i}
+						<div class="flex items-center justify-between py-4 {i % 2 === 0 ? 'bg-gray-50' : ''}">
+							<div class="flex items-center gap-4">
 								{#if transaction.type === 'credit'}
-									<div class="rounded-full bg-green-100 p-2">
-										<ArrowDownLeft class="h-4 w-4 text-green-600" />
-									</div>
+									<ArrowDownLeft class="h-5 w-5 text-green-600" />
 								{:else}
-									<div class="rounded-full bg-red-100 p-2">
-										<ArrowUpRight class="h-4 w-4 text-red-600" />
-									</div>
+									<ArrowUpRight class="h-5 w-5 text-red-600" />
 								{/if}
 								<div>
 									<p class="font-medium">{transaction.description}</p>
-									<p class="text-muted-foreground text-sm">{transaction.date}</p>
+									<p class="text-muted-foreground text-xs">{transaction.date}</p>
 								</div>
 							</div>
 							<div class="text-right">
 								<p
-									class="font-medium {transaction.type === 'credit'
+									class="font-bold {transaction.type === 'credit'
 										? 'text-green-600'
 										: 'text-red-600'}"
 								>
 									{transaction.type === 'credit' ? '+' : '-'}₦{transaction.amount.toFixed(2)}
 								</p>
-								<p class="text-muted-foreground text-sm capitalize">{transaction.status}</p>
+								<p class="text-muted-foreground text-xs capitalize">{transaction.status}</p>
 							</div>
 						</div>
 					{/each}
 				</div>
-			</Card.Content>
-		</Card.Root>
-	{/if}
+			{/if}
+		</Card.Content>
+	</Card.Root>
 </div>

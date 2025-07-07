@@ -124,13 +124,13 @@ const adminRoute = factory
         .where(eq(userTable.role, "user"));
 
       const totalCustomers = totalCustomersResult?.count || 0; // Get active deliveries count (orders in progress)
-      const activeDeliveriesResult = await db
+      const [activeDeliveriesResult] = await db
         .select({ count: sql`COUNT(*)`.mapWith(Number) })
         .from(orderTable)
         .where(
           sql`${orderTable.status} IN ('CONFIRMED', 'PREPARING', 'READY', 'RIDER_ASSIGNED', 'PICKED_UP')`
-        )
-        .get();
+        );
+
       const activeDeliveries = activeDeliveriesResult?.count || 0;
 
       // Calculate average delivery time for completed orders
@@ -525,7 +525,7 @@ const adminRoute = factory
         }
 
         // Update rider status
-        const updatedRider = await db
+        const [updatedRider] = await db
           .update(riderTable)
           .set(updates)
           .where(eq(riderTable.id, id))
@@ -789,6 +789,9 @@ const adminRoute = factory
             with: {
               operatingHours: true,
               paymentMethods: true,
+            },
+            columns: {
+              location: false,
             },
           },
           customer: true,
@@ -1071,6 +1074,10 @@ const adminRoute = factory
         with: {
           shop: {
             columns: {
+              id: true,
+              name: true,
+              address: true,
+              coverImage: true,
               latitude: true,
               longitude: true,
             },
@@ -1729,7 +1736,7 @@ const adminRoute = factory
 
         // Update the promotion
         const now = new Date();
-        const updatedPromotion = await db
+        const [updatedPromotion] = await db
           .update(promotions)
           .set({
             ...promotionData,

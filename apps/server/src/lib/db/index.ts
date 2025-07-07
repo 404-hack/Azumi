@@ -6,3 +6,4 @@ export const createClient = (connectionString: string) => {
   const sql = postgres(connectionString);
   return drizzle({ schema, casing: "snake_case", client: sql });
 };
+export const db = createClient(process.env.DATABASE_URL);

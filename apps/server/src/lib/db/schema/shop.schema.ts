@@ -9,6 +9,7 @@ import {
   json,
   timestamp,
   varchar,
+  geometry,
 } from "drizzle-orm/pg-core";
 import { array, timestamps } from "./utils.schema";
 import { nanoid } from "nanoid";
@@ -61,10 +62,10 @@ export const shopTable = pgTable(
     tags: text("tags").array(),
     bankInfo: json("bank_info"),
     deliveryType: text("delivery_type", { enum: DELIVERY_TYPE }),
-    latitude: doublePrecision("latitude"),
-    longitude: doublePrecision("longitude"),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    location: geometry("location", { type: "point", srid: 4326 }),
     addressName: text("address_name"),
-    isVerified: boolean("is_verified").default(false),
     ownershipType: text("ownership_type", {
       enum: SHOP_OWNERSHIP_TYPE,
     }).default("OFFICIAL"),
@@ -74,6 +75,7 @@ export const shopTable = pgTable(
   (table) => [
     index("location_idx").on(table.latitude, table.longitude),
     index("shop_type_idx").on(table.shopType),
+    index("shop_location_gist_idx").using("gist", table.location),
   ]
 );
 
