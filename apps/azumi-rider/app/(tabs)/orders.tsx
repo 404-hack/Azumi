@@ -22,7 +22,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { Text } from "~/components/ui/text";
-import { useEarnings, type Order } from "~/hooks/useApi";
 import api from "~/lib/api";
 
 export default function Orders() {
@@ -30,21 +29,23 @@ export default function Orders() {
   const [search, setSearch] = useState("");
   const router = useRouter();
 
-  // API hooks
   const {
-    data: { data: orders } = [],
+    data,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryFn: () => api.orders.getAll(),
     queryKey: ["orders"],
+    queryFn: async () => {
+      const response = await api.orders.getAll();
+      return response.data || [];
+    },
   });
 
-  const { data: earnings } = useEarnings();
+  const orders = Array.isArray(data) ? data : [];
 
   // Filter orders based on tab and search
-  const filteredOrders = orders.filter((order: Order) => {
+  const filteredOrders = orders.filter((order) => {
     const matchesTab =
       tab === "all" ||
       (tab === "today" &&
@@ -63,7 +64,7 @@ export default function Orders() {
 
   // Calculate totals
   const totalEarnings = orders.reduce(
-    (sum: number, order: Order) => sum + order.fee,
+    (sum, order) => sum + (typeof order.fee === "number" ? order.fee : 0),
     0
   );
   const totalOrders = orders.length;
@@ -90,7 +91,7 @@ export default function Orders() {
           <Card className="flex-1 items-center p-4">
             <DollarSign size={32} color="#22c55e" className="mb-2" />
             <Text className="text-3xl font-bold text-green-600 mb-1">
-              ₦{totalEarnings.toLocaleString()}
+              ₦{typeof totalEarnings === "number" ? totalEarnings.toLocaleString() : 0}
             </Text>
             <Text className="text-base text-muted-foreground">
               Total Earnings
@@ -177,7 +178,7 @@ export default function Orders() {
                   </Text>
                 </View>
               ) : (
-                filteredOrders.map((order: Order) => (
+                filteredOrders.map((order) => (
                   <Pressable
                     key={order.id}
                     onPress={() =>
@@ -194,7 +195,7 @@ export default function Orders() {
                         </Text>
                         <View className="flex-row items-center gap-2">
                           <Text className="font-bold text-lg">
-                            ₦{order.amount.toLocaleString()}
+                            ₦{typeof order.amount === "number" ? order.amount.toLocaleString() : 0}
                           </Text>
                           <View
                             className={`px-2 py-1 rounded-full flex-row items-center ${
@@ -238,7 +239,7 @@ export default function Orders() {
                       <View className="flex-row justify-between items-center mb-3">
                         <Text className="text-muted-foreground">Fee:</Text>
                         <Text className="text-green-600 font-bold">
-                          ₦{order.fee.toLocaleString()}
+                          ₦{typeof order.fee === "number" ? order.fee.toLocaleString() : 0}
                         </Text>
                       </View>
                       <View className="flex-row items-center gap-2 mb-2">

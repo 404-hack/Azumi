@@ -1,5 +1,6 @@
-import { FontAwesome } from "@expo/vector-icons";
+import { Phone, MapPin, Eye, CheckCircle2, Clock } from "lucide-react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -20,6 +21,7 @@ export default function RiderDashboard() {
   const [orderToDeliver, setOrderToDeliver] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const { data: ordersData } = useQuery({
     queryKey: ["orders"],
@@ -133,31 +135,22 @@ export default function RiderDashboard() {
 
   // UI
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: "#F7F8FA", padding: 16 }}>
+    <ScrollView className="flex-1 bg-background px-4 py-2">
       {/* Header */}
-      <View
-        style={{
-          backgroundColor: "white",
-          borderRadius: 16,
-          padding: 24,
-          marginBottom: 16,
-          shadowColor: "#000",
-          shadowOpacity: 0.05,
-          shadowRadius: 4,
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
+      <View className="bg-primary rounded-2xl p-6 mb-4 shadow-sm shadow-primary/10">
+        <View className="flex-row justify-between items-center">
           <View>
-            <Text style={{ fontSize: 20, fontWeight: "bold" }}>
+            <Link
+              href="/login"
+              className="text-xs text-secondary underline mb-1"
+            >
+              go to a new page
+            </Link>
+
+            <Text className="text-2xl font-bold text-primary-foreground">
               Rider Dashboard
             </Text>
-            <Text style={{ fontSize: 14, color: "#6B7280" }}>
+            <Text className="text-sm text-primary-foreground/70">
               {/* Welcome, {profile?.firstName || "Rider"} */}
             </Text>
           </View>
@@ -167,66 +160,39 @@ export default function RiderDashboard() {
       {/* Active Orders */}
       {activeOrders.length > 0 ? (
         <View>
-          <View
-            style={{
-              backgroundColor: "white",
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 16,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 8,
-              }}
-            >
-              <Text style={{ fontSize: 16, fontWeight: "bold" }}>
+          <View className="bg-card rounded-2xl p-4 mb-4">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-lg font-bold text-foreground">
                 Active Orders
               </Text>
-              <Text
-                style={{
-                  backgroundColor: "#DBEAFE",
-                  color: "#1D4ED8",
-                  borderRadius: 16,
-                  paddingHorizontal: 12,
-                  paddingVertical: 4,
-                  fontSize: 14,
-                }}
-              >
+              <Text className="bg-accent text-accent-foreground rounded-full px-3 py-1 text-xs font-semibold">
                 {activeOrders.length} orders
               </Text>
             </View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={{ flexDirection: "row", marginBottom: 8 }}
+              className="flex-row mb-2"
             >
-              {/* {activeOrders.map((order) => (
-                <TouchableOpacity
+              {activeOrders.map((order) => (
+                <View
                   key={order.id}
-                  onPress={() => setSelectedOrderId(order.id)}
-                  style={{
-                    backgroundColor:
-                      selectedOrderId === order.id ? "#3B82F6" : "#F3F4F6",
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 8,
-                    marginRight: 8,
-                  }}
+                  className={`mr-2 ${
+                    selectedOrderId === order.id ? "bg-primary" : "bg-muted"
+                  } px-3 py-2 rounded-lg`}
                 >
                   <Text
-                    style={{
-                      color: selectedOrderId === order.id ? "white" : "#374151",
-                      fontWeight: "bold",
-                    }}
+                    className={`font-bold ${
+                      selectedOrderId === order.id
+                        ? "text-primary-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                    onPress={() => setSelectedOrderId(order.id)}
                   >
                     {order.code || `Order ${order.id.slice(-6)}`}
                   </Text>
-                </TouchableOpacity>
-              ))} */}
+                </View>
+              ))}
             </ScrollView>
           </View>
 
@@ -235,71 +201,34 @@ export default function RiderDashboard() {
             selectedOrderId === order.id ? (
               <View
                 key={order.id}
-                style={{
-                  borderWidth: 2,
-                  borderColor: "#BFDBFE",
-                  backgroundColor: "#EFF6FF",
-                  borderRadius: 16,
-                  padding: 24,
-                  marginBottom: 16,
-                }}
+                className="border-2 border-accent bg-accent/40 rounded-2xl p-6 mb-4"
               >
                 {/* Order Header */}
-                <View style={{ alignItems: "center", marginBottom: 16 }}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        fontWeight: "bold",
-                        color: "#1E3A8A",
-                      }}
-                    >
+                <View className="items-center mb-4">
+                  <View className="flex-row items-center space-x-2">
+                    <Text className="text-xl font-bold text-primary">
                       {order.code || `Order ${order.id.slice(-6)}`}
                     </Text>
-                    <Text
-                      style={{
-                        backgroundColor: getStatusColor(order.status),
-                        color: "white",
-                        borderRadius: 8,
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                        fontSize: 12,
-                      }}
-                    >
+                    <Text className="bg-primary text-primary-foreground rounded px-2 py-1 text-xs font-semibold">
                       {getStatusText(order.status)}
                     </Text>
                   </View>
-                  <Text style={{ color: "#2563EB", fontSize: 14 }}>
+                  <Text className="text-primary mt-1 text-base font-semibold">
                     {order.total && `₦${order.total.toLocaleString()}`}
                   </Text>
                 </View>
                 {/* Pickup Info */}
-                <View
-                  style={{
-                    backgroundColor: "white",
-                    borderRadius: 12,
-                    padding: 16,
-                    marginBottom: 12,
-                  }}
-                >
-                  <Text style={{ fontWeight: "bold" }}>
+                <View className="bg-card rounded-xl p-4 mb-3">
+                  <Text className="font-bold text-foreground">
                     Pickup from {order.shop?.name}
                   </Text>
-                  <Text style={{ color: "#6B7280" }}>
+                  <Text className="text-muted-foreground">
                     {order.shop?.address}
                   </Text>
-                  <Text
-                    style={{ color: "#9CA3AF", fontSize: 12, marginTop: 4 }}
-                  >
+                  <Text className="text-xs text-muted-foreground mt-1">
                     Distance to be calculated
                   </Text>
-                  <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <View className="flex-row space-x-2 mt-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -307,38 +236,39 @@ export default function RiderDashboard() {
                         Linking.openURL(`tel:${order.shop?.phoneNumber}`)
                       }
                     >
-                      <FontAwesome name="phone" size={14} /> Call Store
+                      <View className="flex-row items-center space-x-1">
+                        <Phone />
+                        <Text>Call Store</Text>
+                      </View>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onPress={() =>
                         Linking.openURL(
-                          `https://maps.google.com?daddr=${encodeURIComponent(order.shop?.address || "")}`
+                          `https://maps.google.com?daddr=${encodeURIComponent(
+                            order.shop?.address || ""
+                          )}`
                         )
                       }
                     >
-                      <FontAwesome name="location-arrow" size={14} /> Navigate
+                      <View className="flex-row items-center space-x-1">
+                        <MapPin />
+                        <Text>Navigate</Text>
+                      </View>
                     </Button>
                   </View>
                 </View>
                 {/* Delivery Info */}
-                <View
-                  style={{
-                    backgroundColor: "white",
-                    borderRadius: 12,
-                    padding: 16,
-                    marginBottom: 12,
-                  }}
-                >
-                  <Text style={{ fontWeight: "bold" }}>
+                <View className="bg-card rounded-xl p-4 mb-3">
+                  <Text className="font-bold text-foreground">
                     Deliver to {order.customer?.name || "Customer"}
                   </Text>
-                  <Text style={{ color: "#6B7280" }}>
+                  <Text className="text-muted-foreground">
                     {order.addressName ||
                       `${order.latitude}, ${order.longitude}`}
                   </Text>
-                  <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <View className="flex-row space-x-2 mt-2">
                     {order.customer?.phoneNumber && (
                       <Button
                         variant="outline"
@@ -347,7 +277,10 @@ export default function RiderDashboard() {
                           Linking.openURL(`tel:${order.customer?.phoneNumber}`)
                         }
                       >
-                        <FontAwesome name="phone" size={14} /> Call Customer
+                        <View className="flex-row items-center space-x-1">
+                          <Phone />
+                          <Text>Call Customer</Text>
+                        </View>
                       </Button>
                     )}
                     <Button
@@ -359,44 +292,46 @@ export default function RiderDashboard() {
                         )
                       }
                     >
-                      <FontAwesome name="location-arrow" size={14} /> Navigate
+                      <View className="flex-row items-center space-x-1">
+                        <MapPin />
+                        <Text>Navigate</Text>
+                      </View>
                     </Button>
                   </View>
                 </View>
                 {/* Actions */}
-                <View style={{ gap: 8 }}>
+                <View className="space-y-2">
                   <Button
                     variant="outline"
-                    style={{
-                      width: "100%",
-                      borderColor: "#BFDBFE",
-                    }}
+                    className="w-full border-accent"
+                    onPress={() => router.push(`/${order.id}`)}
                   >
-                    <FontAwesome name="eye" size={16} /> View Details
+                    <View className="flex-row items-center space-x-1">
+                      <Eye />
+                      <Text>View Details</Text>
+                    </View>
                   </Button>
                   {order.status === "RIDER_ASSIGNED" ? (
                     <Button
                       onPress={() => markAsPickedUp(order.id)}
-                      style={{
-                        width: "100%",
-                        backgroundColor: "#3B82F6",
-                      }}
+                      className="w-full bg-primary"
                       disabled={markAsPickedUpMutation.isPending}
                     >
-                      <FontAwesome name="check-circle" size={18} /> Mark as
-                      Picked Up
+                      <View className="flex-row items-center space-x-1">
+                        <CheckCircle2 />
+                        <Text>Mark as Picked Up</Text>
+                      </View>
                     </Button>
                   ) : order.status === "IN_TRANSIT" ? (
                     <Button
                       onPress={() => handleMarkAsDelivered(order.id)}
-                      style={{
-                        width: "100%",
-                        backgroundColor: "#22C55E",
-                      }}
+                      className="w-full bg-secondary"
                       disabled={markAsDeliveredMutation.isPending}
                     >
-                      <FontAwesome name="check-circle" size={18} /> Mark as
-                      Delivered
+                      <View className="flex-row items-center space-x-1">
+                        <CheckCircle2 />
+                        <Text>Mark as Delivered</Text>
+                      </View>
                     </Button>
                   ) : null}
                 </View>
@@ -405,32 +340,12 @@ export default function RiderDashboard() {
           )}
         </View>
       ) : (
-        <View
-          style={{
-            backgroundColor: "#F3F4F6",
-            borderRadius: 16,
-            padding: 32,
-            alignItems: "center",
-            marginTop: 16,
-          }}
-        >
-          <FontAwesome
-            name="clock-o"
-            size={32}
-            color="#6B7280"
-            style={{ marginBottom: 12 }}
-          />
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: "bold",
-              color: "#181C2A",
-              marginBottom: 4,
-            }}
-          >
+        <View className="bg-muted rounded-2xl p-8 items-center mt-4">
+          <Clock size={32} color="#6B7280" style={{ marginBottom: 12 }} />
+          <Text className="text-lg font-bold text-foreground mb-1">
             No Active Orders
           </Text>
-          <Text style={{ color: "#6B7280" }}>
+          <Text className="text-muted-foreground">
             New orders will appear here when assigned by admin
           </Text>
         </View>
@@ -438,28 +353,12 @@ export default function RiderDashboard() {
 
       {/* Confirmation Dialog */}
       <Modal visible={showConfirmationDialog} transparent animationType="fade">
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "#00000088",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: "white",
-              borderRadius: 16,
-              padding: 24,
-              width: "80%",
-            }}
-          >
-            <Text
-              style={{ fontSize: 18, fontWeight: "bold", marginBottom: 12 }}
-            >
+        <View className="flex-1 bg-black/60 justify-center items-center">
+          <View className="bg-card rounded-2xl p-6 w-4/5">
+            <Text className="text-xl font-bold mb-3 text-foreground">
               Confirm Delivery
             </Text>
-            <Text style={{ color: "#6B7280", marginBottom: 12 }}>
+            <Text className="text-muted-foreground mb-3">
               Enter the confirmation code if provided by the customer:
             </Text>
             <Input
@@ -467,12 +366,12 @@ export default function RiderDashboard() {
               onChangeText={setConfirmationCode}
               placeholder="Confirmation code (optional)"
               keyboardType="numeric"
-              style={{ marginBottom: 16 }}
+              className="mb-4"
             />
-            <View style={{ flexDirection: "row", gap: 8 }}>
+            <View className="flex-row space-x-2">
               <Button
                 variant="outline"
-                style={{ flex: 1 }}
+                className="flex-1"
                 onPress={() => {
                   setShowConfirmationDialog(false);
                   setConfirmationCode("");
@@ -483,7 +382,7 @@ export default function RiderDashboard() {
               </Button>
               <Button
                 onPress={confirmDelivery}
-                style={{ flex: 1 }}
+                className="flex-1 bg-primary"
                 disabled={markAsDeliveredMutation.isPending}
               >
                 {markAsDeliveredMutation.isPending ? (

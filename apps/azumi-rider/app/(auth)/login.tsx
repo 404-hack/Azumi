@@ -23,7 +23,7 @@ export default function Login() {
     mutationFn: (otp: string) => api.auth.verifyPhone(phone, otp),
   });
   const handleSendOtp = async () => {
-    setError("");
+    setError("love");
     if (!/^\d{10,15}$/.test(phone)) {
       setError("Please enter a valid phone number");
       return;

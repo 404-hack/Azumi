@@ -20,6 +20,9 @@ export class VendorPaymentService {
         where: eq(orderTable.id, orderId),
         with: {
           shop: {
+            columns: {
+              location: false,
+            },
             with: {
               members: {
                 with: {

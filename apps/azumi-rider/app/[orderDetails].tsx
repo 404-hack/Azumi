@@ -9,53 +9,124 @@ import {
   Store,
   User,
 } from "lucide-react-native";
-import React from "react";
-import { ScrollView, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  ScrollView,
+  TextInput,
+  View,
+  Linking,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Text } from "~/components/ui/text";
-
-const mockOrders = {
-  nzGJev: {
-    id: "nzGJev",
-    status: "DELIVERED",
-    amount: 8210,
-    fee: 7550,
-    items: [
-      {
-        name: "white rice 0909",
-        desc: "vvvvvvvvvvv",
-        qty: 1,
-        price: 200,
-        options: [
-          { label: "second smart phone", price: 100 },
-          { label: "medium size", price: 0 },
-        ],
-      },
-      {
-        name: "white rice",
-        desc: "ccccccccds sdd wwe",
-        qty: 4,
-        price: 400,
-        options: [],
-      },
-    ],
-    created: "Jun 30, 2025, 12:16 PM",
-    pickup: {
-      name: "lawal store",
-      address: "Ikotun, Lagos 102213, Lagos, Nigeria",
-    },
-    delivery: {
-      name: "lawal adebola",
-      address: "Lasu Rd, Epe 106101, Lagos, Nigeria",
-    },
-  },
-};
+import { client } from "~/lib/hono-client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function OrderDetails() {
   const { orderDetails } = useLocalSearchParams();
-  const order = mockOrders[orderDetails as string] || mockOrders.nzGJev;
+  const queryClient = useQueryClient();
+  const [showDeliveryDialog, setShowDeliveryDialog] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState("");
+
+  const {
+    data: order,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["order", orderDetails],
+    queryFn: async () => {
+      const response = await client.rider.orders[":id"].$get({
+        param: { id: orderDetails as string },
+      });
+      if (!response.ok) throw new Error("Order not found");
+      const data = await response.json();
+      return data.data || data.order || data;
+    },
+    enabled: !!orderDetails,
+  });
+
+  const markAsPickedUpMutation = useMutation({
+    mutationFn: async () => {
+      const response = await client.rider.orders[":id"].pickup.$post({
+        param: { id: order.id },
+      });
+      if (!response.ok) throw new Error("Failed to mark as picked up");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", orderDetails] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      refetch();
+    },
+  });
+
+  const markAsDeliveredMutation = useMutation({
+    mutationFn: async () => {
+      const response = await client.rider.orders[":id"].deliver.$post({
+        param: { id: order.id },
+        json: { confirmationCode: parseInt(confirmationCode) },
+      });
+      if (!response.ok) throw new Error("Failed to mark as delivered");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", orderDetails] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      setShowDeliveryDialog(false);
+      setConfirmationCode("");
+      refetch();
+    },
+  });
+
+  function getStatusAction() {
+    if (!order) return null;
+    switch (order.status) {
+      case "RIDER_ASSIGNED":
+        return {
+          label: "Mark as Picked Up",
+          action: () => markAsPickedUpMutation.mutate(),
+          icon: Package,
+          loading: markAsPickedUpMutation.isPending,
+        };
+      case "IN_TRANSIT":
+        return {
+          label: "Mark as Delivered",
+          action: () => setShowDeliveryDialog(true),
+          icon: CheckCircle,
+          loading: markAsDeliveredMutation.isPending,
+        };
+      default:
+        return null;
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-background justify-center items-center">
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text className="mt-4 text-muted-foreground">
+          Loading order details...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+  if (isError || !order) {
+    return (
+      <SafeAreaView className="flex-1 bg-background justify-center items-center">
+        <Text className="text-red-600 font-bold mb-2">
+          {error?.message || "Order not found"}
+        </Text>
+        <Text className="text-muted-foreground">Please try again later.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  const statusAction = getStatusAction();
 
   return (
     <SafeAreaView className="flex-1 bg-background px-4 pt-6">
@@ -71,7 +142,6 @@ export default function OrderDetails() {
             Order #{order.id}
           </Text>
         </View>
-        {/* ...rest of the order details UI as before... */}
         {/* Order Status */}
         <Card className="mb-6">
           <CardHeader className="flex-row justify-between items-center pb-2">
@@ -86,15 +156,39 @@ export default function OrderDetails() {
           <CardContent>
             <Text className="font-bold text-lg mb-1">Total Amount</Text>
             <Text className="font-bold text-2xl mb-2">
-              ₦{order.amount.toLocaleString()}
+              ₦{order.total?.toLocaleString?.() ?? "-"}
             </Text>
             <Text className="font-bold text-lg mb-1">Delivery Fee</Text>
             <Text className="font-bold text-green-600 text-2xl">
-              ₦{order.fee.toLocaleString()}
+              ₦{order.deliveryFee?.toLocaleString?.() ?? "-"}
             </Text>
           </CardContent>
         </Card>
-        {/* ...rest of the UI unchanged... */}
+        {/* Next Action Section */}
+        {statusAction && (
+          <Card className="mb-6">
+            <CardHeader className="flex-row items-center gap-2 pb-2">
+              <statusAction.icon size={20} color="#2563eb" />
+              <CardTitle>Next Action</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Button
+                className="flex-row items-center justify-center gap-2"
+                onPress={statusAction.action}
+                disabled={statusAction.loading}
+              >
+                <statusAction.icon size={18} />
+                <Text>
+                  {statusAction.loading
+                    ? statusAction.label === "Mark as Delivered"
+                      ? "Confirming..."
+                      : "Updating..."
+                    : statusAction.label}
+                </Text>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         {/* Order Summary */}
         <Card className="mb-6">
           <CardHeader className="flex-row items-center gap-2">
@@ -104,11 +198,11 @@ export default function OrderDetails() {
           <CardContent>
             <View className="flex-row justify-between mb-2">
               <Text>Total</Text>
-              <Text>₦{order.amount.toLocaleString()}</Text>
+              <Text>₦{order.total?.toLocaleString?.() ?? "-"}</Text>
             </View>
             <View className="flex-row justify-between">
               <Text>Delivery Fee</Text>
-              <Text>₦{order.fee.toLocaleString()}</Text>
+              <Text>₦{order.deliveryFee?.toLocaleString?.() ?? "-"}</Text>
             </View>
           </CardContent>
         </Card>
@@ -119,32 +213,36 @@ export default function OrderDetails() {
             <CardTitle>Order Items</CardTitle>
           </CardHeader>
           <CardContent>
-            {order.items.map((item, idx) => (
+            {order.items?.map?.((item: any, idx: number) => (
               <View key={idx} className="mb-6 flex-row gap-4">
                 <View className="w-12 h-12 bg-orange-100 rounded-lg items-center justify-center">
                   <Store size={28} color="#f59e42" />
                 </View>
                 <View className="flex-1">
-                  <Text className="font-bold">{item.name}</Text>
+                  <Text className="font-bold">
+                    {item.name || item.menuItem?.name}
+                  </Text>
                   <Text className="text-xs text-muted-foreground mb-1">
-                    {item.desc}
+                    {item.desc || item.menuItem?.description}
                   </Text>
                   <Text className="text-xs mb-1">
-                    Qty: {item.qty}{" "}
-                    <Text className="font-bold">₦{item.price}</Text>
+                    Qty: {item.qty ?? item.quantity}{" "}
+                    <Text className="font-bold">
+                      ₦{item.price ?? item.totalPrice}
+                    </Text>
                   </Text>
-                  {item.options.length > 0 && (
+                  {item.options?.length > 0 && (
                     <View className="ml-2 mt-1">
                       <Text className="text-xs font-semibold mb-1">
                         Options:
                       </Text>
-                      {item.options.map((opt, oidx) => (
+                      {item.options.map((opt: any, oidx: number) => (
                         <View
                           key={oidx}
                           className="flex-row justify-between mb-1"
                         >
                           <Text className="text-xs text-muted-foreground">
-                            {opt.label}
+                            {opt.label || opt.option?.name}
                           </Text>
                           <Text className="text-xs font-bold">
                             {opt.price > 0 ? `₦${opt.price}` : "+₦0"}
@@ -169,7 +267,7 @@ export default function OrderDetails() {
               <View className="w-3 h-3 rounded-full bg-blue-400" />
               <Text>Order Created</Text>
               <Text className="text-xs text-muted-foreground ml-2">
-                {order.created}
+                {order.createdAt}
               </Text>
             </View>
             <View className="flex-row items-center gap-2">
@@ -188,17 +286,21 @@ export default function OrderDetails() {
             <CardTitle>Pickup Location</CardTitle>
           </CardHeader>
           <CardContent>
-            <Text className="font-bold mb-1">{order.pickup.name}</Text>
+            <Text className="font-bold mb-1">{order.shop?.name}</Text>
             <View className="flex-row items-center gap-2 mb-3">
               <MapPin size={14} color="#a3a3a3" />
               <Text className="text-xs text-muted-foreground">
-                {order.pickup.address}
+                {order.shop?.address}
               </Text>
             </View>
             <View className="flex-row gap-2">
               <Button
                 variant="outline"
                 className="flex-1 flex-row items-center justify-center gap-2"
+                onPress={() =>
+                  order.shop?.phoneNumber &&
+                  Linking.openURL(`tel:${order.shop.phoneNumber}`)
+                }
               >
                 <Phone size={16} />
                 <Text>Call</Text>
@@ -206,6 +308,14 @@ export default function OrderDetails() {
               <Button
                 variant="outline"
                 className="flex-1 flex-row items-center justify-center gap-2"
+                onPress={() =>
+                  order.shop?.address &&
+                  Linking.openURL(
+                    `https://maps.google.com?daddr=${encodeURIComponent(
+                      order.shop.address
+                    )}`
+                  )
+                }
               >
                 <MapPin size={16} />
                 <Text>Maps</Text>
@@ -220,17 +330,21 @@ export default function OrderDetails() {
             <CardTitle>Delivery Location</CardTitle>
           </CardHeader>
           <CardContent>
-            <Text className="font-bold mb-1">{order.delivery.name}</Text>
+            <Text className="font-bold mb-1">{order.customer?.name}</Text>
             <View className="flex-row items-center gap-2 mb-3">
               <MapPin size={14} color="#a3a3a3" />
               <Text className="text-xs text-muted-foreground">
-                {order.delivery.address}
+                {order?.addressName}
               </Text>
             </View>
             <View className="flex-row gap-2">
               <Button
                 variant="outline"
                 className="flex-1 flex-row items-center justify-center gap-2"
+                onPress={() =>
+                  order.customer?.phoneNumber &&
+                  Linking.openURL(`tel:${order.customer.phoneNumber}`)
+                }
               >
                 <Phone size={16} />
                 <Text>Call</Text>
@@ -238,6 +352,14 @@ export default function OrderDetails() {
               <Button
                 variant="outline"
                 className="flex-1 flex-row items-center justify-center gap-2"
+                onPress={() =>
+                  order?.addressName &&
+                  Linking.openURL(
+                    `https://maps.google.com?daddr=${encodeURIComponent(
+                      order?.addressName
+                    )}`
+                  )
+                }
               >
                 <MapPin size={16} />
                 <Text>Maps</Text>
@@ -258,7 +380,7 @@ export default function OrderDetails() {
             </View>
             <View className="flex-row justify-between">
               <Text>Created:</Text>
-              <Text>12:16 PM</Text>
+              <Text>{order.createdAt}</Text>
             </View>
           </CardContent>
         </Card>
@@ -271,23 +393,77 @@ export default function OrderDetails() {
           <CardContent>
             <View className="flex-row justify-between mb-2">
               <Text>Order Value</Text>
-              <Text>₦{order.amount.toLocaleString()}</Text>
+              <Text>₦{order.total?.toLocaleString?.() ?? "-"}</Text>
             </View>
             <View className="flex-row justify-between mb-2">
               <Text>Delivery Fee</Text>
               <Text className="text-green-600">
-                ₦{order.fee.toLocaleString()}
+                ₦{order.deliveryFee?.toLocaleString?.() ?? "-"}
               </Text>
             </View>
             <View className="flex-row justify-between">
               <Text className="font-bold">Total Amount:</Text>
               <Text className="font-bold">
-                ₦{order.amount.toLocaleString()}
+                ₦{order.total?.toLocaleString?.() ?? "-"}
               </Text>
             </View>
           </CardContent>
         </Card>
       </ScrollView>
+      {/* Delivery Confirmation Dialog */}
+      <Modal
+        visible={showDeliveryDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeliveryDialog(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center px-4">
+          <View className="w-full max-w-md rounded-lg bg-white p-6">
+            <Text className="mb-4 text-lg font-bold text-foreground">
+              Confirm Delivery
+            </Text>
+            <Text className="mb-4 text-sm text-muted-foreground">
+              Enter the confirmation code provided by the customer to complete
+              the delivery.
+            </Text>
+            <TextInput
+              value={confirmationCode}
+              onChangeText={setConfirmationCode}
+              placeholder="Enter 4-digit code"
+              keyboardType="number-pad"
+              maxLength={4}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-center font-mono text-lg mb-4"
+              autoFocus
+            />
+            <View className="flex-row gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onPress={() => {
+                  setShowDeliveryDialog(false);
+                  setConfirmationCode("");
+                }}
+                disabled={markAsDeliveredMutation.isPending}
+              >
+                <Text>Cancel</Text>
+              </Button>
+              <Button
+                className="flex-1"
+                onPress={markAsDeliveredMutation.mutate}
+                disabled={
+                  markAsDeliveredMutation.isPending || !confirmationCode
+                }
+              >
+                <Text>
+                  {markAsDeliveredMutation.isPending
+                    ? "Confirming..."
+                    : "Confirm Delivery"}
+                </Text>
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
